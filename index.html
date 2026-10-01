@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0b1420">
+<title>山海剑侠</title>
+<link rel="icon" href="data:,">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+html,body{width:100%;height:100%;overflow:hidden;background:#0b1420;touch-action:none;font-family:"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans CJK SC","Source Han Sans SC",sans-serif;color:#fff;overscroll-behavior:none}
+#c{position:fixed;inset:0;width:100%;height:100%;display:block}
+#touch{position:fixed;inset:0;z-index:5;touch-action:none}
+#hud{position:fixed;inset:0;z-index:6;pointer-events:none}
+#hud .btn,#joy{pointer-events:auto}
+:root{--sl:env(safe-area-inset-left,0px);--sr:env(safe-area-inset-right,0px)}
+/* top-left level */
+#tl{position:absolute;left:calc(12px + var(--sl));top:10px;display:flex;align-items:center;gap:8px;padding:5px 12px 5px 5px;background:linear-gradient(90deg,rgba(8,14,26,.72),rgba(8,14,26,.25));border-radius:30px;border:1px solid rgba(255,220,140,.25)}
+.avatar{width:42px;height:42px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#3c4c6c,#111a2c);border:2px solid #d9b45a;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:bold;color:#f4d98a;text-shadow:0 0 6px rgba(255,200,80,.6);font-family:"STKaiti","KaiTi","Kaiti SC",serif}
+#lvl{font-size:13px;color:#f3dfa2;letter-spacing:1px;text-shadow:0 1px 2px #000}
+#lvl b{font-size:19px;color:#ffe9a8;margin-left:2px}
+.xpbar{position:relative;width:150px;height:9px;margin-top:3px;background:rgba(0,0,0,.55);border-radius:5px;overflow:hidden;border:1px solid rgba(255,230,160,.25)}
+.xpbar i{position:absolute;left:0;top:0;bottom:0;width:0;background:linear-gradient(90deg,#b07a1c,#ffd65a,#fff1b8);transition:width .25s}
+.xpbar span{position:absolute;inset:0;font-size:8px;line-height:8px;text-align:center;color:#fff;text-shadow:0 0 2px #000;font-style:normal}
+/* top-right hp */
+#tr{position:absolute;right:calc(12px + var(--sr));top:12px;display:flex;align-items:center;gap:6px}
+.hplabel{font-size:13px;color:#ffb3a8;text-shadow:0 1px 2px #000;font-weight:bold;letter-spacing:1px}
+.hpbar{position:relative;width:210px;height:20px;transform:skewX(-18deg);background:rgba(10,4,6,.7);border:2px solid rgba(255,190,170,.55);border-radius:3px;overflow:hidden;box-shadow:0 0 8px rgba(255,60,60,.25)}
+.hpbar em{position:absolute;left:0;top:0;bottom:0;width:100%;background:#fff3c4;opacity:.75;transition:width .6s .25s}
+.hpbar i{position:absolute;left:0;top:0;bottom:0;width:100%;background:linear-gradient(180deg,#ff9a8a 0%,#ff3b3b 45%,#b3121f 100%);transition:width .12s}
+.hpbar i::after{content:"";position:absolute;inset:0;background:repeating-linear-gradient(90deg,transparent 0 17px,rgba(0,0,0,.35) 17px 19px)}
+.hpbar i::before{content:"";position:absolute;left:0;right:0;top:0;height:40%;background:rgba(255,255,255,.28)}
+.hpbar span{position:absolute;inset:0;transform:skewX(18deg);font-size:12px;line-height:16px;text-align:center;font-weight:bold;text-shadow:0 0 3px #000,0 0 2px #000}
+#hpbar.low{animation:lowhp .8s infinite}
+@keyframes lowhp{50%{box-shadow:0 0 14px rgba(255,0,0,.9)}}
+#area{position:absolute;left:50%;top:10px;transform:translateX(-50%);font-size:13px;color:#e8f4ff;background:rgba(8,14,26,.45);padding:3px 14px;border-radius:12px;text-shadow:0 1px 2px #000;white-space:nowrap}
+/* joystick */
+#joy{position:absolute;width:132px;height:132px;left:calc(5vw + var(--sl));bottom:6vh;border-radius:50%;background:radial-gradient(circle,rgba(255,255,255,.08) 40%,rgba(255,255,255,.16) 70%,rgba(255,255,255,.04) 72%);border:2px solid rgba(255,255,255,.28);pointer-events:none!important}
+#joy::before{content:"";position:absolute;inset:-8px;border-radius:50%;border:1px dashed rgba(255,255,255,.12)}
+#joyknob{position:absolute;left:50%;top:50%;width:56px;height:56px;margin:-28px 0 0 -28px;border-radius:50%;background:radial-gradient(circle at 35% 30%,rgba(255,255,255,.85),rgba(190,210,235,.55));box-shadow:0 2px 8px rgba(0,0,0,.4)}
+#joy.active{border-color:rgba(255,230,160,.6)}
+/* buttons */
+.btn{position:absolute;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-direction:column;touch-action:none;transition:transform .08s}
+.btn.down{transform:scale(.9)}
+.btn svg{width:58%;height:58%;fill:none;stroke:#fff;stroke-width:3;stroke-linecap:round;stroke-linejoin:round;filter:drop-shadow(0 0 3px rgba(150,220,255,.8))}
+.btn .nm{position:absolute;bottom:-17px;font-size:11px;color:#fff;text-shadow:0 1px 2px #000,0 0 3px #000;white-space:nowrap}
+.skill{background:radial-gradient(circle at 40% 35%,rgba(70,100,150,.85),rgba(18,28,50,.88));border:2px solid rgba(160,210,255,.75);box-shadow:0 0 10px rgba(80,160,255,.35),inset 0 0 10px rgba(0,0,0,.5)}
+#btn-s3{border-color:rgba(255,205,110,.9);box-shadow:0 0 12px rgba(255,180,60,.5),inset 0 0 10px rgba(0,0,0,.5)}
+#btn-s3 svg{filter:drop-shadow(0 0 4px rgba(255,200,100,.9))}
+#btn-atk{background:radial-gradient(circle at 40% 35%,rgba(90,110,150,.9),rgba(20,26,44,.92));border:3px solid rgba(255,225,160,.85);box-shadow:0 0 14px rgba(255,210,120,.4),inset 0 0 14px rgba(0,0,0,.6)}
+#btn-atk svg{width:62%;height:62%;stroke-width:2.6}
+#btn-ride{background:radial-gradient(circle at 40% 35%,rgba(60,130,130,.85),rgba(12,38,44,.9));border:2px solid rgba(140,255,230,.7);box-shadow:0 0 10px rgba(80,255,210,.35)}
+#btn-ride.on{border-color:#fff7b0;box-shadow:0 0 18px rgba(255,240,140,.9)}
+.cd{position:absolute;inset:0;border-radius:50%;background:conic-gradient(rgba(0,0,0,.68) calc(var(--p,0)*360deg),transparent 0);display:none;align-items:center;justify-content:center;font-size:20px;font-weight:bold;text-shadow:0 0 4px #000}
+.btn.cooling .cd{display:flex}
+.btn.cooling svg{opacity:.45}
+.btn.lock{filter:grayscale(.8) brightness(.7)}
+.dur{position:absolute;inset:-5px;border-radius:50%;background:conic-gradient(#fff3a0 calc(var(--q,0)*360deg),transparent 0);-webkit-mask:radial-gradient(circle,transparent 62%,#000 64%);mask:radial-gradient(circle,transparent 62%,#000 64%);display:none}
+#btn-ride.on .dur{display:block}
+/* monster labels & numbers */
+#labels{position:fixed;inset:0;z-index:4;pointer-events:none;overflow:hidden}
+.ml{position:absolute;left:0;top:0;transform-origin:50% 100%;text-align:center;white-space:nowrap;will-change:transform}
+.ml .mn{font-size:12px;text-shadow:0 0 3px #000,0 1px 2px #000;font-weight:bold}
+.ml .mn small{font-size:10px;color:#ffe;opacity:.85;margin-left:3px}
+.ml .mb{width:70px;height:6px;margin:2px auto 0;background:rgba(0,0,0,.65);border:1px solid rgba(255,255,255,.5);border-radius:2px;overflow:hidden}
+.ml .mb i{display:block;height:100%;background:linear-gradient(180deg,#ff8a6a,#d8261e)}
+.ml.boss .mb{width:120px;height:8px}
+.ml.boss .mn{font-size:14px;color:#ffcf6a}
+.al{position:absolute;left:0;top:0;text-align:center;white-space:nowrap;font-size:12px;text-shadow:0 0 3px #000,0 0 6px #000;will-change:transform}
+.al b{display:block;font-size:15px;font-family:"STKaiti","KaiTi","Kaiti SC",serif}
+.dn{position:absolute;left:0;top:0;font-weight:900;font-size:20px;color:#fff;text-shadow:0 0 3px #000,0 2px 3px #000;white-space:nowrap;will-change:transform,opacity;font-style:italic}
+.dn.crit{color:#ffd23a;font-size:28px}
+.dn.big{color:#ffb020;font-size:34px}
+.dn.hurt{color:#ff4a4a;font-size:22px}
+.dn.xp{color:#9effa0;font-size:15px;font-style:normal}
+.dn.heal{color:#7dff8a}
+/* overlays */
+#vign{position:fixed;inset:0;z-index:3;pointer-events:none;background:radial-gradient(ellipse at center,transparent 50%,rgba(220,0,0,.65) 100%);opacity:0;transition:opacity .15s}
+#flash{position:fixed;inset:0;z-index:3;pointer-events:none;background:#fff;opacity:0}
+#banner{position:fixed;left:50%;top:30%;transform:translate(-50%,-50%);z-index:8;pointer-events:none;text-align:center;opacity:0;transition:opacity .4s}
+#banner b{display:block;font-size:28px;letter-spacing:6px;color:#fff1c4;font-family:"STKaiti","KaiTi","Kaiti SC",serif;text-shadow:0 0 12px rgba(255,180,60,.9),0 2px 4px #000}
+#banner span{font-size:14px;color:#e8f0ff;text-shadow:0 1px 3px #000}
+#toast{position:fixed;left:50%;top:60%;transform:translateX(-50%);z-index:8;pointer-events:none;font-size:14px;background:rgba(0,0,0,.55);padding:4px 14px;border-radius:14px;opacity:0;transition:opacity .3s}
+.ov{position:fixed;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;flex-direction:column;text-align:center}
+#start{background:radial-gradient(ellipse at center,rgba(10,20,36,.35),rgba(5,10,20,.85))}
+#start h1{font-size:54px;letter-spacing:12px;font-family:"STKaiti","KaiTi","Kaiti SC",serif;color:#fff2c8;text-shadow:0 0 18px rgba(255,190,80,.8),0 3px 6px #000}
+#start .sub{margin-top:4px;font-size:14px;color:#cfe0f5;letter-spacing:3px}
+#start .help{margin-top:14px;font-size:12px;line-height:20px;color:#d9e4f2;background:rgba(0,0,0,.35);padding:8px 16px;border-radius:10px}
+#go{margin-top:16px;font-size:20px;letter-spacing:6px;padding:10px 40px;border-radius:30px;border:2px solid #f3d27a;background:linear-gradient(180deg,#b8862a,#6f4a12);color:#fff;font-weight:bold;box-shadow:0 0 16px rgba(255,200,90,.6);font-family:inherit}
+#dead{display:none;background:rgba(60,0,0,.55)}
+#dead b{font-size:40px;letter-spacing:8px;font-family:"STKaiti","KaiTi","Kaiti SC",serif;color:#ffd0c8;text-shadow:0 0 12px #f00}
+#dead span{margin-top:8px;font-size:15px}
+#rotate{display:none;background:#0b1420;z-index:30}
+#rotate .ph{width:46px;height:80px;border:3px solid #fff;border-radius:8px;animation:rot 1.6s infinite}
+@keyframes rot{0%,20%{transform:rotate(0)}60%,100%{transform:rotate(-90deg)}}
+#rotate p{margin-top:24px;font-size:16px}
+@media (orientation:portrait){#rotate{display:flex}}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="labels"></div>
+<div id="vign"></div><div id="flash"></div>
+<div id="touch"></div>
+<div id="hud">
+  <div id="tl"><div class="avatar">剑</div><div><div id="lvl">等级 Lv<b id="lvnum">1</b></div><div class="xpbar"><i id="xpfill"></i><span id="xptxt">0/45</span></div></div></div>
+  <div id="area">招摇山麓</div>
+  <div id="tr"><div class="hplabel">气血</div><div class="hpbar" id="hpbar"><em id="hpghost"></em><i id="hpfill"></i><span id="hptxt">120/120</span></div></div>
+  <div id="joy"><div id="joyknob"></div></div>
+  <div id="btn-ride" class="btn"><div class="dur"></div>
+    <svg viewBox="0 0 64 64"><path d="M8 34 L46 34 L56 30 L46 26 L8 26 Z"/><path d="M14 22 L14 38"/><path d="M4 30 L14 30"/><path d="M10 46 C18 40 26 50 34 44 C42 38 50 48 58 42"/><path d="M14 54 C22 49 30 57 38 52"/></svg>
+    <div class="cd"></div><div class="nm">御剑</div></div>
+  <div id="btn-atk" class="btn">
+    <svg viewBox="0 0 64 64"><path d="M50 8 L56 8 L56 14 L25 45 L19 39 Z"/><path d="M26 42 L48 20" stroke-width="1.5"/><path d="M13 35 L29 51"/><path d="M20 44 L11 53"/><circle cx="9" cy="55" r="2.5"/></svg>
+    <div class="cd"></div></div>
+  <div id="btn-s1" class="btn skill">
+    <svg viewBox="0 0 64 64"><path d="M6 42 Q32 8 58 42"/><path d="M12 48 Q32 24 52 48" stroke-width="2"/><path d="M40 30 L56 14 L58 16 L42 32"/><path d="M38 28 L44 34"/></svg>
+    <div class="cd"></div><div class="nm">斩马</div></div>
+  <div id="btn-s2" class="btn skill">
+    <svg viewBox="0 0 64 64"><path d="M22 28 L50 28 L60 32 L50 36 L22 36 Z"/><path d="M22 22 L22 42"/><path d="M14 32 L22 32"/><path d="M4 22 L14 22"/><path d="M2 32 L9 32"/><path d="M4 42 L14 42"/></svg>
+    <div class="cd"></div><div class="nm">飞剑</div></div>
+  <div id="btn-s3" class="btn skill">
+    <svg viewBox="0 0 64 64"><path d="M28 4 L36 4 L36 38 L32 48 L28 38 Z"/><path d="M20 12 L44 12"/><path d="M32 4 L32 0"/><path d="M14 52 L22 46"/><path d="M50 52 L42 46"/><path d="M10 60 L54 60"/><path d="M32 52 L32 58"/></svg>
+    <div class="cd"></div><div class="nm">锋芒毕露</div></div>
+</div>
+<div id="banner"><b></b><span></span></div>
+<div id="toast"></div>
+<div id="start" class="ov">
+  <h1>山海剑侠</h1>
+  <div class="sub">一剑在手 · 斩尽山海异兽</div>
+  <div class="help">左下摇杆：移动　|　右侧屏幕滑动：转动视角<br>右下：普攻 / 斩马 / 飞剑 / 锋芒毕露　|　下方中间：御剑飞行<br>越往远处，异兽越强 · 击杀异兽获得经验，最高 100 级</div>
+  <button id="go">开始游戏</button>
+</div>
+<div id="dead" class="ov"><b>你已阵亡</b><span id="deadtxt">3 秒后于招摇山麓复活</span></div>
+<div id="rotate" class="ov"><div class="ph"></div><p>请将手机横屏游玩</p></div>
+<script src="three.min.js"></script>
+<script src="game.js"></script>
+</body>
+</html>
