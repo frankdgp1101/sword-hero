@@ -6,6 +6,9 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#0b0a18">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <title>剑仙之道</title>
 <link rel="icon" href="data:,">
 <style>
@@ -163,10 +166,10 @@ html,body{width:100%;height:100%;overflow:hidden;background:#0b0a18;touch-action
 #cont,#newsave{display:none}
 #start #newsave{border-color:#9aa8c8;background:linear-gradient(180deg,#46506a,#22283a);box-shadow:none;margin-left:12px;font-size:17px;padding:9px 26px}
 #slots{display:none;z-index:24;background:rgba(4,2,12,.8)}
-.spanel{width:min(560px,92vw);max-height:92vh;display:flex;flex-direction:column;padding:12px 18px 14px}
+.spanel{width:min(600px,94vw);max-height:92vh;max-height:calc(100dvh - 16px);display:flex;flex-direction:column;padding:12px 18px 14px}
 .spanel h3 small{font-size:13px;color:#b8b0cc;letter-spacing:1px;font-family:sans-serif}
 #slotlist{margin-top:8px;overflow-y:auto;flex:1;min-height:0;display:flex;flex-direction:column;gap:6px;-webkit-overflow-scrolling:touch;touch-action:pan-y}
-.slot{display:flex;align-items:center;gap:10px;padding:6px 10px;border-radius:10px;background:rgba(255,255,255,.05);border:1px solid rgba(255,215,140,.22);text-align:left}
+.slot{flex:none;cursor:pointer;touch-action:pan-y;-webkit-tap-highlight-color:rgba(255,215,140,.15);display:flex;align-items:center;gap:10px;padding:6px 10px;min-height:48px;box-sizing:border-box;border-radius:10px;background:rgba(255,255,255,.05);border:1px solid rgba(255,215,140,.22);text-align:left}
 .slot.last{border-color:rgba(255,215,140,.75);background:rgba(255,200,90,.1)}
 .slot .sav{width:34px;height:34px;flex:none;border-radius:50%;border:2px solid #d9b45a;display:flex;align-items:center;justify-content:center;font-family:var(--kai);color:#f4d98a;background:radial-gradient(circle at 35% 30%,#3c4c6c,#111a2c)}
 .slot .sinfo{flex:1;min-width:0}
@@ -174,7 +177,10 @@ html,body{width:100%;height:100%;overflow:hidden;background:#0b0a18;touch-action
 .slot .slv{margin-left:8px;font-size:13px;color:#ffe08a}
 .slot em{margin-left:8px;font-size:10px;font-style:normal;color:#1a1000;background:#ffd36a;border-radius:6px;padding:0 5px}
 .slot .smeta{font-size:11px;color:#b8b0cc;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.slot .gbtn{margin:0;padding:5px 14px;font-size:14px;letter-spacing:2px;flex:none}
+.slot .gbtn{margin:0;padding:0 16px;min-height:40px;min-width:64px;font-size:15px;letter-spacing:2px;flex:none;touch-action:manipulation}
+.slot:active{background:rgba(255,215,140,.14)}
+#slots .gbtn,#confirm .gbtn,#dead .gbtn,#win .gbtn{touch-action:manipulation}
+@media (max-height:420px){.spanel{padding:8px 14px 10px}.spanel h3{margin:0;font-size:18px}#slotlist{margin-top:6px;gap:5px}#slotback{margin-top:8px;padding:6px 22px}}
 #slotback{margin:10px auto 0;padding:5px 26px;font-size:14px}
 #nmerr{min-height:18px;margin-top:6px;font-size:12px;color:#ff9a8a}
 #saveinfo.warn{color:#ff9a8a}
@@ -205,7 +211,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:#0b0a18;touch-action
 #start h1{font-size:60px;letter-spacing:14px;font-family:var(--kai);color:#fff2c8;text-shadow:0 0 18px rgba(200,140,255,.8),0 3px 6px #000}
 #start .sub{margin-top:2px;font-size:14px;color:#e0d4f5;letter-spacing:4px}
 #start .help{margin-top:12px;font-size:12px;line-height:19px;color:#e2dcf2;background:rgba(0,0,0,.38);padding:7px 16px;border-radius:10px}
-#go,#cont,#newsave{margin-top:14px;font-size:20px;letter-spacing:6px;padding:9px 40px;border-radius:30px;border:2px solid #f3d27a;background:linear-gradient(180deg,#b8862a,#6f4a12);color:#fff;font-weight:bold;box-shadow:0 0 16px rgba(255,200,90,.6);font-family:inherit}
+#go,#cont,#newsave{touch-action:manipulation;-webkit-tap-highlight-color:transparent;margin-top:14px;font-size:20px;letter-spacing:6px;padding:9px 40px;border-radius:30px;border:2px solid #f3d27a;background:linear-gradient(180deg,#b8862a,#6f4a12);color:#fff;font-weight:bold;box-shadow:0 0 16px rgba(255,200,90,.6);font-family:inherit}
 #story{display:none;background:#000;z-index:22;cursor:pointer}
 #storytxt{max-width:80%;font-family:var(--kai);font-size:24px;line-height:42px;letter-spacing:4px;color:#efe6d0;text-shadow:0 0 10px rgba(255,220,160,.3)}
 #storynext{margin-top:30px;font-size:13px;color:#a89c84;letter-spacing:3px;animation:wp 1s infinite alternate}
@@ -232,6 +238,55 @@ html,body{width:100%;height:100%;overflow:hidden;background:#0b0a18;touch-action
 @keyframes rot{0%,20%{transform:rotate(0)}60%,100%{transform:rotate(-90deg)}}
 #rotate p{margin-top:24px;font-size:16px}
 @media (orientation:portrait){#rotate{display:flex}}
+
+/* ===== v4 chapter 1 ===== */
+#optxt{white-space:pre-line}
+.m-ch1:not(.fight) #boss{display:none}
+.m-ch1 #boss{width:210px}
+.m-ch1 .bbar i{background:linear-gradient(180deg,#ffd0a0,#d0602a)}
+.m-ch1 #skip{display:none!important}
+#btn-ride.locked{filter:grayscale(1) brightness(.5)}
+#btn-ride.locked::after{content:"🔒";position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:calc(18px*var(--u));background:rgba(0,0,0,.45);border-radius:50%}
+.npcname{position:absolute;left:0;top:0;white-space:nowrap;font-family:var(--kai);font-size:calc(13px*var(--u));letter-spacing:2px;color:#fff6dc;text-shadow:0 0 4px #000,0 1px 2px #000;padding:0 6px;border-radius:8px;background:rgba(10,14,30,.35);will-change:transform}
+.npcname small{font-family:sans-serif;font-size:.75em;color:#ffd890;margin-left:4px;letter-spacing:0}
+.npcname.foe{color:#ffd0c0}
+.npcname.ally{color:#c8fff4}
+#obj{display:none;position:absolute;left:calc(14px + var(--sl));top:62px;padding:4px 12px 4px 8px;border-radius:14px;background:linear-gradient(90deg,rgba(8,10,26,.72),rgba(8,10,26,.15));border-left:3px solid #ffd36a;font-size:calc(13px*var(--u));color:#fff3cf;text-shadow:0 1px 2px #000;align-items:center;gap:8px;max-width:46vw}
+#obj b{color:#ffd36a;font-weight:normal;font-family:var(--kai);letter-spacing:1px}
+#objarr{width:22px;height:22px;flex:none;display:flex;align-items:center;justify-content:center;font-size:16px;color:#ffd36a;text-shadow:0 0 6px #ffb000}
+#objdist{font-size:11px;color:#d8d0b8;margin-left:4px}
+.m-ch1 #obj.on{display:flex}
+#edgearr{display:none;position:fixed;z-index:6;left:0;top:0;width:34px;height:34px;margin:-17px 0 0 -17px;pointer-events:none;color:#ffd36a;font-size:28px;line-height:34px;text-align:center;text-shadow:0 0 8px #ffa000,0 0 3px #000}
+#btn-use{display:none;position:absolute;border-radius:24px;padding:0 18px;height:calc(42px*var(--u));align-items:center;justify-content:center;font-size:calc(16px*var(--u));letter-spacing:3px;font-family:var(--kai);color:#fff;background:linear-gradient(180deg,rgba(190,140,50,.92),rgba(110,70,20,.92));border:2px solid #ffe29a;box-shadow:0 0 14px rgba(255,200,90,.6);pointer-events:auto;touch-action:none;animation:usep 1.2s infinite alternate}
+#btn-use.on{display:flex}
+@keyframes usep{to{box-shadow:0 0 22px rgba(255,220,120,.95)}}
+#dlg{display:none;position:fixed;inset:0;z-index:17;cursor:pointer}
+#dlgbox{position:absolute;left:50%;bottom:calc(10px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);width:min(760px,88vw);min-height:96px;padding:12px 22px 16px;border-radius:12px;background:linear-gradient(180deg,rgba(12,14,30,.88),rgba(8,8,20,.94));border:1px solid rgba(255,220,150,.55);box-shadow:0 0 24px rgba(0,0,0,.5);text-align:left}
+#dlgname{position:absolute;left:18px;top:-15px;padding:2px 14px;border-radius:10px;background:linear-gradient(180deg,#c8963a,#6f4a12);border:1px solid #ffe29a;font-family:var(--kai);font-size:16px;letter-spacing:3px;color:#fff}
+#dlgname.you{background:linear-gradient(180deg,#4a6a9a,#22344e);border-color:#bfe0ff}
+#dlgname.foe{background:linear-gradient(180deg,#6a3a8a,#2a1040);border-color:#e0b0ff}
+#dlgtxt{font-family:var(--kai);font-size:calc(17px*var(--u));line-height:1.65;color:#f6efdc;letter-spacing:1px;margin-top:6px;white-space:pre-line}
+#dlgtxt.narr{text-align:center;color:#e8dcc0;font-style:normal}
+#dlgnext{position:absolute;right:16px;bottom:6px;font-size:12px;color:#d9b45a;animation:wp .6s infinite alternate}
+.talking #hud{opacity:0}
+.talking .bar{height:9%}
+#chend{display:none;background:#000;z-index:26}
+#chendtxt{font-family:var(--kai);font-size:calc(40px*var(--u));letter-spacing:16px;color:#f2e6c8;opacity:0;transition:opacity 1.6s;text-shadow:0 0 18px rgba(255,210,140,.35)}
+#chendsub{margin-top:14px;font-size:14px;letter-spacing:4px;color:#a89c84;opacity:0;transition:opacity 1.6s}
+  .dn.ally{color:#8ff0e0;font-size:16px}
+.dn.allyh{color:#ffb0a0;font-size:14px;font-style:normal}
+#bigtxt{position:fixed;inset:0;z-index:16;display:none;align-items:center;justify-content:center;flex-direction:column;background:#000;opacity:0;transition:opacity .8s;pointer-events:none}
+#bigtxt b{font-family:var(--kai);font-size:calc(32px*var(--u));letter-spacing:12px;color:#efe4c8;font-weight:normal}
+#bigtxt span{margin-top:10px;font-family:var(--kai);font-size:calc(16px*var(--u));letter-spacing:3px;color:#cfc2a4;max-width:80vw;line-height:1.8;white-space:pre-line}
+#lvup{position:fixed;left:50%;top:30%;transform:translate(-50%,-50%);z-index:9;pointer-events:none;text-align:center;opacity:0}
+#lvup b{display:block;font-family:var(--kai);font-size:calc(46px*var(--u));letter-spacing:10px;background:linear-gradient(180deg,#fffbe8,#ffd36a 55%,#c07a18);-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 0 12px rgba(255,190,80,.95)) drop-shadow(0 3px 3px rgba(0,0,0,.8))}
+#lvup span{font-size:14px;color:#fff3cf;text-shadow:0 1px 3px #000;letter-spacing:2px}
+#lvup.show{animation:lvu 2.8s ease-out forwards}
+@keyframes lvu{0%{opacity:0;transform:translate(-50%,-30%) scale(1.6)}12%{opacity:1;transform:translate(-50%,-50%) scale(1)}80%{opacity:1}100%{opacity:0;transform:translate(-50%,-62%)}}
+#learn{position:fixed;left:50%;top:40%;transform:translate(-50%,-50%);z-index:9;pointer-events:none;text-align:center;opacity:0}
+#learn b{display:block;font-family:var(--kai);font-size:calc(40px*var(--u));letter-spacing:8px;color:#e8fbff;text-shadow:0 0 16px #39b8ff,0 0 4px #fff,0 3px 4px #000}
+#learn span{font-size:14px;color:#dff6ff;text-shadow:0 1px 3px #000}
+#learn.show{animation:lvu 3.2s ease-out forwards}
 </style>
 </head>
 <body>
@@ -268,6 +323,8 @@ html,body{width:100%;height:100%;overflow:hidden;background:#0b0a18;touch-action
   <div id="btn-block" class="btn skill">
     <svg viewBox="0 0 64 64"><path d="M6 30 L46 30 L58 33 L46 36 L6 36 Z"/><path d="M14 22 L14 44"/><path d="M20 14 C28 8 36 8 44 14" stroke-width="2.2"/><path d="M20 52 C28 58 36 58 44 52" stroke-width="2.2"/></svg>
     <div class="cd"></div><div class="nm">格挡</div></div>
+  <div id="obj"><div id="objarr">➤</div><div><b id="objtxt"></b><span id="objdist"></span></div></div>
+  <div id="btn-use">查看</div>
 </div>
 <div id="hl"></div><div id="swipe"></div><div id="blockcue">格挡！</div><div id="stealthtxt"></div>
 <div id="banner"><b></b><span></span></div>
@@ -276,23 +333,27 @@ html,body{width:100%;height:100%;overflow:hidden;background:#0b0a18;touch-action
 <div id="blockfx">格挡成功</div><div id="breakfx">破防</div>
 <div class="bar" id="bar1"></div><div class="bar" id="bar2"></div><div id="sub"></div>
 <div id="fade"></div>
+<div id="edgearr">➤</div><div id="lvup"><b></b><span></span></div><div id="learn"><b></b><span></span></div>
+<div id="bigtxt"><b></b><span></span></div>
+<div id="dlg"><div id="dlgbox"><div id="dlgname"></div><div id="dlgtxt"></div><div id="dlgnext">▼ 轻触继续</div></div></div>
+<div id="chend" class="ov"><div id="chendtxt">第一章 结束</div><div id="chendsub">剑有灵，人亦有心</div></div>
 <div id="start" class="ov">
   <h1>剑仙之道</h1>
   <div class="sub">云海问剑 · 一剑破山海</div>
   <div class="help">左下摇杆：移动　|　右侧滑动：转动视角　|　摇杆上方：酒葫芦（饮酒回气血）<br>右下：普攻 / 斩马 / 飞剑 / 格挡（弹反）　|　左侧十字：五大神通　|　下方中间：御剑<br>首领拥有<b style="color:#ffd86a">韧性</b>：削空即「破防」——硬直 7–10 秒并受全额伤害，之后 5 秒内回满；斩马与弹反削韧最快</div>
   <div id="saveinfo"></div>
   <div><button id="go">开始游戏</button><button id="cont">继续游戏</button><button id="newsave">新建存档</button></div>
-  <div class="ver">v3</div>
+  <div class="ver">v4 · 第一章</div>
 </div>
 <div id="opening" class="ov"><div id="optxt"></div><div id="opdots"></div><div id="ophint">轻触屏幕继续</div><button id="opskip">跳过 ›</button></div>
 <div id="story" class="ov"><div id="storytxt"></div><div id="storynext">— 点击继续 —</div></div>
 <div id="namebox" class="ov"><div class="panel"><h3>你的剑修之名</h3><p>从今日起，由你接过剑仙的使命</p><input id="nm" maxlength="8" value="无名剑修" autocomplete="off"><br><div id="nmerr"></div><button class="gbtn" id="nmok">踏上剑途</button></div></div>
-<div id="dead" class="ov"><b>你已陨落</b><span>狰的攻势凶猛——留意红色预警，闪避或格挡弹反；用斩马削空韧性令其破防，气血不足时饮酒。</span><button class="gbtn" id="retry">再次挑战</button></div>
+<div id="dead" class="ov"><b>你已陨落</b><span>狰的攻势凶猛——留意红色预警，闪避或格挡弹反；用斩马削空韧性令其破防，气血不足时饮酒。</span><div><button class="gbtn" id="retry">再次挑战</button><button class="gbtn alt" id="deadtitle">返回标题</button></div></div>
 <div id="win" class="ov"><div class="big">胜利</div><div id="wintxt"></div><div id="winstats"></div><div class="soon">第一章 · 敬请期待</div><div><button class="gbtn" id="again">再战一次</button><button class="gbtn alt" id="totitle">返回标题</button></div></div>
 <div id="slots" class="ov"><div class="panel spanel"><h3>选择存档 <small id="slotcnt"></small></h3><div id="slotlist"></div><button class="gbtn alt" id="slotback">返回</button></div></div>
 <div id="confirm" class="ov"><div class="panel"><h3 id="cfmtitle">确认</h3><p id="cfmtxt"></p><button class="gbtn" id="cfmyes">确定</button><button class="gbtn alt" id="cfmno">取消</button></div></div>
 <div id="rotate" class="ov"><div class="ph"></div><p>请将手机横屏游玩</p></div>
-<script src="three.min.js"></script>
-<script src="game.js"></script>
+<script src="three.min.js?v=d58939fb"></script>
+<script src="game.js?v=b193dde602"></script>
 </body>
 </html>

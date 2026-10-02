@@ -779,7 +779,7 @@ const TUNE = {
 };
 const ALL_ST = ['dahe', 'wanjian', 'jianyu', 'yinshen', 'hudun'];
 const player = { x: 0, z: 7, yaw: 0, pitch: -.04, lv: 90, xp: 0, hp: 1980, maxHp: 1980, atk: 279, name: '仙尊', dead: false, riding: false, rideT: 0, lastHurt: -99, moveAmt: 0, bob: 0,
-  wine: 2, wineMax: 2, shield: 0, shieldMax: 200, blockT: 0, stealthT: 0, ambushT: 0, unlocked: ALL_ST.slice(), minHpFrac: 0, dashT: 0, dashV: V3(), slow: 1 };
+  wine: 2, wineMax: 2, shield: 0, shieldMax: 200, blockT: 0, stealthT: 0, ambushT: 0, unlocked: ALL_ST.slice(), rideOK: true, minHpFrac: 0, dashT: 0, dashV: V3(), slow: 1 };
 const hasSt = id => player.unlocked.includes(id);
 let rideTilt = 0, camY = 1.7, gameT = 0, state = 'title', mode = 'tutorial', shake = 0, yawVel = 0, hudDirty = true, camRoll = 0, camDrop = 0, fovKick = 0, timeScale = 1;
 const needXp = l => Math.round(30 * Math.pow(l, 1.5) + 40);
@@ -1329,6 +1329,9 @@ function tryCast(id) {
   if (!canAct()) return false;
   const s = SK[id];
   if (s.st && !hasSt(id)) { toast('神通尚未领悟'); jyTarget = null; return false; }
+  if (id === 'ride' && !player.rideOK) { toast('御剑之术尚未习得'); return false; }
+  if (id === 'ride' && !player.riding && typeof ch1 !== 'undefined' && mode === 'ch1' && ch1.noRide) { toast('此处不可御剑'); return false; }
+  if (id === 'ride' && (VM.act === 'ridein' || VM.act === 'rideout')) return false;
   if (wj.active) return false;
   if (id === 'hudun' && player.shield > 0) { toast('护盾生效中'); return false; }
   if (player.riding && id !== 'ride') { endRide(); pendingSkill = id; return false; }
@@ -1633,7 +1636,7 @@ const zheng = makeZheng(); zheng.holder.visible = false;
 let valleyT = 0, fightStart = 0;
 function placePlayer(sp) { player.x = sp.x; player.z = sp.z; player.yaw = sp.yaw; player.pitch = -.04; camY = H(sp.x, sp.z) + 1.7; }
 function setupLiBai() {
-  player.name = '仙尊'; player.tutChar = true; player.lv = 90; player.xp = 0; recalc(); player.hp = player.maxHp; player.wine = 2; player.wineMax = 2; player.unlocked = ALL_ST.slice(); player.minHpFrac = .3; player.dead = false;
+  player.name = '仙尊'; player.tutChar = true; player.lv = 90; player.xp = 0; recalc(); player.hp = player.maxHp; player.wine = 2; player.wineMax = 2; player.unlocked = ALL_ST.slice(); player.rideOK = true; player.minHpFrac = .3; player.dead = false;
   setOutfit(0xeef1f6, 0x5fa6d8); $('avatar').textContent = '仙'; hudDirty = true;
 }
 /* ===== tutorial ===== */
@@ -1779,28 +1782,28 @@ function saveGame() {
   if (player.tutChar || !activeSlot) return false;
   const st = readStore(); let d = st.slots.find(x => x.id === activeSlot);
   if (!d) { if (st.slots.length >= MAX_SLOTS) return false; d = { id: activeSlot }; st.slots.push(d); }
-  Object.assign(d, { v: 3, name: player.name, lv: player.lv, xp: player.xp, stage: 'valley', unlocked: player.unlocked.slice(), wine: player.wine, wineMax: player.wineMax, wins: player.wins || 0, time: Date.now() });
+  Object.assign(d, { v: 3, name: player.name, lv: player.lv, xp: player.xp, stage: mode === 'valley' ? 'valley' : 'ch1', ch: ch1.cp, rideOK: !!player.rideOK, unlocked: player.unlocked.slice(), wine: player.wine, wineMax: player.wineMax, wins: player.wins || 0, time: Date.now() });
   st.last = activeSlot; return writeStore(st);
 }
 function loadSave(id) { const st = readStore(); return st.slots.find(d => d.id === (id || st.last)) || null; }
 function deleteSave(id) { const st = readStore(); st.slots = st.slots.filter(d => d.id !== id); if (st.last === id) st.last = null; writeStore(st); }
 function wipeSave() { try { localStorage.removeItem(SAVES_KEY); localStorage.removeItem(OLD_SAVE_KEY); } catch (e) { } }
-function applySave(d) { player.tutChar = false; activeSlot = d.id; player.name = d.name; player.lv = clamp(d.lv | 0, 1, 100); player.xp = Math.max(0, d.xp | 0); player.unlocked = Array.isArray(d.unlocked) ? d.unlocked.filter(x => ALL_ST.includes(x)) : []; player.wineMax = Math.max(1, d.wineMax | 0 || 2); player.wine = clamp(d.wine ?? player.wineMax, 0, player.wineMax); player.wins = d.wins | 0; }
+function applySave(d) { player.tutChar = false; activeSlot = d.id; player.name = d.name; player.lv = clamp(d.lv | 0, 1, 100); player.xp = Math.max(0, d.xp | 0); player.unlocked = Array.isArray(d.unlocked) ? d.unlocked.filter(x => ALL_ST.includes(x)) : []; player.wineMax = Math.max(1, d.wineMax | 0 || 2); player.wine = clamp(d.wine ?? player.wineMax, 0, player.wineMax); player.wins = d.wins | 0; player.rideOK = !!d.rideOK; ch1.cp = d.ch || 'intro'; }
 function newCareer(name) {
   player.tutChar = false; activeSlot = 's' + Date.now().toString(36) + Math.floor(Math.random() * 1e4).toString(36);
   player.name = name || '无名剑修'; player.lv = 1; player.xp = 0; player.unlocked = []; player.wineMax = 2; player.wine = 2; player.wins = 0;
-  saveGame(); startValley();
+  player.rideOK = false; ch1.cp = 'intro'; saveGame(); startCh1('intro');
 }
-const STAGE_CN = { valley: '第一战 · 幽谷' };
+const STAGE_CN = { valley: '第一章 · 学院' };
 function fmtTime(t) { if (!t) return '—'; const d = new Date(t), p = n => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`; }
 function escHtml(s) { return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 function showSlots() {
   const st = readStore(), list = listSaves(); if (!list.length) { $('slots').style.display = 'none'; refreshTitle(); return; }
   $('slotcnt').textContent = `${list.length}/${MAX_SLOTS}`;
-  $('slotlist').innerHTML = list.map(d => `<div class="slot${d.id === st.last ? ' last' : ''}" data-id="${escHtml(d.id)}"><div class="sav">剑</div><div class="sinfo"><b>${escHtml(d.name)}</b><span class="slv">Lv${d.lv | 0}</span>${d.id === st.last ? '<em>上次游玩</em>' : ''}<div class="smeta">${STAGE_CN[d.stage] || d.stage} · 最近游玩 ${fmtTime(d.time)}</div></div><button class="gbtn sgo" data-act="go">进入</button><button class="gbtn alt sdel" data-act="del">删除</button></div>`).join('');
+  $('slotlist').innerHTML = list.map(d => `<div class="slot${d.id === st.last ? ' last' : ''}" data-id="${escHtml(d.id)}"><div class="sav">剑</div><div class="sinfo"><b>${escHtml(d.name)}</b><span class="slv">Lv${d.lv | 0}</span>${d.id === st.last ? '<em>上次游玩</em>' : ''}<div class="smeta">${slotStageTxt(d)} · 最近游玩 ${fmtTime(d.time)}</div></div><button class="gbtn sgo" data-act="go">进入</button><button class="gbtn alt sdel" data-act="del">删除</button></div>`).join('');
   resetInputs('slots'); $('slots').style.display = 'flex';
 }
-function enterSlot(id) { const d = loadSave(id); if (!d) { showSlots(); return; } const st = readStore(); st.last = id; writeStore(st); $('slots').style.display = 'none'; initAudio(); $('start').style.display = 'none'; goFull(); applySave(d); startValley({ keepWine: true }); }
+function enterSlot(id) { const d = loadSave(id); if (!d) { showSlots(); return; } const st = readStore(); st.last = id; writeStore(st); $('slots').style.display = 'none'; initAudio(); $('start').style.display = 'none'; goFull(); applySave(d); resumeCh1(d); }
 let confirmYes = null;
 function showConfirm(title, txt, onYes) { $('cfmtitle').textContent = title; $('cfmtxt').textContent = txt; confirmYes = onYes; resetInputs('confirm'); $('confirm').style.display = 'flex'; }
 /* ===== valley fight ===== */
@@ -1811,7 +1814,7 @@ function startValley(opt = {}) {
   mode = 'valley'; state = 'play'; setWorld('valley'); clearFx(); clearProj(); resetSkills();
   $('c').style.filter = ''; camDrop = 0; camRoll = 0; $('vign').style.opacity = 0; timeScale = 1; if (lostSword) { scene.remove(lostSword.g); lostSword = null; }
   if (typeof opt === 'string') { player.name = opt; player.lv = 1; player.xp = 0; player.unlocked = []; player.wineMax = 2; opt = {}; }
-  recalc(); player.hp = player.maxHp; if (!opt.keepWine) player.wine = player.wineMax; player.minHpFrac = 0; player.dead = false; player.lastHurt = -99;
+  player.rideOK = true; recalc(); player.hp = player.maxHp; if (!opt.keepWine) player.wine = player.wineMax; player.minHpFrac = 0; player.dead = false; player.lastHurt = -99;
   setOutfit(0x3c4a5e, 0x9aa8b8); $('avatar').textContent = '剑'; hudDirty = true;
   placePlayer(world.spawn);
   shixiong.holder.visible = false; enemies.length = 0; enemies.push(zheng);
@@ -1846,6 +1849,7 @@ function showVictory() {
 function gainXp(x) { player.xp += x; let up = false; while (player.lv < 100 && player.xp >= needXp(player.lv)) { player.xp -= needXp(player.lv); player.lv++; up = true; recalc(); player.hp = player.maxHp; } hudDirty = true; if (up && mode === 'valley') saveGame(); }
 function playerDie() {
   player.dead = true; if (player.riding) endRide(); resetSkills(); swordInHand = true;
+  if (mode === 'ch1') { ch1OnDeath(); return; }
   setTimeout(() => { if (player.dead && mode === 'valley') { state = 'dead'; resetInputs('dead'); $('dead').style.display = 'flex'; } }, 1200);
 }
 
@@ -1903,7 +1907,7 @@ document.addEventListener('visibilitychange', () => { if (document.hidden) reset
 addEventListener('orientationchange', () => resetInputs('orientation')); addEventListener('resize', () => resetInputs('resize'));
 // any overlay/dialog becoming visible (or leaving play) resets inputs — checked every frame
 let __ipS = null, __ipO = '';
-window.__inputWatch = () => { const ov = ['start', 'opening', 'story', 'namebox', 'dead', 'win', 'confirm', 'slots'].filter(i => { const d = $(i).style.display; return d === 'flex' || d === 'block'; }).join(','); if (state !== __ipS || ov !== __ipO) { if ((state !== 'play' && __ipS === 'play') || (ov && ov !== __ipO)) resetInputs('overlay:' + (ov || state)); __ipS = state; __ipO = ov; } };
+window.__inputWatch = () => { const ov = ['start', 'opening', 'story', 'namebox', 'dead', 'win', 'confirm', 'slots', 'dlg', 'chend'].filter(i => { const d = $(i).style.display; return d === 'flex' || d === 'block'; }).join(','); if (state !== __ipS || ov !== __ipO) { if ((state !== 'play' && __ipS === 'play') || (ov && ov !== __ipO)) resetInputs('overlay:' + (ov || state)); __ipS = state; __ipO = ov; } };
 function bindBtn(id, skill) {
   const el = $(id);
   if (skill === 'jianyu') { // press-and-drag aiming
@@ -1927,7 +1931,7 @@ const btnEls = {}; for (const k in BTN) btnEls[k] = $(BTN[k]);
 document.addEventListener('contextmenu', e => e.preventDefault());
 document.addEventListener('gesturestart', e => e.preventDefault());
 const keys = {};
-addEventListener('keydown', e => { if (state === 'name') return; keys[e.code] = true; const map = { KeyJ: 'atk', Space: 'atk', Digit1: 's1', Digit2: 's2', Digit3: 'block', KeyR: 'ride', KeyQ: 'wine', KeyZ: 'dahe', KeyX: 'wanjian', KeyC: 'jianyu', KeyV: 'yinshen', KeyB: 'hudun' }; if (map[e.code]) tryCast(map[e.code]); });
+addEventListener('keydown', e => { if (state === 'name') return; if (state === 'talk' && (e.code === 'Space' || e.code === 'Enter')) { dlgTap(); return; } keys[e.code] = true; const map = { KeyJ: 'atk', Space: 'atk', Digit1: 's1', Digit2: 's2', Digit3: 'block', KeyR: 'ride', KeyQ: 'wine', KeyZ: 'dahe', KeyX: 'wanjian', KeyC: 'jianyu', KeyV: 'yinshen', KeyB: 'hudun' }; if (map[e.code]) tryCast(map[e.code]); });
 addEventListener('keyup', e => keys[e.code] = false);
 $('skip').addEventListener('click', e => { e.stopPropagation(); skipTutorial(); });
 $('gnext').addEventListener('click', e => { e.stopPropagation(); if (tut.cur && tut.cur.next) completeStep(); });
@@ -1935,8 +1939,10 @@ $('story').addEventListener('click', storyTap);
 $('nmok').addEventListener('click', confirmName);
 $('nm').addEventListener('keydown', e => { if (e.key === 'Enter') confirmName(); });
 $('retry').addEventListener('click', () => startValley());
+$('deadtitle').addEventListener('click', () => toTitle());
 $('again').addEventListener('click', () => { document.body.classList.remove('won'); startValley(); });
-$('totitle').addEventListener('click', () => location.reload());
+$('totitle').addEventListener('click', () => toTitle());
+function toTitle() { saveGame(); location.reload(); }  // reload → title (继续游戏 opens the save list)
 
 /* ---------------- HUD ---------------- */
 let uScale = 1, hudBossName = '';
@@ -1972,13 +1978,13 @@ function updateHUD() {
   btnEls.hudun.classList.toggle('active', !!SK.hudun.active); btnEls.wanjian.classList.toggle('active', wj.active);
   const lock = !swordInHand && !player.riding;
   for (const id of ['atk', 's1', 'block']) btnEls[id].classList.toggle('lock', lock);
-  btnEls.ride.classList.toggle('on', player.riding);
+  btnEls.ride.classList.toggle('on', player.riding); btnEls.ride.classList.toggle('locked', !player.rideOK);
   if (player.riding) btnEls.ride.querySelector('.dur').style.setProperty('--q', (player.rideT / RIDE_DUR).toFixed(3));
   document.body.classList.toggle('stlock', player.unlocked.length === 0);
   for (const id of ALL_ST) btnEls[id].classList.toggle('lk1', player.unlocked.length > 0 && !hasSt(id));
   if (player.stealthT > 0) $('stealthtxt').textContent = `隐身中 ${player.stealthT.toFixed(1)}s · 现身首击伤害翻倍`;
   const be = enemies[0];
-  if (be) { const r = be.hp / be.maxHp; $('bossfill').style.width = (r * 100) + '%'; $('bosstxt').textContent = be.kind === 'zheng' ? `${Math.ceil(be.hp)}/${be.maxHp}` : `${Math.ceil(r * 100)}%`; const nm = `${be.name}<small>Lv${be.lvTxt}</small>`; if (nm !== hudBossName) { hudBossName = nm; $('bossname').innerHTML = nm; }
+  if (be) { const r = be.hp / be.maxHp; $('bossfill').style.width = (r * 100) + '%'; $('bosstxt').textContent = (be.kind === 'zheng' || be.showNum) ? `${Math.ceil(be.hp)}/${be.maxHp}` : `${Math.ceil(r * 100)}%`; const nm = `${be.name}<small>Lv${be.lvTxt}</small>`; if (nm !== hudBossName) { hudBossName = nm; $('bossname').innerHTML = nm; }
     const tb = $('tbar'); tb.style.display = be.tough ? 'block' : 'none';
     if (be.tough) { const tr = be.broken ? Math.max(0, be.brkT / be.brkDur) : be.T / be.Tmax; $('tfill').style.width = (tr * 100).toFixed(1) + '%'; const st = be.broken ? 'brk' : be.refill ? 'ref' : ''; if (tb.dataset.st !== st) { tb.dataset.st = st; tb.className = 'tbar ' + st; }
       const tx = be.broken ? `破防 · 硬直 ${Math.max(0, be.brkT).toFixed(1)}s` : be.refill ? `韧性恢复中 ${Math.floor(be.T)}/${be.Tmax}` : `韧性 ${Math.ceil(be.T)}/${be.Tmax}`; if ($('ttxt').textContent !== tx) $('ttxt').textContent = tx; } }
@@ -2026,13 +2032,14 @@ function update(dtR) {
     const R = world.R, rr = Math.hypot(player.x, player.z); if (rr > R) { player.x *= R / rr; player.z *= R / rr; }
     for (const c of world.cols || []) { const dx = player.x - c.x, dz = player.z - c.z, d = Math.hypot(dx, dz), mn = c.r + .45; if (d < mn && d > 1e-4) { player.x = c.x + dx / d * mn; player.z = c.z + dz / d * mn; } }
     if (H(player.x, player.z) < -1.15) { player.x = ox; player.z = oz; }
+    if (world.resolve) { const ddx = player.x - ox, ddz = player.z - oz, n = Math.max(1, Math.ceil(Math.hypot(ddx, ddz) / .25)); let x = ox, z = oz; for (let i = 0; i < n; i++) { const r = world.resolve(x + ddx / n, z + ddz / n, .45); x = r[0]; z = r[1]; } player.x = x; player.z = z; if (mode === 'ch1') ch1PlayerClamp(); }
     for (const m of liveEnemies()) { const dx = player.x - m.x, dz = player.z - m.z, d = Math.hypot(dx, dz), mn = m.radius + .7; if (d < mn && d > 1e-3) { player.x = m.x + dx / d * mn; player.z = m.z + dz / d * mn; } }
     if (mode === 'tutorial') tut.moved += Math.hypot(player.x - ox, player.z - oz) * (moving ? 1 : 0);
   }
   player.moveAmt += ((moving ? mag : 0) - player.moveAmt) * Math.min(1, dt * 8);
   player.bob += dt * (player.riding ? 4 : 9) * player.moveAmt;
   if (player.riding) { player.rideT -= dt; if (player.rideT <= 0) endRide(); }
-  if (state === 'play' && !player.dead && player.hp < player.maxHp) { const idle = gameT - player.lastHurt; if (mode === 'valley' ? idle > 8 : idle > 4) { player.hp = Math.min(player.maxHp, player.hp + (mode === 'valley' ? player.maxHp * .003 : player.maxHp * .02) * dt); hudDirty = true; } }
+  if (state === 'play' && !player.dead && player.hp < player.maxHp) { const idle = gameT - player.lastHurt; const slowR = mode === 'valley' || (mode === 'ch1' && ch1.fight); if (slowR ? idle > 8 : idle > 4) { player.hp = Math.min(player.maxHp, player.hp + (slowR ? player.maxHp * .003 : player.maxHp * .02) * dt); hudDirty = true; } }
   if (atkHeld) tryCast('atk');
   // camera
   const gh = Math.max(H(player.x, player.z), -.6);
@@ -2064,7 +2071,8 @@ function update(dtR) {
   updateVM(dt); updateHUD();
   if (state === 'play' && mode === 'tutorial') updateTutorial(dtR);
   if (state === 'play' && mode === 'valley') updateValley(dt);
-  if (state === 'cut') updateCut(dt);
+  if (state === 'cut' && mode === 'tutorial') updateCut(dt);
+  if (mode === 'ch1') updateCh1(dt, dtR);
   if (bannerT > 0) { bannerT -= dtR; if (bannerT <= 0) $('banner').style.opacity = 0; }
   if (toastT > 0) { toastT -= dtR; if (toastT <= 0) $('toast').style.opacity = 0; }
 }
@@ -2083,7 +2091,7 @@ function frame(now) {
   const dt = Math.min(.05, (now - last) / 1000); last = now;
   if (window.__freeze) { }
   else if (state === 'title') titleUpdate(dt);
-  else if (state === 'play' || state === 'cut' || state === 'win' || state === 'dead') update(dt);
+  else if (state === 'play' || state === 'cut' || state === 'win' || state === 'dead' || state === 'talk') update(dt);
   else { gameT += dt; timeU.value = gameT; }
   render();
 }
@@ -2100,9 +2108,9 @@ refreshTitle();
 function startNewSave() { if (listSaves().length >= MAX_SLOTS) { toastTitle(`存档已满（最多 ${MAX_SLOTS} 个），请先删除一个存档`); return; } activeSlot = null; initAudio(); $('start').style.display = 'none'; $('slots').style.display = 'none'; goFull(); playOpening(); }
 /* ===== black-screen opening (3 paragraphs, fade in → hold → fade out; 跳过 skips all, tap advances) ===== */
 const OPENING = [
-  '约三千万年前，天地孕育了一只修为通天的异兽，开辟出这片后人称为“仙境”的天地。而在这天地之中，异兽横行，凶残至极。',
-  '又过了约两千万年，两位剑修始祖——仙尊与魔神合力，在大陆中央建立起一座宏大的修仙之地，为世人提供优秀的修炼资源。',
-  '距今五百万年前，天地之间出现了一柄号称“天地第一剑”的圣剑。魔神想用这天地第一剑镇压众生，仙尊却想将其封印。因意见不合，仙尊与魔神在天地间大打出手……',
+  '三千万年前，混沌初开。\n天地孕出一头异兽，修为通天，一息可吞日月。它撕开鸿蒙，辟出一方天地，后人称之为“仙境”。\n然仙境之中，异兽横行，生灵涂炭。',
+  '两千万年后，有两人持剑而起，一曰仙尊，一曰魔神。\n二人并肩斩尽凶兽，于大陆中央立下修仙之地，广开山门，传道天下。\n自此，世间始有剑修。',
+  '五百万年前，天降一剑，名曰“太初”，号称天地第一剑。\n魔神欲执此剑，镇压众生；仙尊欲封此剑，永绝后患。\n昔日同袍，自此拔剑相向……',
 ];
 const OP_T = { fadeIn: 1.6, hold: 4.2, fadeOut: 1.2, gap: .35 };
 const op = { i: -1, phase: '', timer: null, done: true };
@@ -2123,24 +2131,1046 @@ function opHold(i) { return Math.max(OP_T.hold, OPENING[i].length * .085); } // 
 function opOut() { if (op.done || op.phase === 'out') return; op.phase = 'out'; const t = $('optxt'); t.style.transition = `opacity ${OP_T.fadeOut}s ease-in-out`; t.style.opacity = 0; opSet(opNext, OP_T.fadeOut + OP_T.gap); }
 function opTap() { if (op.done) return; if (op.phase === 'in' || op.phase === 'hold') opOut(); }
 function endOpening() { if (op.done) return; op.done = true; clearTimeout(op.timer); $('opening').style.display = 'none'; startTutorial(); }
-$('opening').addEventListener('click', opTap);
-$('opskip').addEventListener('click', e => { e.stopPropagation(); endOpening(); });
+onTap($('opskip'), () => { op.skipT = performance.now(); endOpening(); });
+$('opening').addEventListener('click', e => { if (e.target.id === 'opskip' || performance.now() - (op.skipT || 0) < 800) return; opTap(); });
 function toastTitle(t) { const el = $('saveinfo'); el.style.display = 'block'; el.textContent = t; el.classList.remove('warn'); void el.offsetWidth; el.classList.add('warn'); }
-$('go').addEventListener('click', startNewSave);
-$('newsave').addEventListener('click', startNewSave);
-$('cont').addEventListener('click', showSlots);
-$('slotback').addEventListener('click', () => { $('slots').style.display = 'none'; refreshTitle(); });
-$('slotlist').addEventListener('click', e => { const btn = e.target.closest('button'); if (!btn) return; const row = btn.closest('.slot'), id = row.dataset.id, d = loadSave(id); if (!d) return;
-  if (btn.dataset.act === 'go') enterSlot(id);
+/* onTap: fire on touchend (a real tap: same finger, moved < 12px) AND on click, de-duplicated — so UI buttons respond
+   on iOS Safari even if the synthesized click is lost (e.g. canvas/rAF busy, viewport bars resizing). */
+function onTap(el, fn) {
+  let tid = null, sx = 0, sy = 0, moved = false, lastTap = -1e9;
+  el.addEventListener('touchstart', e => { const t = e.changedTouches[0]; if (!t || tid !== null) return; tid = t.identifier; sx = t.clientX; sy = t.clientY; moved = false; }, { passive: true });
+  el.addEventListener('touchmove', e => { for (const t of e.changedTouches) if (t.identifier === tid && Math.hypot(t.clientX - sx, t.clientY - sy) > 12) moved = true; }, { passive: true });
+  el.addEventListener('touchcancel', () => { tid = null; }, { passive: true });
+  el.addEventListener('touchend', e => { for (const t of e.changedTouches) if (t.identifier === tid) { tid = null; if (moved) return; const tgt = document.elementFromPoint(t.clientX, t.clientY) || e.target; if (!el.contains(tgt)) return; e.preventDefault(); lastTap = performance.now(); fn({ target: tgt, stopPropagation() { }, type: 'tap' }); } }, { passive: false });
+  el.addEventListener('click', e => { if (performance.now() - lastTap < 800) return; fn(e); });
+}
+function closeSlots() { $('slots').style.display = 'none'; refreshTitle(); }
+onTap($('go'), startNewSave);
+onTap($('newsave'), startNewSave);
+onTap($('cont'), showSlots);   // 继续游戏 → save list (last-used first, marked 上次游玩)
+onTap($('slotback'), closeSlots);
+onTap($('slotlist'), e => { const row = e.target.closest && e.target.closest('.slot'); if (!row) return; const btn = e.target.closest('button'), id = row.dataset.id, d = loadSave(id); if (!d) return;
+  if (!btn || btn.dataset.act === 'go') enterSlot(id);   // tapping anywhere on the row (except 删除) enters that save
   else showConfirm('删除存档', `确定删除剑修「${d.name}」（Lv${d.lv}）的存档吗？此操作无法撤销。`, () => { deleteSave(id); refreshTitle(); if (listSaves().length) showSlots(); else $('slots').style.display = 'none'; }); });
-$('cfmno').addEventListener('click', () => { $('confirm').style.display = 'none'; confirmYes = null; });
-$('cfmyes').addEventListener('click', () => { $('confirm').style.display = 'none'; const f = confirmYes; confirmYes = null; f && f(); });
+onTap($('cfmno'), () => { $('confirm').style.display = 'none'; confirmYes = null; });
+onTap($('cfmyes'), () => { $('confirm').style.display = 'none'; const f = confirmYes; confirmYes = null; f && f(); });
 requestAnimationFrame(frame);
 // debug / test hooks
 window.__G = { renderer, camera, vCam, vRoot, rHand, lHand, player, enemies, shixiong, zheng, SK, tryCast, tut, VM, wj, zones, decoy, ult, fly, cut,
   get state() { return state; }, get mode() { return mode; }, get camY() { return camY; }, set timeScale(v) { timeScale = v; },
-  step(n, dt = 1 / 60) { for (let i = 0; i < n; i++) { if (state === 'title') titleUpdate(dt); else if (state === 'play' || state === 'cut' || state === 'win' || state === 'dead') update(dt); } },
+  step(n, dt = 1 / 60) { for (let i = 0; i < n; i++) { if (state === 'title') titleUpdate(dt); else if (state === 'play' || state === 'cut' || state === 'win' || state === 'dead' || state === 'talk') update(dt); } },
   start() { $('go').click(); }, next() { completeStep(); }, skip() { skipTutorial(); }, valley(n) { startValley(n || '测试剑修'); },
   resetCd() { for (const k in SK) SK[k].t = 0; }, TUNE, ZHENG, FLY, JY, jyAim, joy, IN, resetInputs, get atkHeld() { return atkHeld; }, get camPtr() { return camPtr; }, spawnMinion, saveGame, loadSave, wipeSave, newCareer, listSaves, deleteSave, enterSlot, showSlots, get activeSlot() { return activeSlot; }, op, playOpening, endOpening, startValley, hitEnemy, get parryCount() { return parryCount; }, get rideRams() { return rideRams; }, get jyTarget() { return jyTarget; }, tp(x, z, yaw) { player.x = x; player.z = z; if (yaw !== undefined) player.yaw = yaw; camY = H(x, z) + 1.7; },
   face(e, d) { const a = Math.atan2(player.x - e.x, player.z - e.z); player.yaw = Math.atan2(-(e.x - player.x), -(e.z - player.z)); },
   pose(rk, lk, lmode) { playVM('test', 1e9, rk ? [rk, rk] : null, lk ? [lk, lk] : null, [], lmode || 'jz'); VM.hold = true; }, RK, LK, LF, setWorld, startZhengAct, startShixiongAct, hurtPlayer };
+/* ================= v4 · 第一章 学院 — worlds ================= */
+/* collision: axis-aligned boxes + circles + hard bounds clamp. resolve(x,z,r) → [x,z] */
+function makeCollider(boxes, cols, bounds, dyn) {
+  return function resolve(x, z, r) {
+    for (let it = 0; it < 4; it++) {
+      for (const b of boxes) {
+        if (b.off) continue;
+        const cx = clamp(x, b.x0, b.x1), cz = clamp(z, b.z0, b.z1); const dx = x - cx, dz = z - cz, d2 = dx * dx + dz * dz;
+        if (d2 >= r * r) continue;
+        if (d2 > 1e-8) { const d = Math.sqrt(d2); x = cx + dx / d * r; z = cz + dz / d * r; }
+        else { const pl = x - b.x0, pr = b.x1 - x, pd = z - b.z0, pu = b.z1 - z, m = Math.min(pl, pr, pd, pu); if (m === pl) x = b.x0 - r; else if (m === pr) x = b.x1 + r; else if (m === pd) z = b.z0 - r; else z = b.z1 + r; }
+      }
+      for (const c of cols) { const dx = x - c.x, dz = z - c.z, d = Math.hypot(dx, dz), mn = c.r + r; if (d < mn) { if (d > 1e-4) { x = c.x + dx / d * mn; z = c.z + dz / d * mn; } else x = c.x + mn; } }
+      if (dyn) for (const c of dyn) { if (!c.solid || c.world !== world.name) continue; const dx = x - c.x, dz = z - c.z, d = Math.hypot(dx, dz), mn = c.r + r; if (d < mn && d > 1e-4) { x = c.x + dx / d * mn; z = c.z + dz / d * mn; } }
+      x = clamp(x, bounds.x0 + r, bounds.x1 - r); z = clamp(z, bounds.z0 + r, bounds.z1 - r);
+    }
+    return [x, z];
+  };
+}
+const npcSolids = []; // dynamic NPC circles {x,z,r,solid}
+/* gabled roof (ridge along X), curved eaves; returns geometry centred at origin, base y=0 */
+function roofGeo(w, d, h, over = 1.0) {
+  const a = d / 2 + over, s = new THREE.Shape();
+  s.moveTo(-a, -.05); s.quadraticCurveTo(-a * .42, h * .2, 0, h); s.quadraticCurveTo(a * .42, h * .2, a, -.05);
+  s.lineTo(a - .05, -.32); s.quadraticCurveTo(a * .42, h * .2 - .32, 0, h - .34); s.quadraticCurveTo(-a * .42, h * .2 - .32, -a + .05, -.32); s.closePath();
+  const g = new THREE.ExtrudeGeometry(s, { depth: w + over * 2, bevelEnabled: false, curveSegments: 8 });
+  g.translate(0, 0, -(w + over * 2) / 2); g.rotateY(Math.PI / 2); return g;
+}
+function gableGeo(d, h) { const s = new THREE.Shape(); s.moveTo(-d / 2, 0); s.lineTo(0, h); s.lineTo(d / 2, 0); s.closePath(); const g = new THREE.ExtrudeGeometry(s, { depth: .3, bevelEnabled: false }); g.translate(0, 0, -.15); g.rotateY(Math.PI / 2); return g; }
+const ACW = { wall: .8, h: 4.6 };
+/* building with 4 walls, door gap on the south (+z) side; pushes collision boxes + visual pieces */
+function addBuilding(L, boxes, b) {
+  const { x0, x1, z0, z1, dx0, dx1 } = b, t = ACW.wall, H = b.h || ACW.h, W = x1 - x0, D = z1 - z0, cx = (x0 + x1) / 2, cz = (z0 + z1) / 2;
+  const walls = [[x0, x1, z0, z0 + t], [x0, x0 + t, z0, z1], [x1 - t, x1, z0, z1], [x0, dx0, z1 - t, z1], [dx1, x1, z1 - t, z1]];
+  for (const [a0, a1, c0, c1] of walls) { boxes.push({ x0: a0, x1: a1, z0: c0, z1: c1 }); L.push([G.box, 0xf6f4ee, M4((a0 + a1) / 2, H / 2, (c0 + c1) / 2, a1 - a0, H, c1 - c0)]); L.push([G.box, 0xb9b2a4, M4((a0 + a1) / 2, .25, (c0 + c1) / 2, a1 - a0 + .12, .5, c1 - c0 + .12)]); }
+  // lintel over door, dark-wood frame + wooden beams along walls (fairy-white with timber accents)
+  L.push([G.box, 0xf6f4ee, M4((dx0 + dx1) / 2, H - .5, z1 - t / 2, dx1 - dx0, 1, t)]);
+  for (const x of [dx0, dx1]) L.push([G.box, 0x7a5236, M4(x, (H - 1) / 2, z1 - t / 2, .22, H - 1, t + .14)]);
+  L.push([G.box, 0x7a5236, M4((dx0 + dx1) / 2, H - 1, z1 - t / 2, dx1 - dx0 + .3, .2, t + .14)]);
+  L.push([G.box, 0x7a5236, M4(cx, H - .15, z1 + .02, W + .1, .22, .1)]); L.push([G.box, 0x7a5236, M4(cx, H - .15, z0 - .02, W + .1, .22, .1)]);
+  for (let x = x0 + 4; x < x1 - 2; x += 4) { if (x > dx0 - 1 && x < dx1 + 1) continue; L.push([G.box, 0x7a5236, M4(x, H / 2, z1 + .03, .18, H, .08)]); L.push([new THREE.CircleGeometry(.7, 8), 0x9ac8d8, M4(x + 2, H * .58, z1 + .04, 1, 1, 1)]); }
+  // plaque above door
+  if (b.plaque) L.push([G.box, 0x3a2418, M4((dx0 + dx1) / 2, H + .25, z1 + .2, 3.2, 1, .12)]);
+  // ceiling + roof
+  L.push([G.box, 0xe0b888, M4(cx, H + .05, cz, W, .1, D)]);
+  L.push([roofGeo(W, D, b.rh || 3.4, 1.1), 0xdfe6ee, M4(cx, H, cz)]);
+  for (const x of [x0 + .2, x1 - .2]) L.push([gableGeo(D - .2, (b.rh || 3.4) - .4), 0xf6f4ee, M4(x, H, cz)]);
+  L.push([G.cyl, 0xc8d0dc, M4(cx, H + (b.rh || 3.4) - .05, cz, .22, W + 2.6, .22, 0, 0, Math.PI / 2)]);
+  // floor (slightly raised wood visual; walkable since ground height stays 0)
+  L.push([G.box, b.floor || 0xc8a87e, M4(cx, .015, cz, W - .1, .03, D - .1)]);
+}
+/* ground texture painted from world rects (X -48..48, Z -66..44) */
+const ACG = { x0: -48, x1: 48, z0: -66, z1: 44 };
+function acadGroundTex(paint) {
+  return canvasTex(2048, 2048, (c, w, h) => {
+    const sx = w / (ACG.x1 - ACG.x0), sz = h / (ACG.z1 - ACG.z0);
+    const R = (x0, x1, z0, z1, col) => { c.fillStyle = col; c.fillRect((x0 - ACG.x0) * sx, (z0 - ACG.z0) * sz, (x1 - x0) * sx, (z1 - z0) * sz); };
+    const C = (x, z, r, col) => { c.fillStyle = col; c.beginPath(); c.ellipse((x - ACG.x0) * sx, (z - ACG.z0) * sz, r * sx, r * sz, 0, 0, 7); c.fill(); };
+    paint({ c, R, C, sx, sz, w, h });
+  });
+}
+function buildAcademyWorld() {
+  const g = new THREE.Group(); g.visible = false; scene.add(g);
+  const boxes = [], cols = [], L = [], bounds = { x0: -45.4, x1: 45.4, z0: -63.4, z1: 41.4 };
+  const A = ACAD;
+  // ---- ground
+  const tex = acadGroundTex(({ c, R, C, w, h, sx, sz }) => {
+    const gr = c.createLinearGradient(0, 0, w, h); gr.addColorStop(0, '#86b866'); gr.addColorStop(1, '#9cc874'); c.fillStyle = gr; c.fillRect(0, 0, w, h);
+    for (let i = 0; i < 9000; i++) { c.fillStyle = `rgba(${40 + Math.random() * 60},${90 + Math.random() * 70},${30 + Math.random() * 40},${Math.random() * .25})`; c.beginPath(); c.arc(Math.random() * w, Math.random() * h, 1 + Math.random() * 5, 0, 7); c.fill(); }
+    R(-44, -16, -28, -4, '#a6d67e'); // 学堂 lawn
+    for (let i = 0; i < 260; i++) { const x = srnd(-43.5, -16.5), z = srnd(-27.5, -4.5); if (Math.abs(x + 30) < 4) continue; C(x, z, .18, ['#fff6f0', '#ffd0e0', '#fff0a0', '#d8c8ff'][i % 4]); }
+    const stone = '#e4e0d4', stoneL = '#d2ccbc';
+    R(-3, 3, -30, 41.5, stone); R(-33, -3, -3, 3, stone); R(-33, -27, -30, -3, stone); R(3, 13, -3, 3, stone); R(-16, 16, -42, -30, stone);
+    R(13, 39, -25, 1, '#dcd6c6'); // 练武场
+    c.strokeStyle = '#b8ad96'; c.lineWidth = 10; c.beginPath(); c.ellipse((A.ring.x - ACG.x0) * sx, (A.ring.z - ACG.z0) * sz, A.ring.r * sx, A.ring.r * sz, 0, 0, 7); c.stroke();
+    c.lineWidth = 3; c.beginPath(); c.ellipse((A.ring.x - ACG.x0) * sx, (A.ring.z - ACG.z0) * sz, (A.ring.r - 1) * sx, (A.ring.r - 1) * sz, 0, 0, 7); c.stroke();
+    c.save(); c.translate((A.ring.x - ACG.x0) * sx, (A.ring.z - ACG.z0) * sz); c.fillStyle = 'rgba(120,100,70,.35)'; c.font = `bold ${Math.round(9 * sx)}px serif`; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('武', 0, 0); c.restore();
+    // tile seams on stone areas
+    c.strokeStyle = 'rgba(140,130,110,.35)'; c.lineWidth = 1.5;
+    for (let z = -42; z < 41; z += 1.5) { c.beginPath(); c.moveTo((-3 - ACG.x0) * sx, (z - ACG.z0) * sz); c.lineTo((3 - ACG.x0) * sx, (z - ACG.z0) * sz); c.stroke(); }
+    for (let x = 13; x <= 39; x += 2) { c.beginPath(); c.moveTo((x - ACG.x0) * sx, (-25 - ACG.z0) * sz); c.lineTo((x - ACG.x0) * sx, (1 - ACG.z0) * sz); c.stroke(); }
+    for (let z = -25; z <= 1; z += 2) { c.beginPath(); c.moveTo((13 - ACG.x0) * sx, (z - ACG.z0) * sz); c.lineTo((39 - ACG.x0) * sx, (z - ACG.z0) * sz); c.stroke(); }
+    // water beds
+    for (const p of A.ponds) C(p.x, p.z, p.r + .5, '#cfc7b0');
+    R(-46, 46, A.stream.z0 - .5, A.stream.z1 + .5, '#cfc7b0');
+    for (const p of A.ponds) C(p.x, p.z, p.r, '#3f8fa0');
+    R(-46, 46, A.stream.z0, A.stream.z1, '#3f8fa0');
+    R(-5, 5, A.stream.z0 - 1, A.stream.z1 + 1, stoneL);
+  });
+  tex.anisotropy = 8;
+  const ground = new THREE.Mesh(new THREE.PlaneGeometry(ACG.x1 - ACG.x0, ACG.z1 - ACG.z0), new THREE.MeshLambertMaterial({ map: tex }));
+  ground.rotation.x = -Math.PI / 2; ground.position.set((ACG.x0 + ACG.x1) / 2, 0, (ACG.z0 + ACG.z1) / 2); g.add(ground);
+  const outer = new THREE.Mesh(new THREE.CircleGeometry(400, 24), new THREE.MeshLambertMaterial({ color: 0x8cb070 })); outer.rotation.x = -Math.PI / 2; outer.position.y = -.05; g.add(outer);
+  // ---- outer wall (white with blue-grey tile cap) + gate
+  const OW = [[-46.6, 46.6, 41.4, 42.6], [-46.6, 46.6, -64.6, -63.4], [-46.6, -45.4, -64.6, 42.6], [45.4, 46.6, -64.6, 42.6]];
+  for (const [a0, a1, c0, c1] of OW) { boxes.push({ x0: a0, x1: a1, z0: c0, z1: c1 }); const cx = (a0 + a1) / 2, cz = (c0 + c1) / 2, w = a1 - a0, d = c1 - c0; L.push([G.box, 0xf8f6f0, M4(cx, 1.6, cz, w, 3.2, d)]); L.push([G.box, 0x9aa8b8, M4(cx, 3.3, cz, w + .5, .25, d + .5)]); L.push([G.box, 0xb4beca, M4(cx, 3.5, cz, w * .98 + .1, .2, d * .5 + .1)]); }
+  // gate (山门): pillars + roof on south wall; doors shown closed-ish with mist beyond
+  for (const x of [-4.5, 4.5]) { L.push([G.cyl, 0x9a3a2a, M4(x, 3, 42, .45, 6, .45)]); L.push([G.box, 0xd8d2c4, M4(x, .3, 42, 1.4, .6, 1.4)]); }
+  L.push([G.box, 0x7a5236, M4(0, 5.6, 42, 10, .5, .7)]); L.push([G.box, 0x3a2418, M4(0, 4.6, 42.4, 3.4, 1.1, .15)]);
+  L.push([roofGeo(10, 2.4, 1.6, .8), 0xdfe6ee, M4(0, 5.85, 42)]);
+  L.push([G.box, 0x6a4028, M4(-2.2, 2.3, 42.15, 4.2, 4.6, .2)]); L.push([G.box, 0x6a4028, M4(2.2, 2.3, 42.15, 4.2, 4.6, .2)]);
+  for (const x of [-1.2, 1.2]) L.push([G.cyl, 0xd8b25a, M4(x * .9, 2.3, 42, .15, .06, .15, 0, Math.PI / 2)]);
+  // ---- buildings
+  addBuilding(L, boxes, { ...A.school, plaque: true, floor: 0xd2b48a });
+  addBuilding(L, boxes, { ...A.lib, plaque: true, h: 5.2, rh: 4, floor: 0xb89268 });
+  // 学堂 interior: desks, cushions, scrolls, teacher desk
+  for (const x of [-36, -30, -24]) for (const z of [-42, -38.5, -35]) {
+    boxes.push({ x0: x - .8, x1: x + .8, z0: z - .35, z1: z + .35 });
+    L.push([G.box, 0x6a4028, M4(x, .42, z, 1.6, .08, .7)]); for (const sx of [-.7, .7]) L.push([G.box, 0x5a3420, M4(x + sx, .2, z, .1, .4, .6)]);
+    L.push([G.box, 0xf0ead8, M4(x - .3, .47, z, .5, .02, .35)]); L.push([G.cyl, 0x2a1a10, M4(x + .4, .5, z - .1, .04, .1, .04)]);
+    L.push([G.cyl, 0x8a3a3a, M4(x, .06, z + .75, .32, .12, .32)]);
+  }
+  boxes.push({ x0: -31, x1: -29, z0: -44.35, z1: -43.65 }); L.push([G.box, 0x5a3420, M4(-30, .45, -44, 2, .9, .7)]); L.push([G.cyl, 0x6a2a6a, M4(-30, .06, -44.9, .35, .12, .35)]);
+  for (const [x, z, ry] of [[-36, -45.15, 0], [-24, -45.15, 0], [-30, -45.15, 0], [-41.15, -40, Math.PI / 2], [-41.15, -34, Math.PI / 2], [-18.85, -40, -Math.PI / 2], [-18.85, -34, -Math.PI / 2]]) {
+    L.push([G.box, 0xf4ecd6, M4(x, 2.6, z, 1.1, 2.2, .03, ry)]); L.push([G.box, 0x6a4028, M4(x, 3.75, z, 1.3, .08, .06, ry)]); L.push([G.box, 0x6a4028, M4(x, 1.45, z, 1.3, .08, .06, ry)]);
+    for (let k = 0; k < 4; k++) L.push([G.box, 0x2a2420, M4(x + (ry ? 0 : (k - 1.5) * .2), 2.6 + (k % 2) * .2, z + (ry ? (k - 1.5) * .2 * (ry > 0 ? 1 : -1) : 0) + (ry ? 0 : .02), ry ? .03 : .06, 1.2 - k * .12, ry ? .06 : .03, ry)]);
+  }
+  // 图书馆 interior: 6 bookshelves, long table, lectern, reading desk
+  const bookCols = [0x8a2a2a, 0x2a4a7a, 0x3a6a3a, 0x8a6a2a, 0x5a3a6a, 0xd8c8a0];
+  for (const x of A.shelfX) {
+    boxes.push({ x0: x - .4, x1: x + .4, z0: A.shelfZ0, z1: A.shelfZ1 });
+    const zc = (A.shelfZ0 + A.shelfZ1) / 2, len = A.shelfZ1 - A.shelfZ0;
+    L.push([G.box, 0x5a3420, M4(x, 1.6, zc, .8, 3.2, len)]);
+    for (let s = 0; s < 4; s++) for (let k = 0; k < 14; k++) { const z = A.shelfZ0 + .3 + k * (len - .6) / 13, hh = srnd(.32, .48); for (const side of [-1, 1]) L.push([G.box, bookCols[(k + s + (side > 0 ? 2 : 0)) % 6], M4(x + side * .41, .25 + s * .78 + hh / 2, z, .04, hh, srnd(.34, .46))]); }
+  }
+  boxes.push({ x0: -1, x1: 1, z0: -56, z1: -50 }); L.push([G.box, 0x6a4028, M4(0, .78, -53, 2, .1, 6)]); for (const [sx, sz] of [[-.85, -55.8], [.85, -55.8], [-.85, -50.2], [.85, -50.2]]) L.push([G.box, 0x5a3420, M4(sx, .38, sz, .12, .76, .12)]);
+  for (let k = 0; k < 4; k++) { L.push([G.box, 0xf0ead8, M4(srnd(-.5, .5), .86, -55 + k * 1.4, .4, .06, .3, srnd(-.4, .4))]); }
+  L.push([G.cyl, 0xffe8a0, M4(0, .95, -51, .08, .2, .08)]);
+  cols.push({ x: A.book.x, z: A.book.z, r: .45 }); L.push([G.cyl, 0x5a3420, M4(A.book.x, .5, A.book.z, .12, 1, .12)]); L.push([G.box, 0x6a4028, M4(A.book.x, 1.05, A.book.z, .8, .08, .6, 0, -.35)]);
+  boxes.push({ x0: 7.3, x1: 9.7, z0: -46.5, z1: -45.5 }); L.push([G.box, 0x6a4028, M4(8.5, .75, -46, 2.4, .1, 1)]); for (const sx of [-1.1, 1.1]) L.push([G.box, 0x5a3420, M4(8.5 + sx, .37, -46, .1, .74, .9)]);
+  // ---- stream + ponds (collision) + bridge
+  const S = A.stream;
+  boxes.push({ x0: -46, x1: -5, z0: S.z0 + .3, z1: S.z1 - .3 }, { x0: 5, x1: 46, z0: S.z0 + .3, z1: S.z1 - .3 });
+  for (const p of A.ponds) cols.push({ x: p.x, z: p.z, r: p.r - .2 });
+  for (const sx of [-1, 1]) { boxes.push({ x0: sx > 0 ? 4.7 : -5.3, x1: sx > 0 ? 5.3 : -4.7, z0: S.z0 - .8, z1: S.z1 + .8 }); L.push([G.box, 0xc84a3a, M4(sx * 5, .55, (S.z0 + S.z1) / 2, .3, 1.1, S.z1 - S.z0 + 1.6)]); L.push([G.box, 0xeae6da, M4(sx * 5, 1.1, (S.z0 + S.z1) / 2, .4, .12, S.z1 - S.z0 + 1.7)]); }
+  L.push([G.box, 0xd8d2c4, M4(0, .04, (S.z0 + S.z1) / 2, 10, .08, S.z1 - S.z0 + 2)]);
+  // ---- 练武场 props: weapon racks, drums, banner poles (outside the ring)
+  for (const z of [-20, -4]) { boxes.push({ x0: 40.6, x1: 41.4, z0: z - 2.5, z1: z + 2.5 }); L.push([G.box, 0x6a4028, M4(41, 1, z, .3, 2, 5)]); for (let k = -2; k <= 2; k++) { L.push([G.cyl, 0xb8c0c8, M4(40.85, 1.2, z + k, .03, 2, .03)]); L.push([G.cone, 0xd0d8e0, M4(40.85, 2.35, z + k, .06, .3, .06)]); } }
+  for (const [x, z] of [[15, -24], [37, -24], [15, 0], [37, 0]]) { cols.push({ x, z, r: .4 }); L.push([G.cyl, 0x9a3a2a, M4(x, 2.5, z, .12, 5, .12)]); L.push([G.box, 0xc84a3a, M4(x + .5, 3.8, z, 1, 1.8, .04)]); }
+  cols.push({ x: 26, z: -26.5, r: .9 }); L.push([G.cyl, 0x8a2a1a, M4(26, .9, -26.5, .8, 1, .8, 0, 0, 0)]); L.push([G.cyl, 0xf0e2c0, M4(26, 1.42, -26.5, .78, .04, .78)]);
+  // ---- pavilion by the west pond
+  for (const [x, z] of [[-16, 27], [-11, 27], [-16, 33], [-11, 33]]) { cols.push({ x, z, r: .3 }); L.push([G.cyl, 0x9a3a2a, M4(x, 1.75, z, .2, 3.5, .2)]); }
+  L.push([G.box, 0xd8d2c4, M4(-13.5, .05, 30, 6.4, .1, 7.4)]); L.push([G.cone, 0xdfe6ee, M4(-13.5, 4.4, 30, 5.6, 1.9, 5.6, Math.PI / 4)]); L.push([G.sph, 0xd8b25a, M4(-13.5, 5.45, 30, .25, .25, .25)]);
+  cols.push({ x: -13.5, z: 30, r: .6 }); L.push([G.cyl, 0xe8e2d4, M4(-13.5, .4, 30, .6, .8, .6)]);
+  // ---- stone lanterns along the main path
+  for (let z = 36; z > -28; z -= 9) { if (Math.abs(z - (S.z0 + S.z1) / 2) < 5 || Math.abs(z) < 5) continue; for (const x of [-4.4, 4.4]) { cols.push({ x, z, r: .38 }); L.push([G.box, 0xd8d2c4, M4(x, .5, z, .5, 1, .5)]); L.push([G.box, 0xfff2c0, M4(x, 1.2, z, .42, .4, .42)]); L.push([G.cone, 0xb8b2a4, M4(x, 1.65, z, .5, .5, .5, Math.PI / 4)]); } }
+  // ---- rocks (怪石) with collision
+  for (const [x, z, s] of [[30, 36, 1.2], [36, 24, 1.4], [-38, 22, 1.3], [-8, 34, 1.0], [12, 30, 1.1], [-42, 6, 1.2], [42, 10, 1.3], [-10, -58, 1.1], [30, -55, 1.4]]) {
+    cols.push({ x, z, r: s * .9 }); const geo = new THREE.IcosahedronGeometry(1, 1); const p = geo.attributes.position; for (let i = 0; i < p.count; i++) { const n = .75 + .4 * vnoise(p.getX(i) * 2 + x, p.getZ(i) * 2 + z); p.setXYZ(i, p.getX(i) * n, (p.getY(i) * .5 + .5) * 2.2 * n, p.getZ(i) * n); } geo.computeVertexNormals(); L.push([geo, 0xa8aab0, M4(x, -.1, z, s, s, s, srnd(0, 6))]);
+  }
+  // ---- trees (instanced): blossom + pine, placed by rejection sampling against everything above
+  const clearOf = (x, z, r) => {
+    if (x < bounds.x0 + 1.5 || x > bounds.x1 - 1.5 || z < bounds.z0 + 1.5 || z > bounds.z1 - 1.5) return false;
+    for (const b of boxes) { const cx = clamp(x, b.x0, b.x1), cz = clamp(z, b.z0, b.z1); if (Math.hypot(x - cx, z - cz) < r + 1.6) return false; }
+    for (const c of cols) if (Math.hypot(x - c.x, z - c.z) < r + c.r + 1.6) return false;
+    for (const q of A.keepClear) if (x > q[0] - r && x < q[1] + r && z > q[2] - r && z < q[3] + r) return false;
+    return true;
+  };
+  const trees = [];
+  for (let tries = 0; tries < 4000 && trees.length < 64; tries++) { const x = srnd(-45, 45), z = srnd(-63, 41); if (!clearOf(x, z, .55)) continue; const t = { x, z, r: .55, kind: srand() < .55 ? 0 : 1, s: srnd(.85, 1.3) }; trees.push(t); cols.push({ x, z, r: .55 }); }
+  const mm = new THREE.Matrix4(), q = new THREE.Quaternion();
+  const blossomG = mergeColored([[new THREE.CylinderGeometry(.16, .26, 2.6, 6), 0x6a4a3a, M4(0, 1.3, 0)], [new THREE.CylinderGeometry(.07, .1, 1.4, 5), 0x6a4a3a, M4(.5, 2.6, 0, 1, 1, 1, 0, 0, -.6)], [G.sphLo, 0xf6c4d4, M4(0, 3.4, 0, 1.6, 1.15, 1.6)], [G.sphLo, 0xfad8e4, M4(.9, 3.0, .4, 1.1, .85, 1.1)], [G.sphLo, 0xf0b0c8, M4(-.7, 3.1, -.5, 1.2, .9, 1.2)], [G.sphLo, 0xfce8ee, M4(.2, 3.9, -.3, .9, .7, .9)]]);
+  const pineG = mergeColored([[new THREE.CylinderGeometry(.16, .26, 2.2, 6), 0x5a3d26, M4(0, 1.1, 0)], [new THREE.ConeGeometry(1.7, 2.6, 8), 0x2f6a44, M4(0, 2.8, 0)], [new THREE.ConeGeometry(1.3, 2.2, 8), 0x3a7a4c, M4(0, 4.1, 0)], [new THREE.ConeGeometry(.85, 1.8, 8), 0x4a8a58, M4(0, 5.2, 0)]]);
+  const treeM = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true });
+  for (const [geo, kind] of [[blossomG, 0], [pineG, 1]]) { const list = trees.filter(t => t.kind === kind); const im = new THREE.InstancedMesh(geo, treeM, Math.max(1, list.length)); list.forEach((t, i) => { im.setMatrixAt(i, mm.compose(V3(t.x, 0, t.z), q.setFromAxisAngle(Y_AXIS, srnd(0, 6)), V3(t.s, t.s * srnd(.9, 1.15), t.s))); }); im.count = list.length; g.add(im); }
+  // shrubs / flower beds along the lawn edge and inner walls (no collision needed: kept against walls via box)
+  const shr = [];
+  for (let x = -43; x <= -17; x += 2.6) { if (Math.abs(x + 30) < 4) continue; shr.push([G.sphLo, srand() < .5 ? 0x5a9a4a : 0x6aaa52, M4(x, .35, -28.6, .9, .55, .6)]); shr.push([G.sphLo, 0xffc8d8, M4(x + .3, .7, -28.5, .25, .2, .25)]); }
+  boxes.push({ x0: -44, x1: -34, z0: -29.1, z1: -28.1 }, { x0: -26, x1: -16, z0: -29.1, z1: -28.1 });
+  // lotus pads on ponds
+  for (const p of A.ponds) for (let i = 0; i < 14; i++) { const a = srnd(0, 6.28), r = Math.sqrt(srand()) * (p.r - .8); shr.push([new THREE.CircleGeometry(.35, 8), 0x4a9a4a, M4(p.x + Math.cos(a) * r, .08, p.z + Math.sin(a) * r, 1, 1, 1, srnd(0, 6), -Math.PI / 2)]); if (i % 3 === 0) shr.push([G.sphLo, 0xffb8d0, M4(p.x + Math.cos(a) * r, .2, p.z + Math.sin(a) * r, .14, .12, .14)]); }
+  L.push(...shr);
+  g.add(new THREE.Mesh(mergeColored(L), new THREE.MeshLambertMaterial({ vertexColors: true })));
+  // ---- water (one transparent mesh)
+  const wl = []; for (const p of A.ponds) wl.push([new THREE.CircleGeometry(p.r, 32), 0xffffff, M4(p.x, .03, p.z, 1, 1, 1, 0, -Math.PI / 2)]);
+  wl.push([new THREE.PlaneGeometry(92, S.z1 - S.z0), 0xffffff, M4(0, .03, (S.z0 + S.z1) / 2, 1, 1, 1, 0, -Math.PI / 2)]);
+  const waterM = new THREE.MeshStandardMaterial({ color: 0x7fd0e0, roughness: .06, metalness: .2, transparent: true, opacity: .62, envMapIntensity: 1.6, vertexColors: false });
+  waterM.onBeforeCompile = sh => { sh.uniforms.t = timeU; sh.fragmentShader = 'uniform float t;\n' + sh.fragmentShader.replace('#include <normal_fragment_maps>', '#include <normal_fragment_maps>\n normal = normalize(normal + vec3(sin(vViewPosition.x*1.7+t*1.3)*.06, 0., cos(vViewPosition.z*1.9+t*1.1)*.06));'); };
+  const water = new THREE.Mesh(mergeColored(wl), waterM); water.renderOrder = 1; g.add(water);
+  // ---- distant scenery: misty peaks + clouds beyond the wall
+  const pk = [];
+  for (let i = 0; i < 22; i++) { const a = i / 22 * Math.PI * 2 + srnd(-.1, .1), r = srnd(140, 260), h = srnd(40, 110), w = h * srnd(.35, .55); pk.push([new THREE.ConeGeometry(1, 1, 7, 3), i % 2 ? 0x8aa0b8 : 0x9ab0c4, M4(Math.cos(a) * r, h / 2 - 8, Math.sin(a) * r, w, h, w, srnd(0, 6))]); pk.push([new THREE.ConeGeometry(1, 1, 7), 0xf4f6fa, M4(Math.cos(a) * r, h * .86 - 8, Math.sin(a) * r, w * .3, h * .3, w * .3)]); }
+  g.add(new THREE.Mesh(mergeColored(pk), new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true })));
+  const cl = []; for (let i = 0; i < 26; i++) { const a = srnd(0, 6.28), r = srnd(80, 240); blobCloud(cl, Math.cos(a) * r, srnd(-2, 14), Math.sin(a) * r, srnd(8, 18), 5, 0xffffff, .35); }
+  for (let i = 0; i < 10; i++) { const a = srnd(0, 6.28), r = srnd(200, 420); blobCloud(cl, Math.cos(a) * r, srnd(70, 130), Math.sin(a) * r, srnd(18, 34), 5, 0xfff4f8, .3); }
+  const clouds = new THREE.Mesh(mergeColored(cl), new THREE.MeshLambertMaterial({ vertexColors: true, emissive: 0xb0b8c8, emissiveIntensity: .5, transparent: true, opacity: .9 })); g.add(clouds);
+  // ---- library hidden door (visible only while 隐身) — own mesh, toggled by chapter logic
+  const hd = new THREE.Group(); hd.position.set(A.hidden.x, 0, A.hidden.z + .05); g.add(hd);
+  const doorTex = canvasTex(256, 384, (c, w, h) => { const gr = c.createRadialGradient(w / 2, h * .55, 10, w / 2, h * .55, h * .6); gr.addColorStop(0, 'rgba(255,220,255,1)'); gr.addColorStop(.35, 'rgba(190,90,255,.95)'); gr.addColorStop(1, 'rgba(60,0,120,0)'); c.fillStyle = gr; c.fillRect(0, 0, w, h); c.strokeStyle = 'rgba(255,230,255,.95)'; c.lineWidth = 6; c.strokeRect(30, 40, w - 60, h - 50); c.font = 'bold 60px serif'; c.fillStyle = 'rgba(80,0,120,.8)'; c.textAlign = 'center'; c.fillText('魔', w / 2, h * .58); });
+  const hdM = new THREE.MeshBasicMaterial({ map: doorTex, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false });
+  mk(new THREE.PlaneGeometry(2.6, 3.6), hdM, hd, 0, 1.8, 0);
+  hd.visible = false;
+  return {
+    name: 'academy', group: g, R: 1e5, boxes, cols, bounds, resolve: makeCollider(boxes, cols, bounds, npcSolids), spawn: { x: 0, z: 36, yaw: 0 }, hiddenDoor: hd, hiddenMat: hdM,
+    H: () => 0, sky: [0x5a9ae0, 0xb8daf4, 0xeaf2f6], sunDir: V3(-.4, .7, -.45).normalize(), sunCol: [1, .95, .85], fog: [0xdce8f0, 60, 300],
+    hemi: [0xf0f6ff, 0xa89a80, .95], sunL: [0xfff4e4, 1.9], ground: 0x9ab87a,
+    update(dt) {
+      clouds.rotation.y += dt * .003;
+      if (Math.random() < .35) { const x = player.x + rand(-14, 14), z = player.z + rand(-14, 14); emit(x, rand(3, 7), z, rand(.2, .6), -rand(.3, .6), rand(-.2, .2), Math.random() < .6 ? 0xffc8dc : 0xffffff, .14, 4, 0); }
+    },
+  };
+}
+/* layout constants shared by world + chapter logic */
+const ACAD = {
+  school: { x0: -42, x1: -18, z0: -46, z1: -30, dx0: -32, dx1: -28 },
+  lib: { x0: -13, x1: 13, z0: -60, z1: -42, dx0: -2.2, dx1: 2.2 },
+  shelfX: [-10.2, -7, -3.8, 3.8, 7, 10.2], shelfZ0: -57.2, shelfZ1: -50.2,
+  book: { x: -8.4, z: -46 }, hidden: { x: 0, z: -59.2 },
+  ring: { x: 26, z: -12, r: 10 },
+  stream: { z0: 16, z1: 20 },
+  ponds: [{ x: -27, z: 30, r: 6 }, { x: 26, z: 30, r: 5.5 }],
+  keepClear: [[-3.5, 3.5, -42, 42], [-34, -2, -3.5, 3.5], [-34, -26, -30, -2], [2, 13, -3.5, 3.5], [12, 42, -27, 3], [-17, 17, -43, -29], [-45, -15, -29, -3], [-6, 6, 14, 22], [-18, -9, 25, 35]],
+};
+ACAD.school.dx0 = -32; ACAD.school.dx1 = -28;
+/* ===== 地宫 (underground palace) ===== */
+const DG = { x0: -10, x1: 10, z0: -16, z1: 14, pillars: [[-5.5, -7], [5.5, -7], [-5.5, 1], [5.5, 1], [-5.5, 8.5], [5.5, 8.5]], book: { x: 0, z: -12.6 }, spawn: { x: 0, z: 10.6, yaw: 0 }, stairs: { x: 0, z: 12.6 } };
+function buildDigongWorld() {
+  const g = new THREE.Group(); g.visible = false; scene.add(g);
+  const boxes = [], cols = [], L = [], bounds = { x0: DG.x0 + .6, x1: DG.x1 - .6, z0: DG.z0 + .6, z1: DG.z1 - .6 };
+  const floorTex = canvasTex(1024, 1024, (c, w, h) => { c.fillStyle = '#2a2232'; c.fillRect(0, 0, w, h); for (let i = 0; i < 16; i++) for (let j = 0; j < 16; j++) { const v = 34 + Math.random() * 14; c.fillStyle = `rgb(${v},${v - 6},${v + 8})`; c.fillRect(i * 64 + 2, j * 64 + 2, 60, 60); } c.strokeStyle = 'rgba(190,90,255,.55)'; c.lineWidth = 5; c.beginPath(); c.arc(w / 2, h * .25, 150, 0, 7); c.stroke(); c.beginPath(); c.arc(w / 2, h * .25, 110, 0, 7); c.stroke(); for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2; c.beginPath(); c.moveTo(w / 2 + Math.cos(a) * 110, h * .25 + Math.sin(a) * 110); c.lineTo(w / 2 + Math.cos(a + 2.1) * 110, h * .25 + Math.sin(a + 2.1) * 110); c.stroke(); } });
+  const fl = new THREE.Mesh(new THREE.PlaneGeometry(DG.x1 - DG.x0, DG.z1 - DG.z0), new THREE.MeshLambertMaterial({ map: floorTex })); fl.rotation.x = -Math.PI / 2; fl.position.set(0, 0, (DG.z0 + DG.z1) / 2); g.add(fl);
+  const wallC = 0x3a3044, H = 7;
+  for (const [a0, a1, c0, c1] of [[DG.x0 - 1, DG.x1 + 1, DG.z0 - 1, DG.z0], [DG.x0 - 1, DG.x1 + 1, DG.z1, DG.z1 + 1], [DG.x0 - 1, DG.x0, DG.z0, DG.z1], [DG.x1, DG.x1 + 1, DG.z0, DG.z1]]) { boxes.push({ x0: a0, x1: a1, z0: c0, z1: c1 }); L.push([G.box, wallC, M4((a0 + a1) / 2, H / 2, (c0 + c1) / 2, a1 - a0, H, c1 - c0)]); }
+  L.push([G.box, 0x1a1420, M4(0, H, (DG.z0 + DG.z1) / 2, DG.x1 - DG.x0 + 2, .3, DG.z1 - DG.z0 + 2)]);
+  for (const [x, z] of DG.pillars) { cols.push({ x, z, r: .75 }); L.push([G.cyl, 0x4a3a56, M4(x, H / 2, z, .6, H, .6)]); L.push([G.box, 0x2a2232, M4(x, .3, z, 1.6, .6, 1.6)]); L.push([G.box, 0x2a2232, M4(x, H - .3, z, 1.5, .6, 1.5)]); }
+  // altar + 魔修圣书 lectern
+  boxes.push({ x0: -2.2, x1: 2.2, z0: DG.z0, z1: -13.6 }); L.push([G.box, 0x2a2232, M4(0, .4, (DG.z0 - 13.6) / 2, 4.4, .8, -13.6 - DG.z0)]);
+  cols.push({ x: DG.book.x, z: DG.book.z, r: .5 }); L.push([G.cyl, 0x1a1420, M4(DG.book.x, .55, DG.book.z, .15, 1.1, .15)]); L.push([G.box, 0x2a1a30, M4(DG.book.x, 1.15, DG.book.z, .8, .1, .6, 0, .35)]);
+  // stairs (exit) at south
+  for (let i = 0; i < 6; i++) { const dep = 2.4 - i * .38; L.push([G.box, i % 2 ? 0x4a3e56 : 0x54486a, M4(0, (i + 1) * .15, DG.z1 - dep / 2, 3.6, (i + 1) * .3, dep)]); }
+  boxes.push({ x0: -1.8, x1: 1.8, z0: DG.z1 - 2.4, z1: DG.z1 });
+  for (const sx of [-2, 2]) { L.push([G.box, 0x2a2232, M4(sx, 1.1, DG.z1 - 1.2, .4, 2.2, 2.4)]); boxes.push({ x0: sx - .2, x1: sx + .2, z0: DG.z1 - 2.4, z1: DG.z1 }); }
+  L.push([G.box, 0x0a0810, M4(0, 2.9, DG.z1 - .04, 3.2, 2.2, .05)]);
+  // chains/runes on walls
+  for (let i = 0; i < 6; i++) { const z = DG.z0 + 3 + i * 4.6; for (const sx of [-1, 1]) L.push([G.box, 0x6a3a9a, M4(sx * (DG.x1 - .05), 3.2, z, .05, 1.6, .9)]); }
+  g.add(new THREE.Mesh(mergeColored(L), new THREE.MeshLambertMaterial({ vertexColors: true })));
+  // glowing braziers (shared emissive mat) along walls — collision
+  const fireM = new THREE.MeshBasicMaterial({ color: 0xc070ff });
+  const fires = [];
+  for (const z of [-10, -3, 5]) for (const sx of [-1, 1]) { const x = sx * 8.6; cols.push({ x, z, r: .45 }); mk(G.cyl, std(0x2a2232), g, x, .5, z, .35, 1, .35); fires.push(mk(G.sphLo, fireM, g, x, 1.2, z, .25, .35, .25)); }
+  const bookGlow = mk(G.sph, auraMat(0xb050ff, 1.6, 1.4), g, DG.book.x, 1.3, DG.book.z, .5, .4, .5);
+  const altarL = new THREE.PointLight(0xb060ff, 6, 14, 1.6); altarL.position.set(0, 2.5, -12); g.add(altarL);
+  return {
+    name: 'digong', group: g, R: 1e5, boxes, cols, bounds, resolve: makeCollider(boxes, cols, bounds, npcSolids), spawn: DG.spawn, bookGlow,
+    H: () => 0, sky: [0x08040e, 0x140a20, 0x1e1028], sunDir: V3(0, 1, 0), sunCol: [.4, .2, .6], fog: [0x1a0e28, 10, 48],
+    hemi: [0xc0a0f0, 0x5a4070, 2.6], sunL: [0xc0a0ff, .7], ground: 0x201828,
+    update(dt) {
+      for (const f of fires) { f.scale.y = .35 + Math.sin(gameT * 9 + f.position.z) * .06; if (Math.random() < .25) emit(f.position.x + rand(-.15, .15), 1.3, f.position.z + rand(-.15, .15), 0, rand(.8, 1.6), 0, 0xc070ff, .35, .6, 0); }
+      if (Math.random() < .4) emit(rand(-9, 9), rand(0, 5), rand(-15, 13), rand(-.1, .1), rand(.05, .3), rand(-.1, .1), 0x9a50ff, .2, 3, 0);
+      bookGlow.scale.setScalar(.5 + Math.sin(gameT * 2.5) * .05);
+    },
+  };
+}
+worlds.academy = buildAcademyWorld();
+worlds.digong = buildDigongWorld();
+/* ================= v4 · 第一章 — characters (primitive-built, merged per limb: ~5 draw calls each) ================= */
+const CPOSE = {
+  idle: { ar: [0, .1], al: [0, -.1], lean: 0, twist: 0, crouch: 0 },
+  ready: { ar: [-.9, .25], al: [-.45, -.25], lean: .08, twist: .15, crouch: .05 },
+  raise: { ar: [-2.9, .1], al: [-2.7, -.15], lean: -.18, twist: 0, crouch: 0 },
+  slam: { ar: [-1.0, 0], al: [-.95, 0], lean: .5, twist: 0, crouch: .2 },
+  windR: { ar: [-1.3, 1.1], al: [-.4, -.3], lean: .05, twist: .9, crouch: .08 },
+  slashR: { ar: [-1.4, -1.0], al: [-.3, -.4], lean: .2, twist: -.8, crouch: .05 },
+  thrust: { ar: [-1.6, 0], al: [-.3, -.5], lean: .22, twist: -.3, crouch: .1 },
+  throwW: { ar: [-2.6, .4], al: [-.8, -.3], lean: -.12, twist: .5, crouch: 0 },
+  throwR: { ar: [-1.2, -.2], al: [-.6, -.2], lean: .2, twist: -.4, crouch: 0 },
+  cast: { ar: [-1.45, .35], al: [-1.45, -.35], lean: .1, twist: 0, crouch: 0 },
+  sky: { ar: [-3.0, -.2], al: [-2.9, .2], lean: -.2, twist: 0, crouch: 0 },
+  kneel: { ar: [-.3, .15], al: [-.6, -.2], lean: .55, twist: .1, crouch: .5 },
+  bow: { ar: [-.9, -.55], al: [-.9, .55], lean: .45, twist: 0, crouch: 0 },
+  point: { ar: [-1.5, .05], al: [0, -.1], lean: 0, twist: .1, crouch: 0 },
+  whisk: { ar: [-.2, .15], al: [-.75, -.25], lean: .04, twist: 0, crouch: 0 },
+  cheer: { ar: [-2.7, .35], al: [-.2, -.1], lean: -.05, twist: 0, crouch: 0 },
+  stagger: { ar: [.3, .5], al: [.3, -.5], lean: -.35, twist: .2, crouch: .1 },
+  float: { ar: [-.5, .5], al: [-.5, -.5], lean: .1, twist: 0, crouch: 0 },
+};
+function buildChar(o) {
+  const w = o.w || 1, ghost = !!o.ghost;
+  const mat = ghost ? o.ghostMat : new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .7, metalness: .05, envMapIntensity: .55 });
+  const root = new THREE.Group(), body = new THREE.Group(); root.add(body);
+  const B = [], Hd = [], AL = [], AR = [];
+  const robe = o.robe, lower = o.lower || o.robe, trim = o.trim, skin = o.skin || 0xf0d2bc, hair = o.hair ?? 0x18141c, inner = o.inner || 0xf2eee2, sash = o.sash || trim;
+  const tz = .78; // torso depth factor
+  if (!o.noLegs) for (const s of [-1, 1]) B.push([G.box, o.boots || 0x2a2420, M4(s * .1 * w, .05, .04, .11 * w, .1, .26)]);
+  B.push([lathe(o.noLegs ? [[0, .3], [.12 * w, .3], [.2 * w, .6], [.205 * w, .88], [.185 * w, 1.0], [0, 1.0]] : [[0, .06], [.3 * w, .06], [.29 * w, .16], [.25 * w, .5], [.205 * w, .88], [.185 * w, 1.0], [0, 1.0]], 16), lower, M4(0, 0, 0, 1, 1, .9)]);
+  if (!o.noLegs) B.push([new THREE.CylinderGeometry(.3 * w, .304 * w, .08, 16), trim, M4(0, .1, 0, 1, 1, .9)]);
+  B.push([G.box, inner, M4(0, .52, .235 * w * .9, .1 * w, .8, .02, 0, -.12)]);
+  B.push([G.cyl, sash, M4(0, 1.0, 0, .2 * w, .1, .2 * w * tz)]);
+  B.push([G.box, trim, M4(0, 1.0, .2 * w * tz + .01, .07, .08, .02)]);
+  B.push([lathe([[0, 0], [.19 * w, 0], [.205 * w, .15], [.228 * w, .33], [.2 * w, .44], [.1, .5], [.05, .53], [0, .53]], 16), robe, M4(0, 1.0, 0, 1, 1, tz)]);
+  for (const s of [-1, 1]) { B.push([G.box, inner, M4(s * .05, 1.36, .178 * w + .005, .055, .28, .02, 0, 0, s * .5)]); B.push([G.box, trim, M4(s * .072, 1.36, .178 * w + .012, .016, .28, .02, 0, 0, s * .5)]); }
+  for (const s of [-1, 1]) B.push([G.sph, robe, M4(s * .2 * w, 1.44, 0, .085 * w, .07, .08)]);
+  B.push([G.cyl, skin, M4(0, 1.57, 0, .045, .1, .045)]);
+  if (o.extraBody) o.extraBody(B, w);
+  // head (pivot at neck top)
+  Hd.push([G.sph, skin, M4(0, .1, 0, .1, .118, .106)]);
+  for (const s of [-1, 1]) {
+    Hd.push([G.box, o.eye || 0x1a1418, M4(s * .036, .118, .096, .032, .012, .01)]);
+    Hd.push([G.box, o.brow ?? hair, M4(s * .037, .145, .098, .042, .011, .01, 0, 0, s * (o.angry ? -.32 : -.06))]);
+    Hd.push([G.sph, skin, M4(s * .1, .1, 0, .02, .035, .025)]);
+  }
+  Hd.push([G.cone, skin, M4(0, .088, .108, .013, .032, .013, 0, .5)]);
+  Hd.push([G.box, 0x9a5a52, M4(0, .048, .098, .03, .006, .008)]);
+  if (o.hairStyle !== 'bald') { Hd.push([G.sph, hair, M4(0, .145, -.012, .109, .088, .113)]); Hd.push([G.sph, hair, M4(0, .09, -.035, .104, .1, .09)]); }
+  if (o.head) o.head(Hd, hair, skin);
+  // arms (pivot at shoulder), sleeves widen toward the cuff
+  const armList = (L, s) => { L.push([new THREE.CylinderGeometry(.052 * w, (o.sleeve || .1) * w, .56, 10), robe, M4(0, -.28, 0)]); L.push([new THREE.CylinderGeometry((o.sleeve || .1) * w + .004, (o.sleeve || .1) * w + .004, .045, 10), trim, M4(0, -.56, 0)]); L.push([G.sph, skin, M4(0, -.62, .01, .042, .05, .042)]); };
+  armList(AL, -1); armList(AR, 1);
+  const bodyM = mk(mergeColored(B), mat, body);
+  const head = new THREE.Group(); head.position.y = 1.62; body.add(head); mk(mergeColored(Hd), mat, head);
+  const arms = [];
+  for (const [L, s] of [[AL, -1], [AR, 1]]) { const p = new THREE.Group(); p.position.set(s * .235 * w, 1.46, 0); body.add(p); mk(mergeColored(L), mat, p); const hand = new THREE.Group(); hand.position.set(0, -.62, .02); p.add(hand); arms.push({ p, hand }); }
+  root.scale.setScalar(o.h || 1);
+  if (o.weaponR) { const wm = mk(mergeColored(o.weaponR), mat, arms[1].hand); wm.rotation.x = o.weaponRx ?? 1.25; arms[1].weapon = wm; }
+  if (o.weaponL) { const wm = mk(mergeColored(o.weaponL), mat, arms[0].hand); wm.rotation.x = o.weaponLx ?? 0; arms[0].weapon = wm; }
+  return { root, body, head, armL: arms[0], armR: arms[1], mat, mats: [mat] };
+}
+/* weapons (built along +Y from grip at origin) */
+const W_WHISK = [[G.cyl, 0x6a4028, M4(0, .1, 0, .014, .36, .014)], [G.sph, 0xd8b25a, M4(0, .29, 0, .025, .025, .025)], [G.cone, 0xf6f6f6, M4(0, -.25, 0, .07, .5, .07, 0, Math.PI)], [G.cone, 0xe6e6ea, M4(.02, -.28, .02, .05, .45, .05, 0, Math.PI)]];
+const W_THIN = [[G.cyl, 0x2a1a14, M4(0, 0, 0, .014, .2, .014)], [G.box, 0xd8b25a, M4(0, .11, 0, .1, .02, .03)], [G.box, 0xe6eef6, M4(0, .6, 0, .028, .98, .008)], [G.cone, 0xe6eef6, M4(0, 1.12, 0, .02, .08, .006)]];
+const W_BLACK = [[G.cyl, 0x1a1418, M4(0, 0, 0, .02, .26, .02)], [G.box, 0x6a3a9a, M4(0, .14, 0, .26, .05, .06)], [G.box, 0x14101a, M4(0, .72, 0, .15, 1.1, .03)], [G.box, 0x9a4ae0, M4(.078, .72, 0, .01, 1.1, .035)], [G.box, 0x9a4ae0, M4(-.078, .72, 0, .01, 1.1, .035)], [G.cone, 0x14101a, M4(0, 1.34, 0, .075, .14, .016)]];
+const W_GREAT = [[G.cyl, 0x3a2418, M4(0, 0, 0, .03, .42, .03)], [G.box, 0x6a5a40, M4(0, .22, 0, .6, .09, .1)], [G.box, 0x8a929c, M4(0, 1.12, 0, .32, 1.72, .06)], [G.box, 0xc8d0d8, M4(0, 1.12, 0, .34, 1.6, .02)], [G.cone, 0x8a929c, M4(0, 2.06, 0, .17, .2, .03)]];
+const W_DART = [[G.cone, 0xc8d0d8, M4(0, .1, 0, .025, .2, .025)], [G.cyl, 0x8a2a2a, M4(0, -.03, 0, .01, .08, .01)]];
+const ghostCharMat = new THREE.ShaderMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, uniforms: { col: { value: new THREE.Color(0x9a40ff) }, op: { value: 1 }, t: timeU, fl: { value: 0 } }, vertexColors: true,
+  vertexShader: 'varying vec3 vN; varying vec3 vV; varying float vY; varying vec3 vC; void main(){ vC=color; vec4 w=modelMatrix*vec4(position,1.); vY=w.y; vN=normalize(mat3(modelMatrix)*normal); vV=normalize(cameraPosition-w.xyz); gl_Position=projectionMatrix*viewMatrix*w; }',
+  fragmentShader: 'uniform vec3 col; uniform float op,t,fl; varying vec3 vN; varying vec3 vV; varying float vY; varying vec3 vC; void main(){ float f=pow(1.-abs(dot(vN,vV)),1.5); float scan=.7+.3*sin(vY*22.-t*5.); float a=(.22+f*1.1)*scan*op; vec3 c=mix(col,vC,.35)+fl; gl_FragColor=vec4(c*a,a); }' });
+ghostCharMat.userData.keepE = true;
+/* ---- the cast ---- */
+const CAST = {
+  master: { name: '青玄真人', title: '师傅', h: 1.0, w: 1.05, robe: 0xd6d6d0, lower: 0xc8c8c2, trim: 0x8a8a96, inner: 0xf4f4f0, hair: 0xf2f2f2, brow: 0xf8f8f8, sash: 0x6a6a7a, sleeve: .13,
+    head(Hd, hair) { Hd.push([G.sph, hair, M4(0, .25, -.02, .05, .045, .05)]); Hd.push([G.box, 0xc8a050, M4(0, .27, -.02, .06, .03, .08)]); Hd.push([G.cyl, 0xc8a050, M4(0, .28, -.02, .006, .16, .006, 0, 0, Math.PI / 2)]); Hd.push([G.cone, 0xf8f8f8, M4(0, -.1, .07, .07, .32, .045, 0, Math.PI)]); for (const s of [-1, 1]) Hd.push([G.cone, 0xf8f8f8, M4(s * .03, .05, .1, .012, .09, .012, 0, Math.PI, s * -.9)]); Hd.push([G.box, hair, M4(0, -.05, -.09, .17, .3, .05)]); },
+    weaponL: W_WHISK, weaponLx: 0 },
+  lin: { name: '林清风', title: '师兄', h: 1.04, w: .85, robe: 0x3fb8b0, lower: 0x2e9c96, trim: 0xe8f8f4, inner: 0xf2fffc, hair: 0x14121a, sash: 0x1e6a6a, sleeve: .085,
+    head(Hd, hair) { Hd.push([G.sph, hair, M4(0, .25, -.06, .045, .05, .045)]); Hd.push([G.box, 0xe8f8f4, M4(0, .24, -.06, .1, .015, .015)]); Hd.push([G.cone, hair, M4(0, .02, -.14, .045, .5, .03, 0, Math.PI + .25)]); for (const s of [-1, 1]) Hd.push([G.box, hair, M4(s * .085, .06, .07, .015, .14, .015)]); },
+    extraBody(B, w) { B.push([G.box, 0x2a4a6a, M4(.1, 1.18, -.2 * w, .06, 1.1, .035, 0, 0, .55)]); B.push([G.box, 0xd8b25a, M4(-.18, 1.62, -.2 * w, .1, .025, .04, 0, 0, .55)]); B.push([G.cyl, 0x2a1a14, M4(-.24, 1.72, -.2 * w, .014, .2, .014, 0, 0, .55)]); } },
+  mohan: { name: '墨寒', title: '魔派首席', h: 1.12, w: 1.0, robe: 0x17131c, lower: 0x100c14, trim: 0x7a3aaa, inner: 0x3a2a4a, hair: 0x0a080c, sash: 0x5a2a8a, angry: true, eye: 0xb050ff, sleeve: .1,
+    head(Hd, hair) { Hd.push([G.sph, hair, M4(0, .24, -.04, .05, .05, .05)]); Hd.push([G.box, 0x7a3aaa, M4(0, .25, -.04, .07, .025, .07)]); Hd.push([G.box, hair, M4(0, -.08, -.08, .2, .38, .06)]); for (const s of [-1, 1]) Hd.push([G.box, hair, M4(s * .09, .02, .06, .02, .2, .02)]); },
+    extraBody(B, w) { for (const s of [-1, 1]) B.push([G.box, 0x2a2232, M4(s * .22 * w, 1.47, 0, .14, .05, .18, 0, 0, s * -.3)]); },
+    weaponR: W_BLACK },
+  heavy: { name: '重剑弟子', title: '重剑堂', h: 1.15, w: 1.45, robe: 0x8a6a42, lower: 0x6a4e30, trim: 0x3a2a1a, inner: 0xd8c8a8, skin: 0xd8aa88, hair: 0x2a1a10, sash: 0x2a1a10, sleeve: .085, boots: 0x1a1410,
+    hairStyle: 'bald', head(Hd) { Hd.push([G.tor, 0xb02a2a, M4(0, .17, 0, .1, .1, .1, 0, Math.PI / 2)]); Hd.push([G.box, 0xb02a2a, M4(0, .17, -.12, .03, .14, .02, 0, .3)]); Hd.push([G.sph, 0x2a1a10, M4(0, .03, .07, .06, .04, .04)]); },
+    extraBody(B, w) { for (const s of [-1, 1]) B.push([G.sph, 0x5a4a3a, M4(s * .23 * w, 1.47, 0, .1 * w, .07, .1)]); B.push([G.box, 0x3a2a1a, M4(0, 1.25, .175 * w, .06, .5, .02, 0, 0, .7)]); },
+    weaponR: W_GREAT, weaponRx: 1.0 },
+  dart: { name: '暗器弟子', title: '暗器堂', h: .9, w: .78, robe: 0x3a4a44, lower: 0x2a3632, trim: 0xa8b0a0, inner: 0x5a6a60, hair: 0x101010, sash: 0x8a2a2a, sleeve: .06,
+    head(Hd) { Hd.push([G.sph, 0x26302c, M4(0, .15, -.02, .125, .12, .13)]); Hd.push([G.box, 0x26302c, M4(0, .055, .085, .2, .07, .04)]); Hd.push([G.box, 0x8a2a2a, M4(0, .19, .09, .21, .02, .02)]); },
+    extraBody(B, w) { B.push([new THREE.ConeGeometry(.36 * w, .62, 12), 0x26302c, M4(0, 1.3, -.02, 1, 1, .85)]); for (let i = 0; i < 6; i++) B.push([G.cone, 0xc8d0d8, M4(-.12 + i * .05, 1.0, .2 * w * .78 + .02, .012, .07, .012, 0, Math.PI)]); } },
+  ghost: { name: '魔修虚影', title: '', h: 1.3, w: 1.15, robe: 0x5a20a0, lower: 0x3a1070, trim: 0xd090ff, inner: 0x8a40d0, skin: 0x7a40c0, hair: 0x2a0a50, eye: 0xffd0ff, angry: true, sleeve: .14, noLegs: true, ghost: true, ghostMat: ghostCharMat,
+    head(Hd, hair) { for (const s of [-1, 1]) Hd.push([G.cone, 0xd090ff, M4(s * .07, .26, -.02, .02, .14, .02, 0, -.3, s * -.4)]); Hd.push([G.box, hair, M4(0, -.1, -.09, .24, .45, .05)]); } },
+};
+function makeActor(id, extra = {}) {
+  const c = CAST[id], m = buildChar(c);
+  const holder = new THREE.Group(); holder.add(m.root); scene.add(holder); holder.visible = false;
+  const shadow = mk(discGeo, new THREE.MeshBasicMaterial({ color: 0, transparent: true, opacity: c.ghost ? .0 : .22, depthWrite: false }), holder, 0, .02, 0, .45 * (c.w || 1), .45 * (c.w || 1), 1); shadow.rotation.x = -Math.PI / 2;
+  const a = Object.assign({ id, kind: id, name: c.name, title: c.title, lvTxt: '1', boss: false, showNum: true, x: 0, z: 0, y: 0, yaw: 0, radius: .5 * (c.w || 1), height: 1.85 * (c.h || 1), hp: 1, maxHp: 1, armor: 1, floorHp: 0,
+    model: m, holder, mats: m.mats, act: null, cd: 1, flash: 0, warnT: 0, dead: false, stagger: 0, moveAmt: 0, ph: 0, pose: 'idle', cur: JSON.parse(JSON.stringify(CPOSE.idle)), world: 'academy', shown: false, path: null, speed: 3.2, fighting: false, solid: false, label: null, spin: 0,
+    update(dt) { foeUpdate(this, dt); }, onInterrupt() { this.act = null; this.warnT = 0; this.pose = 'stagger'; this.cd = Math.max(this.cd, .8); if (this.onCancel) this.onCancel(); } }, extra);
+  a.r = a.radius; return a;
+}
+function setActorPose(a, name) { a.pose = name; }
+/* procedural animation */
+function animActor(a, dt) {
+  const m = a.model, P = CPOSE[a.pose] || CPOSE.idle, k = Math.min(1, dt * (a.poseK || 9)), cur = a.cur;
+  for (const key of ['ar', 'al']) for (let i = 0; i < 2; i++) cur[key][i] = lerp(cur[key][i], P[key][i], k);
+  for (const key of ['lean', 'twist', 'crouch']) cur[key] = lerp(cur[key], P[key], k);
+  a.ph += dt * (3 + 6 * a.moveAmt);
+  const sw = Math.sin(a.ph) * .55 * a.moveAmt, idleB = Math.sin(gameT * 1.8 + a.x) * .02;
+  const freeArms = a.pose === 'idle' || a.pose === 'whisk';
+  m.armR.p.rotation.set(cur.ar[0] + (freeArms ? sw : 0), 0, cur.ar[1]);
+  m.armL.p.rotation.set(cur.al[0] - (freeArms ? sw : 0), 0, cur.al[1]);
+  m.body.rotation.set(cur.lean + a.moveAmt * .06, cur.twist + a.spin, 0);
+  m.body.position.y = -cur.crouch * .55 + Math.abs(Math.sin(a.ph)) * .04 * a.moveAmt + idleB * (a.float ? 4 : 0);
+  m.head.rotation.x = -cur.lean * .4 + (a.headTilt || 0);
+  if (a.flash > 0) { a.flash = Math.max(0, a.flash - dt * 5); if (a.model.mat === ghostCharMat) ghostCharMat.uniforms.fl.value = a.flash * .6; else setFlash(a, a.flash * .7); }
+}
+function placeActor(a, x, z, yaw) { a.x = x; a.z = z; if (yaw !== undefined) a.yaw = yaw; a.path = null; a.moveAmt = 0; syncActor(a); }
+function syncActor(a) { a.holder.position.set(a.x, (a.float ? .35 + Math.sin(gameT * 1.6) * .1 : 0) + (a.airY || 0), a.z); a.holder.rotation.y = a.yaw; }
+function faceActor(a, x, z, k = 1) { a.yaw += angDiff(a.yaw, Math.atan2(x - a.x, z - a.z)) * Math.min(1, k); }
+/* move along a list of waypoints; returns true when done */
+function walkPath(a, dt) {
+  if (!a.path || !a.path.length) { a.moveAmt += (0 - a.moveAmt) * Math.min(1, dt * 6); return true; }
+  const p = a.path[0], dx = p[0] - a.x, dz = p[1] - a.z, d = Math.hypot(dx, dz);
+  if (d < .25) { a.path.shift(); if (!a.path.length) { a.moveAmt = 0; return true; } return false; }
+  const sp = Math.min(d / dt, a.speed); a.x += dx / d * sp * dt; a.z += dz / d * sp * dt; faceActor(a, p[0], p[1], dt * 8); a.moveAmt += (1 - a.moveAmt) * Math.min(1, dt * 6);
+  if (world.resolve && !a.noCollide) { const r = world.resolve(a.x, a.z, a.r * .8); a.x = r[0]; a.z = r[1]; }
+  return false;
+}
+/* ================= foe AI (duels + phantom) ================= */
+function foeTarget(e) { if (e.tgtAlly && ch1.ally && !ch1.ally.retreat) return { x: ch1.ally.x, z: ch1.ally.z, ally: true }; const p = aimPos(); return { x: p.x, z: p.z }; }
+function foeHitArea(e, x, z, r, dmg, kb, melee = true) {
+  let hit = false;
+  if (playerNear(x, z, r + .3)) { const res = hurtPlayer(dmg, { attacker: e, x: e.x, z: e.z, melee }); if (res === 'hit' && kb) knockPlayer(e.x, e.z, kb); hit = true; }
+  else if (player.stealthT > 0 && decoy.active && Math.hypot(decoy.pos.x - x, decoy.pos.z - z) < r + .3) decoyHit();
+  const al = ch1.ally; if (al && ch1.fight && ch1.fight.withAlly && !al.retreat && Math.hypot(al.x - x, al.z - z) < r + .3) allyHurt(dmg);
+  return hit;
+}
+function foeMeleeFront(e, range, half, dmg, kb) {
+  let hit = false;
+  if (inFront(e, player.x, player.z, range, half)) { const res = hurtPlayer(dmg, { attacker: e, x: e.x, z: e.z, melee: true }); if (res === 'hit' && kb) knockPlayer(e.x, e.z, kb); hit = true; }
+  else if (player.stealthT > 0 && decoy.active && inFront(e, decoy.pos.x, decoy.pos.z, range, half)) decoyHit();
+  const al = ch1.ally; if (al && ch1.fight && ch1.fight.withAlly && !al.retreat && inFront(e, al.x, al.z, range, half)) allyHurt(dmg);
+  return hit;
+}
+function foeSlashFx(e, hex, tilt = 0, s = 1) {
+  const holder = new THREE.Group(); holder.position.set(e.x, 1.1 * (e.model.root.scale.x), e.z); holder.rotation.y = e.yaw + Math.PI;
+  const m = new THREE.Mesh(ARC_WIDE, slashMat(hex)); m.rotation.x = -Math.PI / 2 + .3; m.rotation.z = Math.PI + tilt; m.scale.setScalar(.75 * s); holder.add(m);
+  addFx(holder, .38, k => { m.material.uniforms.prog.value = Math.min(1.25, k * 2.4); m.material.uniforms.fade.value = k < .5 ? 1 : 1 - (k - .5) * 2; });
+}
+function moveFoe(e, vx, vz, sp, dt) { const l = Math.hypot(vx, vz) || 1; e.x += vx / l * sp * dt; e.z += vz / l * sp * dt; e._mv = 1; }
+function dartMesh(hex = 0xd8e0e8) { const g = new THREE.Group(); mk(G.cone, new THREE.MeshBasicMaterial({ color: hex }), g, 0, 0, 0, .05, .34, .05).rotation.x = Math.PI / 2; mk(G.sphLo, addMat(0x9fffd0, .7), g, 0, 0, 0, .1, .1, .1); return g; }
+function foeUpdate(e, dt) {
+  if (!e.fighting) { animActor(e, dt); syncActor(e); return; }
+  const D = e.def; e._mv = 0;
+  if (e.dead) { e.act = null; e.warnT = 0; setActorPose(e, D.deadPose || 'kneel'); e.moveAmt = 0; if (D.onDeadTick) D.onDeadTick(e, dt); animActor(e, dt); syncActor(e); return; }
+  const tg = foeTarget(e), dx = tg.x - e.x, dz = tg.z - e.z, dist = Math.hypot(dx, dz);
+  if (e.stagger > 0) { e.stagger -= dt; setActorPose(e, 'stagger'); if (e.broken) e.model.body.rotation.z = Math.sin(gameT * 9) * .05; }
+  else if (e.act) { const a = e.act, p = a.t; a.t += dt; a.step(a.t, p, dt, tg); if (e.act === a && a.t >= a.dur) { e.act = null; e.cd = D.cd(e); setActorPose(e, D.idlePose || 'ready'); } }
+  else {
+    setActorPose(e, D.idlePose || 'ready');
+    if (e.ai) { D.think(e, dt, tg, dist, dx, dz); e.cd -= dt; if (e.cd <= 0 && !e.act) { const nm = D.pick(e, dist, tg); if (nm) { e.act = { name: nm, t: 0, dur: 1, step() { } }; D.acts[nm](e, e.act, tg); } else e.cd = .3; } }
+    else faceActor(e, tg.x, tg.z, dt * 4);
+  }
+  // collision + arena
+  if (world.resolve) { const r = world.resolve(e.x, e.z, e.r * .8); e.x = r[0]; e.z = r[1]; }
+  const F = ch1.fight; if (F && F.ring) { const R = ACAD.ring, ox = e.x - R.x, oz = e.z - R.z, d = Math.hypot(ox, oz), mx = R.r - .6; if (d > mx) { e.x = R.x + ox / d * mx; e.z = R.z + oz / d * mx; } }
+  { const ox = e.x - player.x, oz = e.z - player.z, d = Math.hypot(ox, oz), mn = e.r + .55; if (d < mn && d > 1e-3 && !e.passThrough) { e.x = player.x + ox / d * mn; e.z = player.z + oz / d * mn; } }
+  e.moveAmt += ((e._mv ? 1 : 0) - e.moveAmt) * Math.min(1, dt * 7);
+  if (D.tick) D.tick(e, dt);
+  e.warnT = Math.max(0, e.warnT - dt);
+  animActor(e, dt); syncActor(e);
+}
+/* ---- 重剑弟子: slow, huge telegraphed hits, long recovery windows ---- */
+const FOE_HEAVY = {
+  hp: 3400, tough: 170, lv: 1, idlePose: 'ready', speed: 2.3,
+  cd: e => rand(1.3, 2.0) * (e.hp < e.maxHp * .4 ? .8 : 1),
+  think(e, dt, tg, d, dx, dz) { faceActor(e, tg.x, tg.z, dt * 3); if (d > 2.6) moveFoe(e, dx, dz, FOE_HEAVY.speed, dt); },
+  pick(e, d) { if (d < 3.3) return Math.random() < .58 ? 'smash' : 'sweep'; if (d > 6 && Math.random() < .55) return 'charge'; return d < 5 ? 'smash' : null; },
+  acts: {
+    smash(e, A) { const rage = e.hp < e.maxHp * .4; A.dur = 2.5; A.n = rage ? 2 : 1; A.k = 0; A.setup = (t0) => { A.t0 = t0; A.fx = e.x + Math.sin(e.yaw) * 1.9; A.fz = e.z + Math.cos(e.yaw) * 1.9; teleCircle(A.fx, A.fz, 2.1, 1.05, 0xff5020); e.warnT = 1.05; setActorPose(e, 'raise'); e.poseK = 4; }; A.setup(0);
+      A.step = (t, p, dt, tg) => {
+        const lt = t - A.t0;
+        if (lt < .5) faceActor(e, tg.x, tg.z, dt * 3);
+        if (lt >= 1.05 && !A['h' + A.k]) { A['h' + A.k] = 1; e.poseK = 22; setActorPose(e, 'slam'); sfx('boom'); shake = Math.max(shake, .35); shockRing(V3(A.fx, 0, A.fz), 0xffb060, .4, 3.2, .5); burst(V3(A.fx, .3, A.fz), 30, 0xc8b090, 7, .7, .7, -6, .4); foeHitArea(e, A.fx, A.fz, 2.1, 140, 2); }
+        if (A.k + 1 < A.n && lt > 1.6) { A.k++; A.dur = t + 2.5; A.setup(t); }
+        if (lt > 2.1) e.poseK = 5;
+      }; },
+    sweep(e, A) { A.dur = 2.2; teleCircle(e.x, e.z, 3.1, .9, 0xff5020); e.warnT = .9; setActorPose(e, 'windR'); e.poseK = 5;
+      A.step = (t, p, dt) => { if (t >= .9 && t < 1.3) { e.spin = (t - .9) / .4 * Math.PI * 2; setActorPose(e, 'slashR'); } else e.spin = 0; if (p < .95 && t >= .95) { sfx('whoosh'); foeSlashFx(e, 0xffc080, 0, 1.4); foeHitArea(e, e.x, e.z, 3.1, 110, 2.6); } if (t > 1.4) e.poseK = 4; }; },
+    charge(e, A, tg) { const yaw = Math.atan2(tg.x - e.x, tg.z - e.z), len = 9; A.dur = 1.0 + .9 + 1.1; e.yaw = yaw; teleLine(e.x, e.z, yaw, len, 2.2, 1.0, 0xff4020); e.warnT = 1.0; setActorPose(e, 'thrust'); e.poseK = 5;
+      A.step = (t, p, dt) => { if (t > 1.0 && t < 1.9) { if (p <= 1.0) sfx('roar'); moveFoe(e, Math.sin(yaw), Math.cos(yaw), 10, dt); if (Math.random() < .7) emit(e.x + rand(-.5, .5), .15, e.z + rand(-.5, .5), rand(-1, 1), rand(.5, 1.5), rand(-1, 1), 0xc8b898, .6, .6, -2); if (!A.hit && Math.hypot(player.x - e.x, player.z - e.z) < 1.6) { A.hit = 1; const r = hurtPlayer(120, { attacker: e, x: e.x, z: e.z, melee: true }); if (r === 'hit') knockPlayer(e.x, e.z, 2.6); } } if (t >= 1.9) setActorPose(e, 'stagger'); }; },
+  },
+};
+/* ---- 暗器弟子: keeps distance, darts, smoke-bomb backflip ---- */
+const FOE_DART = {
+  hp: 3600, tough: 130, lv: 2, idlePose: 'ready', speed: 4.4,
+  cd: e => rand(1.1, 1.7),
+  think(e, dt, tg, d, dx, dz) {
+    faceActor(e, tg.x, tg.z, dt * 6); e.strT = (e.strT || 0) - dt; if (e.strT <= 0) { e.strT = rand(1.2, 2.4); e.strDir = Math.random() < .5 ? -1 : 1; }
+    if (d < 5.5) moveFoe(e, -dx - dz * e.strDir * .6, -dz + dx * e.strDir * .6, FOE_DART.speed, dt);
+    else if (d > 10.5) moveFoe(e, dx, dz, FOE_DART.speed * .8, dt);
+    else moveFoe(e, -dz * e.strDir, dx * e.strDir, 2.6, dt);
+    e.evCd = (e.evCd || 0) - dt;
+    if (d < 3.0 && e.evCd <= 0 && !e.act) { e.evCd = 5.5; e.act = { name: 'flip', t: 0, dur: 1, step() { } }; FOE_DART.acts.flip(e, e.act, tg); }
+  },
+  pick(e, d) { if (d < 3) return null; return Math.random() < .55 ? 'volley' : 'rapid'; },
+  acts: {
+    volley(e, A, tg) { const n = e.hp < e.maxHp * .5 ? 5 : 3; A.dur = 1.2; e.warnT = .55; setActorPose(e, 'throwW'); e.poseK = 8;
+      A.step = (t, p, dt, tg2) => { if (t < .5) faceActor(e, tg2.x, tg2.z, dt * 8); if (p < .55 && t >= .55) { setActorPose(e, 'throwR'); e.poseK = 20; sfx('swish'); const base = Math.atan2(tg2.x - e.x, tg2.z - e.z); for (let i = 0; i < n; i++) { const a = base + (i - (n - 1) / 2) * .2, mesh = dartMesh(); mesh.rotation.y = a; spawnProj({ mesh, pos: V3(e.x, 1.25, e.z), vel: V3(Math.sin(a), 0, Math.cos(a)).multiplyScalar(15), r: .7, dmg: 55, life: 1.6, col: 0x9fffd0, attacker: e }); } } }; },
+    rapid(e, A) { A.dur = 1.6; e.warnT = .4; setActorPose(e, 'throwW'); e.poseK = 10; A.k = 0;
+      A.step = (t, p, dt, tg2) => { faceActor(e, tg2.x, tg2.z, dt * 10); const at = .4 + A.k * .2; if (A.k < 5 && t >= at) { A.k++; setActorPose(e, A.k % 2 ? 'throwR' : 'throwW'); sfx('swish'); const lead = V3(tg2.x + rand(-.4, .4), 1.25, tg2.z + rand(-.4, .4)); const from = V3(e.x, 1.25, e.z); const v = lead.sub(from).setY(0).normalize().multiplyScalar(17); const mesh = dartMesh(0xffe0a0); mesh.rotation.y = Math.atan2(v.x, v.z); spawnProj({ mesh, pos: from, vel: v, r: .6, dmg: 40, life: 1.5, col: 0xffd080, attacker: e }); } }; },
+    flip(e, A, tg) { A.dur = 1.0; const ax = e.x - tg.x, az = e.z - tg.z, l = Math.hypot(ax, az) || 1; A.vx = ax / l; A.vz = az / l; A.ox = e.x; A.oz = e.z; e.passThrough = true; smoke(V3(e.x, .8, e.z), 0x8aa090); sfx('whoosh');
+      teleCircle(A.ox, A.oz, 2.2, .75, 0x80ff60, () => { sfx('boom'); burst(V3(A.ox, .5, A.oz), 40, 0x9aff80, 6, .8, .7, -2, .3); shockRing(V3(A.ox, 0, A.oz), 0x9aff80, .3, 2.6, .5); foeHitArea(e, A.ox, A.oz, 2.2, 80, 1.6, false); });
+      A.step = (t, p, dt) => { if (t < .45) { moveFoe(e, A.vx, A.vz, 11, dt); e.airY = Math.sin(t / .45 * Math.PI) * 1.2; e.spin = -t / .45 * Math.PI * 2; } else { e.airY = 0; e.spin = 0; e.passThrough = false; } }; },
+  },
+  tick(e, dt) { // orbiting darts
+    const o = e.orbit; if (!o) return; o.visible = !e.dead; o.rotation.y += dt * 3.2; o.position.set(e.x, 1.05 + (e.airY || 0), e.z);
+  },
+};
+/* ---- 墨寒: fast combos, sword waves, blink strikes, purple burst ---- */
+const FOE_MOHAN = {
+  hp: 4800, tough: 220, lv: 3, idlePose: 'ready', speed: 3.8,
+  cd: e => rand(.9, 1.5),
+  think(e, dt, tg, d, dx, dz) { faceActor(e, tg.x, tg.z, dt * 6); if (d > 3) moveFoe(e, dx, dz, FOE_MOHAN.speed, dt); else { e.sd = e.sd || 1; if (Math.random() < dt * .5) e.sd *= -1; moveFoe(e, -dz * e.sd, dx * e.sd, 1.8, dt); } },
+  pick(e, d) { const low = e.hp < e.maxHp * .6, r = Math.random(); const opts = d < 3.2 ? (low ? ['combo', 'combo', 'burst', 'blink'] : ['combo', 'combo', 'blink']) : ['wave', 'wave', 'blink', 'dash']; let c = opts[Math.floor(r * opts.length)]; if (c === e.last && Math.random() < .6) c = opts[(opts.indexOf(c) + 1) % opts.length]; e.last = c; return c; },
+  acts: {
+    dash(e, A, tg) { A.dur = .5; setActorPose(e, 'thrust'); A.step = (t, p, dt, tg2) => { const dx = tg2.x - e.x, dz = tg2.z - e.z, d = Math.hypot(dx, dz); if (d > 1.8) moveFoe(e, dx, dz, 12, dt); faceActor(e, tg2.x, tg2.z, dt * 10); if (Math.random() < .8) emit(e.x, rand(.3, 1.8), e.z, 0, .5, 0, 0x8a40ff, .4, .5, 0); if (t >= .45 || d <= 1.8) { e.act = { name: 'combo', t: 0, dur: 1, step() { } }; FOE_MOHAN.acts.combo(e, e.act, tg2); } }; },
+    combo(e, A) { A.dur = 2.2; const hits = [[.55, 55, 'slashR', .4], [1.0, 55, 'windR', -.5], [1.5, 85, 'slam', 0]];
+      A.step = (t, p, dt, tg2) => {
+        faceActor(e, tg2.x, tg2.z, dt * 5); const d = Math.hypot(tg2.x - e.x, tg2.z - e.z); if (d > 1.7 && t < 1.4) moveFoe(e, tg2.x - e.x, tg2.z - e.z, 3.5, dt);
+        for (const [at, dmg, pose, tilt] of hits) { if (p < at - .38 && t >= at - .38) { e.warnT = .38; setActorPose(e, pose === 'slam' ? 'raise' : (pose === 'slashR' ? 'windR' : 'slashR')); e.poseK = 10; } if (p < at && t >= at) { setActorPose(e, pose); e.poseK = 24; sfx('swish'); foeSlashFx(e, 0xb060ff, tilt); foeMeleeFront(e, 3.0, 1.0, dmg, dmg > 60 ? 2 : .8); } }
+      }; },
+    wave(e, A) { const n = e.hp < e.maxHp * .5 ? 3 : 1; A.dur = 1.3; setActorPose(e, 'raise'); e.poseK = 7; e.warnT = .6;
+      A.step = (t, p, dt, tg2) => { if (t < .55) faceActor(e, tg2.x, tg2.z, dt * 8); if (p < .6 && t >= .6) { setActorPose(e, 'slashR'); e.poseK = 20; sfx('whoosh'); const base = Math.atan2(tg2.x - e.x, tg2.z - e.z); for (let i = 0; i < n; i++) { const a = base + (i - (n - 1) / 2) * .32, dir = V3(Math.sin(a), 0, Math.cos(a)); const mesh = new THREE.Mesh(WAVE_GEO, slashMat(0xa040ff)); mesh.material.uniforms.prog.value = 1.3; mesh.rotation.order = 'YXZ'; mesh.rotation.y = a; mesh.rotation.z = .5; mesh.scale.setScalar(.85); spawnProj({ mesh, pos: V3(e.x, 1.2, e.z), vel: dir.multiplyScalar(13), r: 1.2, dmg: 85, life: 1.8, col: 0xa040ff, attacker: e }); } } }; },
+    blink(e, A) { A.dur = 1.7; smoke(V3(e.x, 1, e.z)); e.holder.visible = false; e.invuln = true; sfx('whoosh');
+      A.step = (t, p, dt, tg2) => {
+        if (p < .45 && t >= .45) { const f = player.stealthT > 0 ? V3(Math.sin(decoy.holder.rotation.y), 0, Math.cos(decoy.holder.rotation.y)) : fwd(); e.x = tg2.x - f.x * 2.2; e.z = tg2.z - f.z * 2.2; if (world.resolve) { const r = world.resolve(e.x, e.z, .5); e.x = r[0]; e.z = r[1]; } faceActor(e, tg2.x, tg2.z, 1); e.holder.visible = true; e.invuln = false; smoke(V3(e.x, 1, e.z)); setActorPose(e, 'windR'); e.warnT = .55; teleCircle(e.x + Math.sin(e.yaw) * 1.3, e.z + Math.cos(e.yaw) * 1.3, 2, .55, 0xb040ff); }
+        if (p < 1.0 && t >= 1.0) { setActorPose(e, 'slashR'); e.poseK = 24; sfx('swish'); foeSlashFx(e, 0xc060ff, .2, 1.1); foeMeleeFront(e, 3.2, 1.1, 100, 1.5); }
+      }; e.onCancel = () => { e.holder.visible = true; e.invuln = false; }; },
+    burst(e, A) { A.dur = 2.0; setActorPose(e, 'sky'); e.poseK = 5; e.warnT = 1.1; teleCircle(e.x, e.z, 4.0, 1.1, 0x9030ff);
+      A.step = (t, p, dt) => { if (t < 1.1 && Math.random() < .8) { const a = rand(0, 6.28); emit(e.x + Math.cos(a) * 3.5, .2, e.z + Math.sin(a) * 3.5, -Math.cos(a) * 4, 1, -Math.sin(a) * 4, 0xa050ff, .5, .6, 0); } if (p < 1.1 && t >= 1.1) { setActorPose(e, 'slam'); e.poseK = 20; sfx('boom'); shake = Math.max(shake, .4); shockRing(V3(e.x, 0, e.z), 0xb060ff, .5, 5, .6); burst(V3(e.x, 1, e.z), 50, 0xb060ff, 8, .6, .6, -3); foeHitArea(e, e.x, e.z, 4.0, 115, 3); } }; },
+  },
+  tick(e, dt) { if (!e.dead && Math.random() < .7) { const a = rand(0, 6.28), r = rand(.2, .7); emit(e.x + Math.cos(a) * r, rand(.1, 2.1), e.z + Math.sin(a) * r, 0, rand(.3, 1), 0, Math.random() < .4 ? 0x1a0828 : 0x9a50ff, rand(.25, .5), rand(.6, 1.2), 0); } },
+};
+/* ---- 魔修虚影: floating phantom; may target 林清风 ---- */
+const FOE_GHOST = {
+  hp: 7600, tough: 260, lv: 5, idlePose: 'float', speed: 3.0, deadPose: 'sky',
+  cd: e => rand(1.0, 1.6),
+  think(e, dt, tg, d, dx, dz) { faceActor(e, tg.x, tg.z, dt * 4); if (d > 2.8) moveFoe(e, dx, dz, FOE_GHOST.speed, dt); e.reT = (e.reT || 0) - dt; if (e.reT <= 0) { e.reT = rand(3, 5); e.tgtAlly = !!(ch1.ally && !ch1.ally.retreat && Math.random() < .3); } },
+  pick(e, d) { const r = Math.random(); if (d < 3.2) return r < .55 ? 'claw' : r < .8 ? 'nova' : 'grasp'; return r < .4 ? 'orbs' : r < .75 ? 'grasp' : 'nova'; },
+  acts: {
+    claw(e, A) { A.dur = 1.5; setActorPose(e, 'windR'); e.poseK = 7; e.warnT = .6; const fx = e.x + Math.sin(e.yaw) * 1.6, fz = e.z + Math.cos(e.yaw) * 1.6; teleCircle(fx, fz, 2.2, .6, 0xb040ff);
+      A.step = (t, p) => { if (p < .6 && t >= .6) { setActorPose(e, 'slashR'); e.poseK = 22; sfx('swish'); foeSlashFx(e, 0xc060ff, .3, 1.2); foeHitArea(e, fx, fz, 2.2, 100, 1.6); } }; },
+    orbs(e, A) { A.dur = 1.8; setActorPose(e, 'cast'); e.poseK = 6;
+      A.step = (t, p) => { if (p < .7 && t >= .7) { sfx('whoosh'); for (let i = 0; i < 5; i++) { const a = e.yaw + (i - 2) * .5, mesh = new THREE.Group(); mk(G.sphLo, new THREE.MeshBasicMaterial({ color: 0xe0b0ff }), mesh, 0, 0, 0, .22, .22, .22); mk(G.sphLo, addMat(0x9030ff, .6), mesh, 0, 0, 0, .45, .45, .45); spawnProj({ mesh, pos: V3(e.x, 1.6, e.z), vel: V3(Math.sin(a), 0, Math.cos(a)).multiplyScalar(5.5), r: .8, dmg: 45, life: 4, col: 0xb060ff, attacker: e, upd: pp => { const tg = aimPos(), v = V3(tg.x - pp.pos.x, 0, tg.z - pp.pos.z).normalize().multiplyScalar(6.2); pp.vel.lerp(v, .025); pp.pos.y = lerp(pp.pos.y, 1.2, .05); } }); } } }; },
+    nova(e, A) { A.dur = 2.1; setActorPose(e, 'sky'); e.poseK = 5; e.warnT = 1.3; teleCircle(e.x, e.z, 5, 1.3, 0x8020ff);
+      A.step = (t, p) => { if (p < 1.3 && t >= 1.3) { setActorPose(e, 'slam'); e.poseK = 20; sfx('boom'); shake = Math.max(shake, .45); shockRing(V3(e.x, 0, e.z), 0xc070ff, .5, 6, .7); burst(V3(e.x, 1, e.z), 60, 0xb060ff, 9, .6, .7, -2); foeHitArea(e, e.x, e.z, 5, 130, 3); } }; },
+    grasp(e, A, tg) { A.dur = 1.6; setActorPose(e, 'cast'); e.poseK = 6; const pts = [[tg.x, tg.z]]; if (e.hp < e.maxHp * .5) { const p2 = tg.ally ? aimPos() : (ch1.ally && !ch1.ally.retreat ? ch1.ally : null); if (p2) pts.push([p2.x, p2.z]); }
+      for (const [x, z] of pts) teleCircle(x, z, 2.0, 1.0, 0x9030ff, () => { sfx('stone'); burst(V3(x, .3, z), 30, 0xb060ff, 7, .5, .6, -4, .8); for (let k = 0; k < 6; k++) { const a = k / 6 * 6.28, s = cheapSword(purpleSwordM, purpleGoldM, 1.4); s.position.set(x + Math.cos(a) * .9, 0, z + Math.sin(a) * .9); s.rotation.z = Math.cos(a) * .4; s.rotation.x = -Math.sin(a) * .4; addFx(s, .6, kk => { s.position.y = Math.sin(Math.min(1, kk * 3) * Math.PI / 2) * .8 - .5 - kk * .3; }); } foeHitArea(e, x, z, 2.0, 90, 1.2, false); }); },
+  },
+  tick(e, dt) { if (!e.dead && Math.random() < .8) emit(e.x + rand(-.5, .5), rand(.2, 2.6), e.z + rand(-.5, .5), 0, rand(.5, 1.4), 0, Math.random() < .3 ? 0x2a0a40 : 0xb060ff, rand(.3, .6), rand(.6, 1.2), 0); },
+  onDeadTick(e, dt) { e.fade = Math.max(0, (e.fade ?? 1) - dt * .5); ghostCharMat.uniforms.op.value = e.fade; if (Math.random() < .8) emit(e.x + rand(-.6, .6), rand(.2, 2.5), e.z + rand(-.6, .6), 0, rand(1, 2.4), 0, 0xc080ff, .5, .9, 0); },
+};
+/* ---- ally (林清风 in the phantom fight) ---- */
+function allyHurt(d) { const al = ch1.ally; if (!al || al.retreat) return; al.hpF = Math.max(0, al.hpF - d / 900); showNum(V3(al.x, 2.1, al.z), '-' + Math.round(d), 'allyh'); al.flash = 1; if (al.hpF < .3) { al.retreat = 6; toast('林清风：我先调息片刻，你撑住！'); } }
+function allyHit(e, d, td) { if (!e || e.dead || e.invuln) return; const tm = toughMult(e); const dmg = Math.max(1, Math.round(d * tm * rand(.9, 1.1))); e.hp = Math.max(0, e.hp - dmg); e.flash = 1; if (e.tough && !e.broken && !e.refill) { e.T = Math.max(0, e.T - td); if (e.T <= 0 && e.hp > 0) breakBoss(e); } showNum(V3(e.x, e.height * .8, e.z), dmg, 'ally'); burst(eCenter(e), 8, 0x8ff0e0, 5, .4, .35, -4); if (e.hp <= 0 && !e.dead) killEnemy(e); }
+/* ================= v4 · 第一章 学院 — story, dialogue, objectives, fights, saves ================= */
+const ch1 = { cp: 'intro', co: null, wait: null, fight: null, ally: null, follow: false, trail: [], A: null, flags: {}, timers: [], obj: null, camT: null, talking: false, uses: [], noRide: false, hl: null, lastSpeaker: null };
+const CP_ORDER = ['intro', 'school', 'arena', 'duel1', 'duel2', 'duel3', 'ceremony', 'library', 'hidden', 'digong', 'phantom', 'return', 'gate', 'done'];
+const CP_CN = { intro: '初入学院', school: '前往学堂', arena: '学院大比', duel1: '大比 · 第一场', duel2: '大比 · 第二场', duel3: '大比 · 决赛', ceremony: '颁奖', library: '图书馆禁阁', hidden: '无形之门', digong: '地宫', phantom: '地宫 · 魔修虚影', return: '返回地面', gate: '下山', done: '已完成' };
+const CP_LV = { intro: 1, school: 1, arena: 1, duel1: 1, duel2: 2, duel3: 3, ceremony: 5, library: 5, hidden: 5, digong: 5, phantom: 5, return: 5, gate: 5, done: 5 };
+function slotStageTxt(d) { if (d.stage !== 'ch1') return '第一章 · 学院'; return '第一章 · ' + (CP_CN[d.ch] || '学院'); }
+function cpIdx(c) { return CP_ORDER.indexOf(c); }
+function setCP(c) { ch1.cp = c; saveGame(); }
+/* ---------- actors ---------- */
+function ensureActors() {
+  if (ch1.A) return ch1.A;
+  const A = ch1.A = { master: makeActor('master'), lin: makeActor('lin', { speed: 3.6 }), mohan: makeActor('mohan'), heavy: makeActor('heavy'), dart: makeActor('dart'), ghost: makeActor('ghost', { float: true }) };
+  A.master.pose = 'whisk';
+  // orbiting darts for 暗器弟子
+  const orb = new THREE.Group(); scene.add(orb); orb.visible = false; A.dart.orbit = orb; const dm = new THREE.MeshStandardMaterial({ color: 0xd8e0e8, metalness: .9, roughness: .25, emissive: 0x2a6a50, emissiveIntensity: .6 });
+  for (let i = 0; i < 4; i++) { const g = new THREE.Group(); g.rotation.y = i / 4 * Math.PI * 2; orb.add(g); mk(G.cone, dm, g, .62, 0, 0, .03, .2, .03).rotation.x = Math.PI / 2; }
+  // 林清风's flying sword (when following a riding player)
+  A.lin.rideSw = cheapSword(new THREE.MeshStandardMaterial({ color: 0xe6eef6, metalness: 1, roughness: .2, emissive: 0x4fd8c8, emissiveIntensity: .7 }), purpleGoldM, 2.4); A.lin.rideSw.rotation.set(Math.PI / 2, 0, 0); A.lin.rideSw.visible = false; scene.add(A.lin.rideSw);
+  // 墨寒 dark mist disc
+  const mist = mk(discGeo, new THREE.MeshBasicMaterial({ color: 0x2a0a40, transparent: true, opacity: .4, depthWrite: false }), A.mohan.holder, 0, .03, 0, .9, .9, 1); mist.rotation.x = -Math.PI / 2;
+  for (const k in A) { const a = A[k], el = document.createElement('div'); el.className = 'npcname' + (k === 'lin' ? ' ally' : ''); el.innerHTML = `${a.name}${a.title ? `<small>${a.title}</small>` : ''}`; el.style.display = 'none'; labelsEl.appendChild(el); a.label = el; }
+  for (const k of ['master', 'mohan', 'heavy', 'dart']) { A[k].solid = true; A[k].r = A[k].radius; npcSolids.push(A[k]); }
+  return A;
+}
+function showActor(a, wname, x, z, yaw, pose) { a.shown = true; a.world = wname; a.fighting = false; a.dead = false; a.act = null; a.path = null; a.airY = 0; a.spin = 0; a.holder.visible = true; placeActor(a, x, z, yaw ?? a.yaw); if (pose) a.pose = pose; a.solid = a.id !== 'lin' && a.id !== 'ghost' && !!npcSolids.includes(a); }
+function hideActor(a) { a.shown = false; a.holder.visible = false; a.solid = false; if (a.label) a.label.style.display = 'none'; if (a.orbit) a.orbit.visible = false; }
+function faceYaw(x, z, tx, tz) { return Math.atan2(tx - x, tz - z); }
+/* ---------- coroutine runner ---------- */
+function runCo(gen) { ch1.co = gen; ch1.wait = null; stepCo(); }
+function waitDone(w) { if (w.say) return w.done; if (w.t !== undefined) return w.t <= 0; if (w.until) return !!w.until(); return true; }
+function stepCo() {
+  for (let g = 0; g < 60 && ch1.co; g++) {
+    if (ch1.wait && !waitDone(ch1.wait)) return;
+    const r = ch1.co.next();
+    if (r.done) { ch1.co = null; ch1.wait = null; endTalk(); return; }
+    const w = ch1.wait = r.value || { t: 0 };
+    if (w.say) openDlg(w); else endTalk();
+  }
+}
+const say = (who, text) => ({ say: true, who, text });
+const wait = t => ({ t });
+const until = fn => ({ until: fn });
+/* ---------- dialogue ---------- */
+const dlg = { w: null, shown: 0, full: '', typing: false };
+function speakerActor(who) { const A = ch1.A; if (!A) return null; return { '青玄真人': A.master, '林清风': A.lin, '墨寒': A.mohan, '重剑弟子': A.heavy, '暗器弟子': A.dart, '魔修虚影': A.ghost }[who] || null; }
+function openDlg(w) {
+  ch1.talking = true; if (state === 'play') state = 'talk'; document.body.classList.add('talking'); resetInputs('talk');
+  const who = w.who === '你' ? player.name : w.who, nm = $('dlgname');
+  nm.style.display = who ? 'block' : 'none'; nm.textContent = who || ''; nm.className = w.who === '你' ? 'you' : (w.who === '墨寒' || w.who === '魔修虚影') ? 'foe' : '';
+  const tx = $('dlgtxt'); tx.className = who ? '' : 'narr'; tx.style.fontSize = w.text.length > 90 ? 'calc(15px*var(--u))' : '';
+  dlg.w = w; dlg.full = w.text.replace(/\{name\}/g, player.name); dlg.shown = 0; dlg.typing = true; tx.textContent = ''; $('dlgnext').style.visibility = 'hidden';
+  $('dlg').style.display = 'block';
+  const a = speakerActor(w.who); if (a) { ch1.camT = a; ch1.lastSpeaker = a; } else if (!who) ch1.camT = null;
+  if (a && a.shown && !a.fighting && a.id !== 'ghost') a.faceP = 1;
+}
+function dlgTap() {
+  if (!dlg.w) return;
+  if (dlg.typing) { dlg.shown = dlg.full.length; $('dlgtxt').textContent = dlg.full; dlg.typing = false; $('dlgnext').style.visibility = 'visible'; return; }
+  const w = dlg.w; dlg.w = null; w.done = true; sfx('swish'); stepCo();
+}
+function updateDlg(dt) { if (!dlg.w || !dlg.typing) return; dlg.shown = Math.min(dlg.full.length, dlg.shown + dt * 32); $('dlgtxt').textContent = dlg.full.slice(0, Math.floor(dlg.shown)); if (dlg.shown >= dlg.full.length) { dlg.typing = false; $('dlgnext').style.visibility = 'visible'; } }
+function endTalk() { if (!ch1.talking) return; ch1.talking = false; $('dlg').style.display = 'none'; document.body.classList.remove('talking'); if (state === 'talk') state = 'play'; ch1.camT = null; }
+onTap($('dlg'), () => dlgTap());
+function bark(who, txt) { sub(who, txt); }
+/* ---------- objective + beacon + arrows ---------- */
+const beacon = new THREE.Group(); beacon.visible = false; scene.add(beacon);
+{ const bm = new THREE.MeshBasicMaterial({ color: 0xffd36a, transparent: true, opacity: .28, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false });
+  mk(new THREE.CylinderGeometry(.35, .5, 14, 12, 1, true), bm, beacon, 0, 7, 0);
+  const cone = mk(G.cone, new THREE.MeshBasicMaterial({ color: 0xffe08a, fog: false }), beacon, 0, 3.2, 0, .32, .6, .32); cone.rotation.x = Math.PI; beacon.userData.cone = cone;
+  const ring = mk(ringGeo, addMat(0xffd36a, .7), beacon, 0, .08, 0, 1.1, 1.1, 1.1); ring.rotation.x = -Math.PI / 2; beacon.userData.ring = ring; }
+function setObj(text, target, wname) { ch1.obj = text ? { text, target, world: wname || (world && world.name) } : null; $('obj').classList.toggle('on', !!text); if (text) { $('objtxt').textContent = text; sfx('ding'); } }
+function objPos() { const o = ch1.obj; if (!o || !o.target) return null; const t = typeof o.target === 'function' ? o.target() : o.target; if (!t) return null; return { x: t.x, z: t.z, h: t.height ? t.height + .6 : 0 }; }
+function updateObj(dt) {
+  const p = objPos(), ea = $('edgearr');
+  if (!p || ch1.obj.world !== world.name || state !== 'play') { beacon.visible = false; ea.style.display = 'none'; $('objarr').style.visibility = p ? 'visible' : 'hidden'; $('objdist').textContent = ''; return; }
+  beacon.visible = true; beacon.position.set(p.x, 0, p.z); beacon.userData.cone.position.y = (p.h || 2.6) + .8 + Math.sin(gameT * 3) * .2; beacon.userData.ring.scale.setScalar(1 + Math.sin(gameT * 4) * .08);
+  const dx = p.x - player.x, dz = p.z - player.z, d = Math.hypot(dx, dz); beacon.visible = d > 1.6;
+  const rel = angDiff(player.yaw, Math.atan2(-dx, -dz)); $('objarr').style.visibility = 'visible'; $('objarr').style.transform = `rotate(${(-90 - rel * 180 / Math.PI).toFixed(1)}deg)`;
+  $('objdist').textContent = ` · ${Math.round(d)}米`;
+  if (Math.abs(rel) > .75 && d > 3) { ea.style.display = 'block'; const left = rel > 0; ea.style.transform = `translate(${left ? 34 : innerWidth - 34}px,${innerHeight * .42}px) rotate(${left ? 180 : 0}deg)`; } else ea.style.display = 'none';
+}
+/* ---------- interaction button ---------- */
+function addUse(u) { ch1.uses.push(u); return u; }
+let curUse = null;
+function updateUse() {
+  let best = null, bd = 1e9;
+  if (state === 'play' && !player.dead && !ch1.fight) for (const u of ch1.uses) { if (u.world !== world.name || (u.cond && !u.cond())) continue; const d = Math.hypot(player.x - u.x, player.z - u.z); if (d < u.r && d < bd) { bd = d; best = u; } }
+  curUse = best; const b = $('btn-use'); b.classList.toggle('on', !!best); if (best && b.textContent !== best.label) b.textContent = best.label;
+  if (best) { const u = uScale; b.style.right = (40 * u + 210 * u) + 'px'; b.style.bottom = (150 * u) + 'px'; }
+}
+onTap($('btn-use'), () => { if (curUse && state === 'play') { const u = curUse; sfx('ding'); u.fn(); } });
+$('btn-use').addEventListener('pointerdown', e => e.stopPropagation());
+/* ---------- name labels ---------- */
+function updateLabels() {
+  const A = ch1.A; if (!A) return;
+  for (const k in A) {
+    const a = A[k], el = a.label; if (!el) continue;
+    const vis = a.shown && a.world === world.name && a.holder.visible && !(a.dead && a.id === 'ghost') && !ch1.talking;
+    const d = Math.hypot(a.x - player.x, a.z - player.z);
+    if (!vis || d > 32) { if (el.style.display !== 'none') el.style.display = 'none'; continue; }
+    const s = project(V3(a.x, a.height + .42 + (a.airY || 0) + (a.float ? .4 : 0), a.z));
+    if (!s) { el.style.display = 'none'; continue; }
+    el.style.display = 'block'; el.classList.toggle('foe', a.fighting); el.style.transform = `translate(${s.x}px,${s.y}px) translate(-50%,-100%)`; el.style.opacity = d > 24 ? (32 - d) / 8 : 1;
+  }
+}
+/* ---------- follower (林清风) ---------- */
+function resetTrail() { ch1.trail.length = 0; }
+function followerTeleport(a) {
+  const tr = ch1.trail; let p = null;
+  for (let k = tr.length - 4; k >= 0; k--) { const q = tr[k]; if (Math.hypot(q[0] - player.x, q[1] - player.z) > 1.8) { p = q; tr.splice(0, k + 1); break; } }
+  if (!p) { const f = fwd(); for (const [ax, az] of [[-f.x, -f.z], [f.z, -f.x], [-f.z, f.x], [f.x, f.z]]) { const x = player.x + ax * 2, z = player.z + az * 2, r = world.resolve(x, z, .4); if (Math.hypot(r[0] - x, r[1] - z) < .05) { p = [x, z]; break; } } }
+  if (!p) p = [player.x, player.z];
+  const r = world.resolve(p[0], p[1], .4); smoke(V3(a.x, 1, a.z), 0x6fe0d0); a.x = r[0]; a.z = r[1]; a.stuckT = 0; smoke(V3(a.x, 1, a.z), 0x6fe0d0); ch1.teleports = (ch1.teleports || 0) + 1;
+}
+function updateFollower(a, dt) {
+  const tr = ch1.trail, last = tr[tr.length - 1];
+  if (!last || Math.hypot(last[0] - player.x, last[1] - player.z) > .6) { tr.push([player.x, player.z]); if (tr.length > 90) tr.shift(); }
+  const dp = Math.hypot(player.x - a.x, player.z - a.z), riding = player.riding;
+  a.float = riding; a.rideSw.visible = riding && a.shown; if (riding) a.rideSw.position.set(a.x, .3, a.z), a.rideSw.rotation.set(Math.PI / 2, 0, -a.yaw, 'YXZ');
+  if (state !== 'play') { a.moveAmt += (0 - a.moveAmt) * Math.min(1, dt * 6); faceActor(a, player.x, player.z, dt * 3); return; }
+  if (dp > (riding ? 30 : 20) || (a.stuckT || 0) > 2.2 || tr.length > 70) { followerTeleport(a); return; }
+  if (dp < 2.4) { tr.length = 0; a.moveAmt += (0 - a.moveAmt) * Math.min(1, dt * 6); faceActor(a, player.x, player.z, dt * 3); a.stuckT = 0; return; }
+  while (tr.length && Math.hypot(tr[0][0] - a.x, tr[0][1] - a.z) < .7) tr.shift();
+  const t = tr.length ? tr[0] : [player.x, player.z];
+  const sp = clamp(dp * 1.3, 3.2, riding ? 16 : 7.2), dx = t[0] - a.x, dz = t[1] - a.z, d = Math.hypot(dx, dz) || 1;
+  const ox = a.x, oz = a.z; a.x += dx / d * Math.min(d, sp * dt); a.z += dz / d * Math.min(d, sp * dt);
+  const r = world.resolve(a.x, a.z, .4); a.x = r[0]; a.z = r[1];
+  const moved = Math.hypot(a.x - ox, a.z - oz); if (moved < sp * dt * .25) a.stuckT = (a.stuckT || 0) + dt; else a.stuckT = Math.max(0, (a.stuckT || 0) - dt);
+  faceActor(a, t[0], t[1], dt * 8); a.moveAmt += (Math.min(1, sp / 4) - a.moveAmt) * Math.min(1, dt * 6);
+}
+/* ally behaviour in the phantom fight */
+function updateAlly(a, dt) {
+  const e = ch1.fight && ch1.fight.e; if (!e) return;
+  a.atkCd = (a.atkCd || 1) - dt;
+  if (a.retreat > 0) {
+    a.retreat -= dt; a.hpF = Math.min(1, a.hpF + dt * .1);
+    const tx = e.x > 0 ? -7.5 : 7.5, tz = 11; const dx = tx - a.x, dz = tz - a.z, d = Math.hypot(dx, dz);
+    if (d > .5) { a.x += dx / d * 5 * dt; a.z += dz / d * 5 * dt; faceActor(a, tx, tz, dt * 8); a.moveAmt = 1; a.pose = 'idle'; } else { a.moveAmt = 0; faceActor(a, e.x, e.z, dt * 4); a.pose = 'cast'; if (Math.random() < .3) emit(a.x + rand(-.4, .4), rand(.2, 1.8), a.z + rand(-.4, .4), 0, 1, 0, 0x8ff0e0, .3, .7, 0); }
+    if (a.retreat <= 0) { a.hpF = Math.max(a.hpF, .85); bark('林清风', '我回来了！'); }
+  } else if (!e.dead) {
+    const dx = e.x - a.x, dz = e.z - a.z, d = Math.hypot(dx, dz); faceActor(a, e.x, e.z, dt * 8);
+    // stay on the far side of the boss from the player when possible
+    if (d > 2.4) { a.x += dx / d * 4.6 * dt; a.z += dz / d * 4.6 * dt; a.moveAmt = 1; if (a.pose !== 'slashR' && a.pose !== 'windR') a.pose = 'ready'; }
+    else { a.moveAmt = 0; if (a.atkCd <= 0 && !e.invuln && e.holder.visible) { a.atkCd = rand(1.1, 1.5); a.pose = 'windR'; a.poseK = 14; a.swingT = .22; } }
+    if (a.swingT > 0) { a.swingT -= dt; if (a.swingT <= 0) { a.pose = 'slashR'; a.poseK = 24; sfx('swish'); foeSlashFx(a, 0x6ff0e0, .3, .8); allyHit(e, 22 + player.lv * 2, 7); setTimeout(() => { if (a.pose === 'slashR') a.pose = 'ready'; }, 260); } }
+  } else { a.moveAmt = 0; a.pose = 'idle'; }
+  const r = world.resolve(a.x, a.z, .4); a.x = r[0]; a.z = r[1];
+}
+/* ---------- fights ---------- */
+function startFight(a, def, opt = {}) {
+  Object.assign(a, { fighting: true, def, ai: false, dead: false, hp: def.hp, maxHp: def.hp, lvTxt: String(def.lv), act: null, cd: 1.3, stagger: 0, warnT: 0, invuln: false, airY: 0, spin: 0, passThrough: false, solid: false, fade: 1, slowT: 0, kbT: 0 });
+  a.holder.visible = true; a.onDeath = () => { if (ch1.fight && ch1.fight.e === a) { ch1.fight.won = true; ch1.fight.wonT = gameT; sfx('win'); timeScale = .4; ch1Timer(.9, () => { timeScale = 1; }); } };
+  initTough(a, def.tough); if (a.id === 'ghost') ghostCharMat.uniforms.op.value = 1;
+  enemies.length = 0; enemies.push(a); clearProj();
+  ch1.fight = { e: a, def, ring: !!opt.ring, withAlly: !!opt.ally, won: false, ex: a.x, ez: a.z, eyaw: a.yaw, px: opt.px, pz: opt.pz, deaths: 0, lose: opt.lose || '胜败乃兵家常事，再来！', t0: gameT };
+  document.body.classList.add('fight'); hudBossName = ''; hudDirty = true;
+  if (opt.ally) { const al = ch1.A.lin; ch1.ally = al; al.hpF = 1; al.retreat = 0; al.atkCd = 2; }
+}
+function* fightIntro(title, subt) { banner(title, subt, 1.6); yield wait(1.7); banner('开始！', '', .9); sfx('clang'); ch1.fight.e.ai = true; ch1.fight.e.cd = .9; }
+function endFight() { const F = ch1.fight; if (!F) return; F.e.fighting = false; F.e.act = null; F.e.warnT = 0; enemies.length = 0; clearProj(); ch1.fight = null; ch1.ally = null; document.body.classList.remove('fight'); player.hp = player.maxHp; player.wine = player.wineMax; resetSkills(); hudDirty = true; if (F.e.orbit) F.e.orbit.visible = false; }
+function ch1OnDeath() {
+  const F = ch1.fight; if (!F) { ch1Timer(1, () => { player.dead = false; player.hp = player.maxHp; hudDirty = true; }); return; }
+  F.deaths++; F.e.ai = false; F.e.act = null; F.e.warnT = 0; clearProj();
+  ch1Timer(1.3, () => { banner('败北', F.lose, 2.2); $('fade').style.transition = 'opacity .5s'; $('fade').style.opacity = .85; });
+  ch1Timer(2.6, () => restartFight());
+}
+function restartFight() {
+  const F = ch1.fight; if (!F) return; const e = F.e;
+  clearFx(); clearProj(); resetSkills();
+  Object.assign(e, { dead: false, hp: e.maxHp, act: null, cd: 1.5, stagger: 0, warnT: 0, invuln: false, airY: 0, spin: 0, x: F.ex, z: F.ez, yaw: F.eyaw, slowT: 0, kbT: 0, fade: 1 }); e.holder.visible = true; initTough(e, F.def.tough); if (e.id === 'ghost') ghostCharMat.uniforms.op.value = 1;
+  if (F.px !== undefined) { player.x = F.px; player.z = F.pz; player.yaw = faceYaw(e.x, e.z, player.x, player.z) + Math.PI; }
+  player.dead = false; player.hp = player.maxHp; player.wine = player.wineMax; player.lastHurt = -99; hudDirty = true; $('vign').style.opacity = 0;
+  if (ch1.ally) { ch1.ally.hpF = 1; ch1.ally.retreat = 0; placeActor(ch1.ally, e.x + 2.5, e.z + 4, ch1.ally.yaw); }
+  $('fade').style.opacity = 0; state = 'play';
+  banner('再战', '', 1.2); ch1Timer(1.3, () => { if (ch1.fight === F && !F.won) { e.ai = true; e.cd = .8; banner('开始！', '', .8); sfx('clang'); } });
+}
+function ch1Timer(t, fn) { ch1.timers.push({ t, fn }); }
+function levelUp(n) {
+  const lv0 = player.lv; player.lv += n; player.xp = 0; recalc(); player.hp = player.maxHp; hudDirty = true;
+  const el = $('lvup'); el.querySelector('b').textContent = `Lv${lv0} → Lv${player.lv}`; el.querySelector('span').textContent = `等级提升！气血上限 ${player.maxHp} · 攻击 ${player.atk}`; el.classList.remove('show'); void el.offsetWidth; el.classList.add('show');
+  sfx('level'); shockRing(V3(player.x, 0, player.z), 0xffd36a, .4, 4, .9); shockRing(V3(player.x, 0, player.z), 0xffffff, .2, 2.5, .6);
+  for (let i = 0; i < 50; i++) { const a = rand(0, 6.28), r = rand(.4, 1.4); emit(player.x + Math.cos(a) * r, rand(0, .4), player.z + Math.sin(a) * r, 0, rand(2, 4.5), 0, i % 3 ? 0xffd36a : 0xfff6d0, rand(.3, .55), rand(.8, 1.5), 0); }
+  flashScreen('#fff2c0', .35, .6);
+}
+function showLearn(t, s) { const el = $('learn'); el.querySelector('b').textContent = t; el.querySelector('span').textContent = s; el.classList.remove('show'); void el.offsetWidth; el.classList.add('show'); sfx('level'); flashScreen('#d8f4ff', .45, .8); shockRing(V3(player.x, 0, player.z), 0x9fe8ff, .3, 5, 1); for (let i = 0; i < 60; i++) { const a = rand(0, 6.28), r = rand(1.5, 3); emit(player.x + Math.cos(a) * r, rand(.2, 2.4), player.z + Math.sin(a) * r, -Math.cos(a) * 2.5, rand(-.3, .6), -Math.sin(a) * 2.5, i % 2 ? 0x9fe8ff : 0xffffff, .4, .9, 0); } }
+function ch1Hint(html, hl) { const g = $('guide'); g.classList.remove('done'); g.style.display = 'block'; $('gstep').textContent = '提示'; $('gtext').innerHTML = html; $('gnext').style.display = 'none'; ch1.hl = hl || null; }
+function ch1HintOff() { $('guide').style.display = 'none'; $('hl').style.display = 'none'; ch1.hl = null; }
+function* fadeSwap(fn, title, sub2, hold = 1.6) {
+  const prev = state; state = 'cut'; resetInputs('fade'); const f = $('fade'); f.style.transition = 'opacity .7s'; f.style.opacity = 1; yield wait(.8);
+  if (title) { const b = $('bigtxt'); b.querySelector('b').textContent = title; b.querySelector('span').textContent = sub2 || ''; b.style.display = 'flex'; void b.offsetWidth; b.style.opacity = 1; yield wait(hold); b.style.opacity = 0; yield wait(.8); b.style.display = 'none'; }
+  fn && fn(); yield wait(.15); f.style.transition = 'opacity .9s'; f.style.opacity = 0; state = 'play'; yield wait(.4);
+}
+function goWorld(name, sp) { setWorld(name); clearFx(); clearProj(); placePlayer(sp); resetTrail(); const L = ch1.A.lin; if (L.shown && ch1.follow) { L.world = name; const f = fwd(); const r = world.resolve(player.x - f.x * 2 + .6, player.z - f.z * 2, .4); placeActor(L, r[0], r[1], player.yaw + Math.PI); } }
+const inLib = () => world.name === 'academy' && player.x > ACAD.lib.x0 && player.x < ACAD.lib.x1 && player.z > ACAD.lib.z0 && player.z < ACAD.lib.z1;
+/* ---------- checkpoint setup (resume / start) ---------- */
+function setupCP(cp) {
+  const A = ensureActors(); for (const k in A) hideActor(A[k]); ch1.uses.length = 0; ch1.flags = {}; ch1.follow = false; resetTrail(); setObj(null); ch1HintOff(); ch1.fight = null; ch1.ally = null; document.body.classList.remove('fight');
+  if (player.lv < CP_LV[cp]) { player.lv = CP_LV[cp]; recalc(); }
+  if (cpIdx(cp) > cpIdx('library') && !hasSt('yinshen')) player.unlocked.push('yinshen');
+  if (cpIdx(cp) >= cpIdx('gate')) player.rideOK = true;
+  const dig = cp === 'digong' || cp === 'phantom';
+  setWorld(dig ? 'digong' : 'academy');
+  addUses();
+  const lib = ACAD.lib, R = ACAD.ring;
+  const arenaSet = (n) => { showActor(A.master, 'academy', R.x, -23.4, 0, 'whisk'); showActor(A.lin, 'academy', 14.6, -8, Math.PI / 2); A.lin.pose = 'idle'; showActor(A.mohan, 'academy', 14.6, -16, Math.PI / 2); if (n <= 1) showActor(A.heavy, 'academy', 38, -15.5, -Math.PI / 2); if (n <= 2) showActor(A.dart, 'academy', 38, -8.5, -Math.PI / 2); };
+  switch (cp) {
+    case 'intro': placePlayer(world.spawn); showActor(A.master, 'academy', 0, 31.5, Math.PI, 'whisk'); break;
+    case 'school': placePlayer({ x: 0, z: 30, yaw: 0 }); showActor(A.master, 'academy', -2.6, 33, Math.PI * .8, 'whisk'); showActor(A.lin, 'academy', -27, -13, -1); showActor(A.mohan, 'academy', -33.5, -16.5, .6); break;
+    case 'arena': placePlayer({ x: -24, z: -11, yaw: Math.PI / 2 }); showActor(A.lin, 'academy', -27.5, -11.5, 1.2); break;
+    case 'duel1': case 'duel2': case 'duel3': placePlayer({ x: 14.5, z: -12, yaw: -Math.PI / 2 }); arenaSet(+cp[4]); ch1.follow = false; break;
+    case 'ceremony': placePlayer({ x: R.x, z: -15, yaw: 0 }); showActor(A.master, 'academy', R.x, -21, Math.PI, 'whisk'); showActor(A.lin, 'academy', R.x - 2.4, -15.2, Math.PI); showActor(A.mohan, 'academy', R.x + 3, -15.8, Math.PI); break;
+    case 'library': case 'gate': case 'done': placePlayer({ x: 0, z: cp === 'library' ? -35 : -37, yaw: cp === 'library' ? 0 : Math.PI }); showActor(A.master, 'academy', 3.8, -38.6, cp === 'library' ? -Math.PI * .75 : Math.PI * .25, 'whisk'); showActor(A.lin, 'academy', -1.8, -33.8, Math.PI); ch1.follow = true; if (cp === 'done') placePlayer({ x: 0, z: 34, yaw: Math.PI }), placeActor(A.lin, 1.8, 32.5, Math.PI); break;
+    case 'hidden': placePlayer({ x: -8.4, z: -44.4, yaw: 0 }); showActor(A.master, 'academy', 3.8, -38.6, -Math.PI * .75, 'whisk'); showActor(A.lin, 'academy', -6.2, -44.2, -1); ch1.follow = true; break;
+    case 'digong': placePlayer(DG.spawn); showActor(A.lin, 'digong', 1.9, 10.2, 0); ch1.follow = true; break;
+    case 'phantom': placePlayer({ x: 0, z: -6, yaw: 0 }); showActor(A.lin, 'digong', 2.2, -5, -Math.PI * .8); ch1.follow = true; break;
+    case 'return': placePlayer({ x: 0, z: -56.6, yaw: Math.PI }); showActor(A.master, 'academy', 3.8, -38.6, -Math.PI * .75, 'whisk'); showActor(A.lin, 'academy', 1.6, -56.2, Math.PI); ch1.follow = true; break;
+  }
+  hudDirty = true;
+}
+function addUses() {
+  addUse({ world: 'academy', x: ACAD.book.x, z: ACAD.book.z, r: 2.4, label: '查看', cond: () => ch1.cp === 'library' && !ch1.flags.book, fn: () => { ch1.flags.book = true; } });
+  addUse({ world: 'academy', x: ACAD.hidden.x, z: ACAD.hidden.z + .9, r: 2.8, label: '进入', cond: () => ch1.cp === 'hidden' && player.stealthT > 0, fn: () => { ch1.flags.door = true; } });
+  addUse({ world: 'digong', x: DG.book.x, z: DG.book.z, r: 2.6, label: '查看', cond: () => ch1.cp === 'digong' && !ch1.flags.tome, fn: () => { ch1.flags.tome = true; } });
+  addUse({ world: 'digong', x: 0, z: 12.2, r: 2.8, label: '返回地面', cond: () => ch1.cp === 'return' && world.name === 'digong', fn: () => { ch1.flags.exit = true; } });
+}
+/* ---------- the script ---------- */
+const SEG = {};
+SEG.intro = function* () {
+  const A = ch1.A; setCP('intro');
+  yield wait(.9);
+  yield say('青玄真人', '你醒了。');
+  yield say('青玄真人', '三日前，为师追着一道紫光下山，却在山脚下发现了昏迷不醒的你。');
+  yield say('青玄真人', '你整整睡了三天三夜，为师便将你带回了学院。');
+  yield say('你', '多谢前辈救命之恩。此处是……？');
+  yield say('青玄真人', '此乃天剑学院。院中弟子分为两派——仙修与魔修。仙修养心正气，魔修以力破法，各有其道。');
+  yield say('青玄真人', '你既无处可去，便留下来，做为师的弟子吧。');
+  yield say('青玄真人', '今日弟子们都在学堂前的草坪上。去吧，见见你的同门。');
+  A.master.pose = 'whisk'; placeActor(A.master, -2.6, 33, Math.PI * .8);
+};
+SEG.school = function* () {
+  const A = ch1.A; setCP('school');
+  if (!A.lin.shown) { showActor(A.lin, 'academy', -27, -13, -1); showActor(A.mohan, 'academy', -33.5, -16.5, .6); }
+  setObj('前往学堂', { x: -29, z: -12 }, 'academy');
+  ch1Hint('左下摇杆移动 · 跟随<b>金色光柱</b>与左上角的<b>目标箭头</b>前进');
+  ch1Timer(7, () => { if (ch1.cp === 'school') ch1HintOff(); });
+  yield until(() => Math.hypot(player.x + 29, player.z + 13) < 9 || (player.x < -14 && player.z < -4 && player.z > -29));
+  ch1HintOff(); setObj(null);
+  A.lin.faceP = 1; A.mohan.faceP = 1;
+  yield say('林清风', '你就是师傅带回来的那位新同门吧？我叫林清风，以后多多关照！');
+  yield say('墨寒', '又来一个仙派的废物？');
+  yield say('你', '我不会挡任何人的路，但也不会让路。');
+  yield say('墨寒', '那就在比武场上见。');
+  yield say('林清风', '别理他。他叫墨寒，魔派首席，向来目中无人。');
+  yield say('林清风', '三日后便是学院大比。冠军可以进入图书馆的禁阁——听说那里藏着学院最古老的秘籍。');
+  yield say('墨寒', '冠军，只会是我。');
+  A.mohan.path = [[-30, -6], [-30, 0], [-6, 0]]; A.mohan.speed = 2.6;
+  yield wait(1.6);
+};
+SEG.arena = function* () {
+  const A = ch1.A;
+  yield* fadeSwap(() => {
+    setCP('arena'); A.mohan.path = null; showActor(A.mohan, 'academy', 14.6, -16, Math.PI / 2); showActor(A.master, 'academy', ACAD.ring.x, -23.4, 0, 'whisk'); showActor(A.heavy, 'academy', 38, -15.5, -Math.PI / 2); showActor(A.dart, 'academy', 38, -8.5, -Math.PI / 2);
+    placePlayer({ x: -24, z: -11, yaw: Math.PI / 2 }); if (!A.lin.shown) showActor(A.lin, 'academy', -27.5, -11.5, 1.2); placeActor(A.lin, -26.5, -9.5, Math.PI * .7); resetTrail();
+  }, '三日后', '学院大比 · 练武场');
+  yield say('林清风', '大比要开始了！跟我来，练武场在学院东边。');
+  setObj('跟随林清风前往练武场', () => A.lin, 'academy');
+  A.lin.path = [[-30, -6], [-30, 0], [0, 0], [12, 0], [14.6, -8]]; A.lin.speed = 4.2; A.lin.leading = true;
+  yield until(() => !A.lin.path || !A.lin.path.length);
+  A.lin.leading = false; faceActor(A.lin, player.x, player.z, 1);
+  setObj('前往练武场', { x: 16, z: -8 }, 'academy');
+  yield until(() => player.x > 11 && player.z < 2 && player.z > -26);
+  setObj(null);
+};
+function* duel(n) {
+  const A = ch1.A, R = ACAD.ring, foe = [null, A.heavy, A.dart, A.mohan][n], def = [null, FOE_HEAVY, FOE_DART, FOE_MOHAN][n];
+  setCP('duel' + n); ch1.follow = false;
+  if (n === 1) {
+    yield say('青玄真人', '学院大比，现在开始！规矩只有一条——点到为止，倒地或认输者负。');
+    yield say('青玄真人', '第一场——新弟子{name}，对重剑堂弟子！');
+  } else if (n === 2) yield say('青玄真人', '第二场——{name}，对暗器堂弟子！');
+  else { yield say('青玄真人', '决赛——{name}，对魔派首席，墨寒！'); }
+  // opponent walks into the ring
+  foe.solid = false; foe.path = [[R.x + 4.5, R.z]]; foe.speed = 3; setObj('走上比武台', { x: R.x - 2, z: R.z }, 'academy');
+  yield until(() => !foe.path || !foe.path.length);
+  faceActor(foe, player.x, player.z, 1);
+  if (n === 1) yield say('重剑弟子', '新来的？挨我一剑可别哭鼻子！');
+  else if (n === 2) yield say('暗器弟子', '我的暗器可不长眼睛，小心了。');
+  else { yield say('墨寒', '我说过，我们会在比武场上见。'); yield say('你', '请。'); }
+  yield until(() => Math.hypot(player.x - R.x, player.z - R.z) < R.r - 1.5);
+  setObj(null);
+  if (n === 1) ch1Hint('看清<b>红色预警</b>，闪避或<b>格挡</b>；斩马削韧最快，韧性打空即可<b>破防</b>');
+  if (n === 2) ch1Hint('暗器弟子擅长远攻：用<b>飞剑</b>远程追击，飞镖也可以<b>格挡</b>');
+  if (n === 3) ch1Hint('墨寒出手迅疾：连斩之间寻找<b>弹反</b>时机，留意他闪身到你身后');
+  ch1Timer(6, () => ch1HintOff());
+  startFight(foe, def, { ring: true, px: R.x - 5, pz: R.z, lose: ['重剑势大力沉，看准预警再闪避！', '拉近距离，用飞剑与斩马压制她！', '墨寒招式凌厉，格挡弹反是破局之道！'][n - 1] });
+  if (n === 2) foe.orbit.visible = true;
+  yield* fightIntro(['第一场', '第二场', '决赛'][n - 1], `${foe.name} · Lv${def.lv}`);
+  yield until(() => ch1.fight && ch1.fight.won && gameT - ch1.fight.wonT > 1.4);
+  ch1HintOff();
+  endFight(); foe.pose = n === 3 ? 'stagger' : 'kneel';
+  if (n === 1) yield say('重剑弟子', '……好快的身法，我输了。');
+  if (n === 2) yield say('暗器弟子', '我的暗器……竟然一枚都没能留住你。');
+  if (n === 3) yield say('墨寒', '……不可能。');
+  levelUp(n === 3 ? 2 : 1);
+  yield wait(1.4);
+  yield say('青玄真人', n === 3 ? '胜者——{name}！' : '这一场，{name}胜！');
+  foe.pose = 'idle'; foe.solid = true;
+  foe.path = n === 3 ? [[R.x + 3, -15.8]] : [[38, n === 1 ? -15.5 : -8.5]]; foe.speed = 2.4;
+  if (n === 2) foe.orbit.visible = false;
+};
+SEG.duel1 = function* () { yield* duel(1); };
+SEG.duel2 = function* () { yield* duel(2); };
+SEG.duel3 = function* () { yield* duel(3); };
+SEG.ceremony = function* () {
+  const A = ch1.A, R = ACAD.ring; setCP('ceremony');
+  yield wait(.6);
+  placeActor(A.master, R.x, -21, Math.PI); A.master.pose = 'whisk';
+  if (A.lin.x < 18) { A.lin.path = [[R.x - 2.4, -15.2]]; A.lin.speed = 3.6; }
+  setObj('前往领奖', { x: R.x, z: -16 }, 'academy');
+  yield until(() => Math.hypot(player.x - R.x, player.z + 16) < 3.5);
+  setObj(null);
+  yield say('青玄真人', '本届学院大比——冠军，{name}！');
+  yield say('青玄真人', '第二名，林清风！');
+  A.lin.pose = 'cheer'; yield say('林清风', '哈哈，能和你一同站上领奖台，我也沾了光！'); A.lin.pose = 'idle';
+  A.mohan.faceP = 1; yield say('墨寒', '……这笔账，我记下了。');
+  // 墨寒 walks away slowly, dark-faced
+  A.mohan.solid = false; A.mohan.path = [[R.x + 3, -2], [12, 0], [3, 0], [0, 8]]; A.mohan.speed = 1.5; A.mohan.pose = 'idle'; A.mohan.headTilt = .35; A.mohan.walkAway = true;
+  yield wait(3.5);
+  yield say('林清风', '别放在心上，他就是这个脾气。');
+  yield say('青玄真人', '按照规矩，冠军可入图书馆禁阁。清风，你也随他同去吧。');
+  yield say('青玄真人', '随为师来。');
+  yield* fadeSwap(() => { hideActor(A.mohan); A.mohan.headTilt = 0; A.mohan.walkAway = false; hideActor(A.heavy); hideActor(A.dart); setCP('library'); placePlayer({ x: 0, z: -35, yaw: 0 }); showActor(A.master, 'academy', 3.8, -38.6, -Math.PI * .75, 'whisk'); showActor(A.lin, 'academy', -1.8, -33.8, Math.PI); resetTrail(); ch1.follow = true; }, '片刻之后', '图书馆 · 门前', 1.2);
+};
+SEG.library = function* () {
+  const A = ch1.A; setCP('library'); ch1.follow = true;
+  yield say('青玄真人', '禁阁就在图书馆深处。为师便送到这里，你们自己进去吧。');
+  yield say('青玄真人', '记住——眼睛看到的，未必便是全部。');
+  setObj('进入图书馆，寻找秘籍', { x: ACAD.book.x, z: ACAD.book.z }, 'academy');
+  yield until(() => ch1.flags.book);
+  setObj(null);
+  yield say(null, '《无影身法》\n身随心隐，形随意散。敌之所见，唯余残影。\n——隐于无形者，方见无形之物。');
+  if (!hasSt('yinshen')) player.unlocked.push('yinshen'); hudDirty = true; SK.yinshen.t = 0;
+  showLearn('习得【隐身】', '神通十字 · 右');
+  setCP('hidden');
+  yield wait(1.6);
+};
+SEG.hidden = function* () {
+  const A = ch1.A; ch1.follow = true;
+  yield say('林清风', '“隐于无形者，方见无形之物”……这话听着玄乎。要不你施展隐身试试？');
+  ch1Hint('点击左侧神通十字右边的<b>【隐身】</b>：留下残影并向前冲刺，隐身 3 秒', 'st-yinshen');
+  setObj('施展【隐身】', null, 'academy');
+  yield until(() => player.stealthT > 0);
+  ch1HintOff();
+  yield wait(.5);
+  bark('林清风', '咦？图书馆最里面那面墙上……好像闪过一道紫光！');
+  setObj('隐身状态下，进入图书馆尽头的紫光之门', { x: ACAD.hidden.x, z: ACAD.hidden.z + .6 }, 'academy');
+  yield until(() => ch1.flags.door);
+  setObj(null);
+  yield* fadeSwap(() => { setCP('digong'); player.stealthT = 0; endStealth(true); document.body.classList.remove('stealth'); goWorld('digong', DG.spawn); A.lin.world = 'digong'; placeActor(A.lin, 1.9, 10.2, 0); }, '地宫', '紫光之门的另一侧');
+};
+SEG.digong = function* () {
+  const A = ch1.A; setCP('digong');
+  yield say('林清风', '这里……竟然是一座地宫。学院之下，怎会藏着这种地方？');
+  yield say('林清风', '你看祭台上——那本发着紫光的书。');
+  setObj('查看祭台上的魔修圣书', { x: DG.book.x, z: DG.book.z }, 'digong');
+  yield until(() => ch1.flags.tome);
+  setObj(null);
+  yield say(null, '天地第一剑，名曰\'太初\'。生于混沌未分之时，饮异兽之血，承天地之怒。持此剑者，一念可断山河，一剑可镇众生。然剑有灵，择主而栖。心正者得之，可护苍生；心魔者得之，必为剑所噬。仙尊封之于九幽之下，以七道剑印锁之。今印已松其三……欲得此剑，先集七印。');
+  yield say('林清风', '太初……天地第一剑！七道剑印已松其三……这到底是怎么回事？');
+};
+SEG.phantom = function* () {
+  const A = ch1.A, g = A.ghost; setCP('phantom');
+  shake = .4; sfx('roar'); smoke(V3(0, 1, -9.5), 0x9030ff); smoke(V3(0, 1.5, -9.5), 0x9030ff);
+  showActor(g, 'digong', 0, -9.5, 0, 'float'); ghostCharMat.uniforms.op.value = 1; faceActor(g, player.x, player.z, 1);
+  yield wait(.8);
+  yield say('魔修虚影', '擅动圣书者……留下性命！');
+  yield say('林清风', '小心！我来助你！');
+  ch1.follow = false; startFight(g, FOE_GHOST, { ally: true, px: 0, pz: -2, lose: '与林清风前后夹击，留意紫色预警！' });
+  ch1Hint('<b>林清风</b>会与你并肩作战；他气血不足时会暂退调息', null); ch1Timer(5, () => ch1HintOff());
+  yield* fightIntro('魔修虚影', 'Lv5 · 与林清风并肩作战');
+  yield until(() => ch1.fight && ch1.fight.won && gameT - ch1.fight.wonT > 2.2);
+  endFight(); hideActor(g); ch1.follow = true; resetTrail(); A.lin.pose = 'idle';
+  yield say('魔修虚影', '……七印……终将……归位……');
+  yield say('林清风', '它消散了……这里不宜久留，我们先回去禀报师傅！');
+  setCP('return');
+};
+SEG.return = function* () {
+  const A = ch1.A; ch1.follow = true;
+  if (world.name === 'digong') {
+    setObj('返回地面', { x: 0, z: 12.6 }, 'digong');
+    yield until(() => ch1.flags.exit);
+    yield* fadeSwap(() => { goWorld('academy', { x: 0, z: -56.6, yaw: Math.PI }); A.lin.world = 'academy'; placeActor(A.lin, 1.6, -56.2, Math.PI); showActor(A.master, 'academy', 3.8, -38.6, -Math.PI * .75, 'whisk'); });
+  }
+  setObj('走出图书馆，向师傅禀报', () => A.master, 'academy');
+  yield until(() => Math.hypot(player.x - A.master.x, player.z - A.master.z) < 3.6);
+  setObj(null); A.master.faceP = 1;
+  yield say('你', '师傅，弟子有些事……必须亲自去做。');
+  yield wait(1.2);
+  yield say('青玄真人', '……你看到的东西，为师都知道。');
+  yield say('青玄真人', '此去山高路远，单凭双脚，怕是走不到尽头。为师便传你一门本事。');
+  A.master.pose = 'point';
+  yield say('青玄真人', '剑修之剑，不止在手，亦在脚下。心神与剑相合，剑可载人，人可乘风。此乃御剑之术。');
+  yield say('你', '弟子谨记。');
+  A.master.pose = 'whisk'; player.rideOK = true; SK.ride.t = 0; hudDirty = true;
+  showLearn('习得【御剑】', '底部中央 · 御剑飞行');
+  setCP('gate');
+  yield wait(1.4);
+  ch1Hint('点击屏幕下方中央的<b>【御剑】</b>，踩剑飞行试试', 'btn-ride');
+  setObj('试一试御剑', null, 'academy');
+  yield until(() => player.riding);
+  ch1HintOff(); yield wait(1.6);
+  yield say('青玄真人', '去吧。只是记住，御剑先御心，剑有灵，人亦有心。');
+};
+SEG.gate = function* () {
+  ch1.follow = true;
+  setObj('前往学院大门', { x: 0, z: 39 }, 'academy');
+  yield until(() => world.name === 'academy' && player.z > 36.5 && Math.abs(player.x) < 5.5);
+  setObj(null);
+  yield* chapterEnd();
+};
+SEG.done = function* () {
+  setObj('第一章已完成 · 第二章敬请期待', { x: 0, z: 39 }, 'academy');
+  yield until(() => player.z > 37.2 && Math.abs(player.x) < 5.5 && gameT > 4);
+  yield* chapterEnd();
+};
+function* chapterEnd() {
+  state = 'cut'; resetInputs('end'); if (player.riding) endRide();
+  const f = $('fade'); f.style.transition = 'opacity 1.2s'; f.style.opacity = 1; yield wait(1.3);
+  setCP('done'); const ce = $('chend'); ce.style.display = 'flex'; yield wait(.2); $('chendtxt').style.opacity = 1; yield wait(1.2); $('chendsub').style.opacity = 1;
+  ch1.ended = true; yield wait(4.2);
+  if (!window.__noReload) toTitle();
+}
+function* chScript(from) { for (let i = Math.max(0, cpIdx(from)); i < CP_ORDER.length; i++) { const s = SEG[CP_ORDER[i]]; if (s) yield* s(); if (CP_ORDER[i] === 'gate' || CP_ORDER[i] === 'done') return; } }
+/* ---------- start / resume ---------- */
+function startCh1(cp) {
+  if (!op.done) { op.done = true; clearTimeout(op.timer); $('opening').style.display = 'none'; }
+  initAudio(); hideGuide(); tut.cur = null; $('skip').style.display = 'none';
+  mode = 'ch1'; state = 'play'; clearFx(); clearProj(); resetSkills(); shixiong.holder.visible = false; zheng.holder.visible = false; enemies.length = 0;
+  $('c').style.filter = ''; camDrop = 0; camRoll = 0; $('vign').style.opacity = 0; timeScale = 1; if (lostSword) { scene.remove(lostSword.g); lostSword = null; }
+  recalc(); player.hp = player.maxHp; player.wine = player.wineMax; player.minHpFrac = 0; player.dead = false; player.lastHurt = -99;
+  setOutfit(0x3c4a5e, 0x9aa8b8); $('avatar').textContent = '剑'; hudDirty = true;
+  document.body.className = 'm-ch1'; for (const id of ['dead', 'win', 'story', 'chend']) $(id).style.display = 'none'; $('chendtxt').style.opacity = 0; $('chendsub').style.opacity = 0; ch1.ended = false; ch1.timers.length = 0;
+  if (cp === 'done' && !CP_ORDER.includes(cp)) cp = 'intro';
+  setupCP(cp); ch1.cp = cp; saveGame();
+  $('fade').style.transition = 'opacity 1.2s'; $('fade').style.opacity = 1; requestAnimationFrame(() => requestAnimationFrame(() => $('fade').style.opacity = 0));
+  banner(cp === 'intro' ? '第一章 · 学院' : '第一章 · ' + CP_CN[cp], cp === 'intro' ? '天剑学院' : '继续旅程', 2.6);
+  runCo(chScript(cp));
+}
+function resumeCh1(d) {
+  let cp = d.stage === 'ch1' && CP_ORDER.includes(d.ch) ? d.ch : 'intro';
+  if (d.stage !== 'ch1') { player.lv = 1; player.unlocked = []; player.rideOK = false; }
+  startCh1(cp);
+}
+function ch1PlayerClamp() { const F = ch1.fight; if (F && F.ring) { const R = ACAD.ring, ox = player.x - R.x, oz = player.z - R.z, d = Math.hypot(ox, oz), mx = R.r - .6; if (d > mx) { player.x = R.x + ox / d * mx; player.z = R.z + oz / d * mx; } } }
+/* ---------- per-frame ---------- */
+function updateCh1(dt, dtR) {
+  for (let i = ch1.timers.length - 1; i >= 0; i--) { const T = ch1.timers[i]; T.t -= dtR; if (T.t <= 0) { ch1.timers.splice(i, 1); T.fn(); } }
+  if (ch1.wait && ch1.wait.t !== undefined) ch1.wait.t -= dtR;
+  stepCo(); updateDlg(dtR);
+  const A = ch1.A; if (!A) return;
+  // actors (non-fighting) behaviour
+  for (const k in A) {
+    const a = A[k]; if (!a.shown || a.fighting) continue; // fighting actors are updated via the enemies loop
+    a.holder.visible = a.world === world.name;
+    if (a === A.lin && ch1.ally) { updateAlly(a, dt); animActor(a, dt); syncActor(a); continue; }
+    if (a === A.lin && ch1.follow && !a.path) updateFollower(a, dt);
+    else if (a.path) { if (a.leading) { const d = Math.hypot(player.x - a.x, player.z - a.z); if (d > 9) { a.moveAmt *= .9; faceActor(a, player.x, player.z, dt * 3); } else walkPath(a, dt); } else walkPath(a, dt); if (a.walkAway && Math.random() < .5) emit(a.x + rand(-.4, .4), rand(.2, 2), a.z + rand(-.4, .4), 0, .5, 0, 0x6a2a9a, .35, 1, 0); }
+    else { a.moveAmt += (0 - a.moveAmt) * Math.min(1, dt * 6); if (a.faceP || (ch1.talking && a.world === world.name && Math.hypot(player.x - a.x, player.z - a.z) < 9 && !a.fighting && a.pose !== 'kneel')) faceActor(a, player.x, player.z, dt * 4); }
+    if (a === A.lin && !player.riding) { a.float = false; a.rideSw.visible = false; }
+    if (a.id === 'mohan' && a.shown && a.world === world.name && Math.random() < .35) emit(a.x + rand(-.5, .5), rand(.1, 2), a.z + rand(-.5, .5), 0, rand(.3, .9), 0, Math.random() < .4 ? 0x1a0828 : 0x8a40e0, rand(.25, .45), rand(.6, 1.1), 0);
+    animActor(a, dt); syncActor(a);
+  }
+  if (A.mohan.walkAway && Math.hypot(A.mohan.x - player.x, A.mohan.z - player.z) > 26) hideActor(A.mohan);
+  // camera toward speaker during dialogue
+  if (state === 'talk') {
+    const t = ch1.camT || ch1.lastSpeaker;
+    if (t && t.shown && t.world === world.name) { const dx = t.x - player.x, dz = t.z - player.z, hy = t.height * .92 - (camY), hd = Math.hypot(dx, dz); if (hd > .5) { player.yaw += angDiff(player.yaw, Math.atan2(-dx, -dz)) * Math.min(1, dt * 3.5); player.pitch = lerp(player.pitch, clamp(Math.atan2(hy, hd), -.5, .4), Math.min(1, dt * 3)); } }
+    camera.fov = lerp(camera.fov, 60, Math.min(1, dt * 3)); camera.updateProjectionMatrix();
+  }
+  // hidden door (visible only while 隐身)
+  if (world.name === 'academy') { const hd = world.hiddenDoor, op2 = world.hiddenMat; const want = player.stealthT > 0 ? 1 : 0; op2.opacity = lerp(op2.opacity, want, Math.min(1, dt * 6)); hd.visible = op2.opacity > .02; if (hd.visible && Math.random() < .5) emit(ACAD.hidden.x + rand(-1.2, 1.2), rand(.2, 3.4), ACAD.hidden.z + .2, 0, rand(.1, .5), rand(.1, .4), 0xc070ff, .3, .9, 0); if (ch1.cp === 'hidden' && player.stealthT > 0 && Math.hypot(player.x - ACAD.hidden.x, player.z - ACAD.hidden.z) < 1.5) ch1.flags.door = true; if (ch1.cp === 'hidden' && inLib() && SK.yinshen.t > 3) SK.yinshen.t = 3; }
+  updateUse(); updateObj(dt); updateLabels();
+  if (ch1.hl) { const el = $(ch1.hl), hl = $('hl'); if (el && state === 'play') { const r = el.getBoundingClientRect(), pad = 8; hl.style.display = 'block'; hl.style.left = (r.left - pad) + 'px'; hl.style.top = (r.top - pad) + 'px'; hl.style.width = (r.width + pad * 2) + 'px'; hl.style.height = (r.height + pad * 2) + 'px'; } else hl.style.display = 'none'; }
+}
+/* debug / test hooks */
+Object.assign(window.__G, { ch1, startCh1, resumeCh1, setupCP, dlgTap, SEG, ACAD, DG, worlds, endFight, levelUp, CP_ORDER, useNow() { if (curUse) curUse.fn(); return !!curUse; }, FOE_HEAVY, FOE_DART, FOE_MOHAN, FOE_GHOST, npcSolids });
+Object.defineProperties(window.__G, { curUse: { get() { return curUse; } }, world: { get() { return world; } } });
