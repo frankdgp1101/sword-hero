@@ -1180,7 +1180,7 @@ function updateTough(e, dt) {
 function knockBack(e, fx, fz, dist, dur = .3) { if (e.boss || e.dead) return; const dx = e.x - fx, dz = e.z - fz, d = Math.hypot(dx, dz) || 1; e.kbV = V3(dx / d * dist / dur, 0, dz / d * dist / dur); e.kbT = dur; e.stagger = Math.max(e.stagger || 0, dur + .25); }
 function knockUp(e, h, dur) { if (e.boss || e.dead) return; e.airH = h; e.airDur = dur; e.airT = dur; e.stagger = Math.max(e.stagger || 0, dur + .3); if (e.act) cancelAct(e); }
 function preDisplace(e, dt) { if (e.kbT > 0) { e.kbT -= dt; e.x += e.kbV.x * dt; e.z += e.kbV.z * dt; const R = world.R - 1, r = Math.hypot(e.x, e.z); if (r > R) { e.x *= R / r; e.z *= R / r; } if (Math.random() < .6) emit(e.x + rand(-.4, .4), H(e.x, e.z) + .1, e.z + rand(-.4, .4), 0, 1, 0, 0xc8b898, .5, .5, -2); } }
-function postDisplace(e, dt) { if (e.airT > 0) { e.airT = Math.max(0, e.airT - dt); const k = 1 - e.airT / e.airDur; e.airY = Math.sin(k * Math.PI) * e.airH; if (e.airT <= 0) { e.airY = 0; burst(V3(e.x, H(e.x, e.z) + .2, e.z), 18, 0xc8b898, 4, .6, .6, -4); sfx('stone'); } } if (e.airY) { e.holder.position.y += e.airY; e.holder.rotation.x = Math.sin((1 - e.airT / e.airDur) * Math.PI) * -.5; } else if (e.holder.rotation.x) e.holder.rotation.x = 0; }
+function postDisplace(e, dt) { if (e.airT > 0) { e.airT = Math.max(0, e.airT - dt); const k = 1 - e.airT / e.airDur; e.airY = Math.sin(k * Math.PI) * e.airH; if (e.airT <= 0) { e.airY = 0; burst(V3(e.x, H(e.x, e.z) + .2, e.z), 18, 0xc8b898, 4, .6, .6, -4); sfx('stone'); } } if (e.airY && e.airT > 0 && e.airDur > 0) { if (!e.selfAir) e.holder.position.y += e.airY; e.holder.rotation.x = Math.sin((1 - e.airT / e.airDur) * Math.PI) * -.5; } else if (e.holder.rotation.x !== 0) e.holder.rotation.x = 0; }
 function hitEnemy(e, base, kind, td = 0) {
   if (e.dead || e.invuln) return 0;
   let amb = false;
@@ -2879,7 +2879,7 @@ function makeActor(id, extra = {}) {
   const c = CAST[id], m = buildChar(c);
   const holder = new THREE.Group(); holder.add(m.root); scene.add(holder); holder.visible = false;
   const shadow = mk(discGeo, new THREE.MeshBasicMaterial({ color: 0, transparent: true, opacity: c.ghost ? .0 : .22, depthWrite: false }), holder, 0, .02, 0, .45 * (c.w || 1), .45 * (c.w || 1), 1); shadow.rotation.x = -Math.PI / 2;
-  const a = Object.assign({ id, kind: id, name: c.name, title: c.title, lvTxt: '1', boss: false, showNum: true, x: 0, z: 0, y: 0, yaw: 0, radius: .5 * (c.w || 1), height: 1.85 * (c.h || 1), hp: 1, maxHp: 1, armor: 1, floorHp: 0,
+  const a = Object.assign({ id, kind: id, name: c.name, title: c.title, lvTxt: '1', boss: false, selfAir: true, showNum: true, x: 0, z: 0, y: 0, yaw: 0, radius: .5 * (c.w || 1), height: 1.85 * (c.h || 1), hp: 1, maxHp: 1, armor: 1, floorHp: 0,
     model: m, holder, mats: m.mats, act: null, cd: 1, flash: 0, warnT: 0, dead: false, stagger: 0, moveAmt: 0, ph: 0, pose: 'idle', cur: JSON.parse(JSON.stringify(CPOSE.idle)), world: 'academy', shown: false, path: null, speed: 3.2, fighting: false, solid: false, label: null, spin: 0,
     update(dt) { foeUpdate(this, dt); }, onInterrupt() { this.act = null; this.warnT = 0; this.pose = 'stagger'; this.cd = Math.max(this.cd, .8); if (this.onCancel) this.onCancel(); } }, extra);
   a.r = a.radius; return a;
@@ -2901,7 +2901,10 @@ function animActor(a, dt) {
   if (a.flash > 0) { a.flash = Math.max(0, a.flash - dt * 5); if (a.model.mat === ghostCharMat) ghostCharMat.uniforms.fl.value = a.flash * .6; else setFlash(a, a.flash * .7); }
 }
 function placeActor(a, x, z, yaw) { a.x = x; a.z = z; if (yaw !== undefined) a.yaw = yaw; a.path = null; a.moveAmt = 0; syncActor(a); }
-function syncActor(a) { a.holder.position.set(a.x, (a.float ? .35 + Math.sin(gameT * 1.6) * .1 : 0) + (a.airY || 0), a.z); a.holder.rotation.y = a.yaw; }
+function syncActor(a) { // self-heal any non-finite transform so a bad value can never make an actor vanish permanently
+  if (!isFinite(a.x) || !isFinite(a.z)) { a.x = a.lastX ?? 0; a.z = a.lastZ ?? 0; } else { a.lastX = a.x; a.lastZ = a.z; }
+  if (!isFinite(a.yaw)) a.yaw = 0; if (!isFinite(a.airY)) a.airY = 0; if (!isFinite(a.holder.rotation.x)) a.holder.rotation.x = 0;
+  a.holder.position.set(a.x, (a.float ? .35 + Math.sin(gameT * 1.6) * .1 : 0) + (a.airY || 0), a.z); a.holder.rotation.y = a.yaw; }
 function faceActor(a, x, z, k = 1) { a.yaw += angDiff(a.yaw, Math.atan2(x - a.x, z - a.z)) * Math.min(1, k); }
 /* move along a list of waypoints; returns true when done */
 function walkPath(a, dt) {
@@ -3209,7 +3212,7 @@ function startFight(a, def, opt = {}) {
   if (opt.ally) { const al = ch1.A.lin; ch1.ally = al; al.hpF = 1; al.retreat = 0; al.atkCd = 2; }
 }
 function* fightIntro(title, subt) { banner(title, subt, 1.6); yield wait(1.7); banner('开始！', '', .9); sfx('clang'); ch1.fight.e.ai = true; ch1.fight.e.cd = .9; }
-function endFight() { const F = ch1.fight; if (!F) return; F.e.fighting = false; F.e.act = null; F.e.warnT = 0; enemies.length = 0; clearProj(); ch1.fight = null; ch1.ally = null; document.body.classList.remove('fight'); player.hp = player.maxHp; player.wine = player.wineMax; resetSkills(); hudDirty = true; if (F.e.orbit) F.e.orbit.visible = false; }
+function endFight() { const F = ch1.fight; if (!F) return; F.e.fighting = false; F.e.act = null; F.e.warnT = 0; F.e.invuln = false; F.e.airY = 0; F.e.spin = 0; F.e.holder.rotation.x = 0; if (F.e.id !== 'ghost') F.e.holder.visible = true; enemies.length = 0; clearProj(); ch1.fight = null; ch1.ally = null; document.body.classList.remove('fight'); player.hp = player.maxHp; player.wine = player.wineMax; resetSkills(); hudDirty = true; if (F.e.orbit) F.e.orbit.visible = false; }
 function ch1OnDeath() {
   const F = ch1.fight; if (!F) { ch1Timer(1, () => { player.dead = false; player.hp = player.maxHp; hudDirty = true; }); return; }
   F.deaths++; F.e.ai = false; F.e.act = null; F.e.warnT = 0; clearProj();
