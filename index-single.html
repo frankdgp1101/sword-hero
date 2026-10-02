@@ -1316,14 +1316,14 @@ function inFront(e, px, pz, range, half) { const dx = px - e.x, dz = pz - e.z, d
 
 /* ===== 魔神 (tutorial boss; internal id 'shixiong') ===== */
 function makeShixiong() {
-  const m = buildImmortal({ robe: 0x3a1a5c, inner: 0xd2c4ea, trim: 0xd0aa5a, skin: 0xe8d6da, eye: 0xd060ff, eyeI: 3.5, angry: true, mark: true, sash: 0x1e0c2e, jade: 0xb070ff, ribbon: 0xa048ff, sheen: 0xc890ff, hairSheen: 0x8040c0,
+  const m = buildImmortal({ robe: 0x3a1a5c, inner: 0xd2c4ea, trim: 0xd0aa5a, skin: 0xe8d6da, eye: 0xd060ff, eyeI: 5, angry: true, mark: true, sash: 0x1e0c2e, jade: 0xb070ff, ribbon: 0xa048ff, sheen: 0xc890ff, hairSheen: 0x8040c0,
     sword: { blade: 0x3a2650, glow: 0xb050ff, glowI: 1.4, gold: 0x9a7ad0, grip: 0x1a0c22, jade: 0xc070ff, jadeE: 0x6020a0 } });
   const holder = new THREE.Group(); holder.add(m.root); scene.add(holder);
-  m.root.scale.setScalar(1.08);
+  m.root.scale.setScalar(1.22);
   const aura1 = mk(G.sph, auraMat(0xa040ff, 2.0, .9), m.body, 0, 1.05, 0, .55, 1.15, .5);
   const aura2 = mk(G.sph, auraMat(0x6010c0, 1.4, .5), m.body, 0, 1.1, 0, .75, 1.35, .7);
   const mist = mk(discGeo, new THREE.MeshBasicMaterial({ color: 0x2a0a40, transparent: true, opacity: .45, depthWrite: false }), holder, 0, .02, 0, 1.2, 1.2, 1.2); mist.rotation.x = -Math.PI / 2;
-  const e = { kind: 'shixiong', boss: true, name: '魔神', lvTxt: '???', x: 0, z: -6.5, y: .3, yaw: 0, radius: .7, height: 2.2, hp: 100000, maxHp: 100000, floorHp: 0, armor: 1,
+  const e = { kind: 'shixiong', boss: true, name: '魔神', lvTxt: '???', x: 0, z: -6.5, y: .3, yaw: 0, radius: .8, height: 2.5, hp: 100000, maxHp: 100000, floorHp: 0, armor: 1,
     model: m, holder, mats: m.mats, pose: clonePose(IPOSE.idle), tgt: IPOSE.idle, poseK: 8, act: null, cd: 2.5, ai: true, flash: 0, warnT: 0, home: V3(0, 0, -6.5), strafe: 0, last: '', dead: false, dmgK: 1, forced: null, visible: true,
     onInterrupt() { this.act = null; this.visible = true; if (timeScale < 1) timeScale = 1; tutBlockCue(false); setPose(this, 'idle', 6); this.cd = Math.max(this.cd, this.forced ? 1.6 : 2.2); this.model.sword.bladeM.emissiveIntensity = 1.4; } };
   initTough(e, 300);
@@ -1355,9 +1355,12 @@ function addDivine(m, holder) {
   const h1 = mk(new THREE.PlaneGeometry(1, 1), glow(0xc070ff, .85), halo, 0, 0, 0, .78, .78, 1);
   const h2 = mk(new THREE.PlaneGeometry(1, 1), glow(0x7a30ff, .5), halo, 0, 0, -.01, .5, .5, 1);
   const core = mk(discGeo, new THREE.MeshBasicMaterial({ color: 0x5a20a0, transparent: true, opacity: .22, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }), halo, 0, 0, -.02, .2, .2, 1);
-  // horns: slim curved, glowing purple-gold, swept back from the temples
-  const hornM = new THREE.MeshStandardMaterial({ color: 0x2a1240, emissive: 0xa050ff, emissiveIntensity: 1.3, metalness: .6, roughness: .3 }); hornM.userData.keepE = true;
-  for (const s of [-1, 1]) mk(taperTube([V3(s * .06, .08, .03), V3(s * .1, .16, -.0), V3(s * .12, .24, -.07), V3(s * .1, .3, -.15)], [.016, .012, .007, .001], { radial: 7, seg: 16 }), hornM, m.head);
+  // horns: large curved demon horns (thick at the temples, sweeping out, up and back, tips hooking forward)
+  const hornM = new THREE.MeshStandardMaterial({ color: 0x1a0a26, emissive: 0x7a2ad8, emissiveIntensity: .95, metalness: .55, roughness: .32 }); hornM.userData.keepE = true;
+  const tipM = new THREE.MeshBasicMaterial({ color: 0xe0a0ff, transparent: true, opacity: .8, blending: THREE.AdditiveBlending, depthWrite: false });
+  for (const s of [-1, 1]) { const pts = phantomHornPts(s, .82); mk(taperTube(pts, [.036, .032, .025, .016, .008, .001], { radial: 10, seg: 24 }), hornM, m.head);
+    for (let k = 1; k <= 3; k++) { const q = pts[k]; mk(G.sphLo, hornM, m.head, q.x, q.y, q.z, .036 - k * .006, .012, .036 - k * .006); }
+    const tp = pts[5]; mk(G.sphLo, tipM, m.head, tp.x, tp.y, tp.z, .018, .018, .018); }
   // sash streamers (飘带) from the belt, waving
   const sm = new THREE.MeshStandardMaterial({ color: 0x8a40e0, emissive: 0x6a20c0, emissiveIntensity: .45, roughness: .5, transparent: true, opacity: .82, side: THREE.DoubleSide });
   sm.onBeforeCompile = sh => { sh.uniforms.t = timeU; sh.vertexShader = 'uniform float t;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n float dd = clamp(-position.y*1.4, 0., 1.6); transformed.z += sin(t*2.4 - position.y*5.)*.07*dd - dd*.05; transformed.x += sin(t*1.9 - position.y*4. + position.x*9.)*.035*dd;'); };
@@ -1666,6 +1669,100 @@ function updateMinion(e, dt) {
   zhengPose(e, dt, e.moveAmt);
   if (e.flash > 0) { e.flash = Math.max(0, e.flash - dt * 5); setFlash(e, e.flash * .6); }
   e.warnT = Math.max(0, e.warnT - dt);
+}
+/* ===== 魔神法相: giant translucent demon-god avatar that mirrors 魔神's rig (tutorial only) =====
+   Own materials only (never shares/mutates other characters' materials). ~10 draw calls, no depth writes. */
+const PHANTOM = { S: 4.6, BACK: 3.2, SINK: -2.6, RISE: 2.6 };
+const phantomMat = new THREE.ShaderMaterial({
+  transparent: true, depthWrite: false, side: THREE.FrontSide, fog: false,
+  uniforms: { t: timeU, op: { value: 0 }, gy: { value: 0 }, flash: { value: 0 } },
+  vertexShader: 'varying vec3 vN; varying vec3 vV; varying vec3 vW; void main(){ vec4 w=modelMatrix*vec4(position,1.); vW=w.xyz; vN=normalize(mat3(modelMatrix)*normal); vV=normalize(cameraPosition-w.xyz); gl_Position=projectionMatrix*viewMatrix*w; }',
+  fragmentShader: GLSL_NOISE + `uniform float t,op,gy,flash; varying vec3 vN; varying vec3 vV; varying vec3 vW;
+    void main(){ float f=pow(1.-abs(dot(normalize(vN),normalize(vV))),1.7);
+      float n=fb(vec2(vW.x*.35+vW.z*.3, vW.y*.45-t*.7)); float fl=fb(vec2(vW.x*.9-t*.3, vW.y*1.2-t*2.2));
+      vec3 core=vec3(.045,.0,.085), rim=vec3(.72,.26,1.), hot=vec3(1.,.7,1.);
+      vec3 col=mix(core, rim, f)+hot*pow(f,4.)*.6+vec3(.35,.1,.6)*fl*f*.6+vec3(.6,.3,.9)*flash;
+      float a=(.5+f*.48)*(.8+.35*n)*op*smoothstep(gy, gy+3.2, vW.y);
+      gl_FragColor=vec4(col, clamp(a,0.,.92)); }`,
+});
+const phantomEyeMat = new THREE.MeshBasicMaterial({ color: 0xff70ff, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, fog: false });
+function phantomHornPts(s, k = 1) { return [V3(s * .07, .07, .02), V3(s * .16, .13, 0), V3(s * .25, .24, -.06), V3(s * .3, .38, -.12), V3(s * .28, .52, -.08), V3(s * .22, .62, .02)].map(p => p.multiplyScalar(k)); }
+function buildPhantom() {
+  const holder = new THREE.Group(); holder.visible = false; scene.add(holder);
+  const root = new THREE.Group(); holder.add(root); const body = new THREE.Group(); root.add(body);
+  const pm = (list, parent) => { const m = new THREE.Mesh(mergeColored(list), phantomMat); m.frustumCulled = false; parent.add(m); return m; };
+  // robe (skirt) — dissolves into mist near the ground via the shader
+  pm([[lathe([[.52, -.2], [.48, .25], [.36, .62], [.23, .95], [.18, 1.06]], 14), 0, M4(0, 0, 0)]], body);
+  const torso = new THREE.Group(); torso.position.y = 1.02; body.add(torso);
+  const tl = [[lathe([[.17, -.04], [.22, .18], [.27, .36], [.21, .47], [.07, .53]], 12), 0, M4(0, 0, 0)]];
+  for (const s of [-1, 1]) { tl.push([G.sphLo, 0, M4(s * .25, .44, 0, .1, .07, .1)]); tl.push([new THREE.ConeGeometry(.04, .2, 6), 0, M4(s * .3, .53, 0, 1, 1, 1, 0, 0, s * -.5)]); tl.push([new THREE.ConeGeometry(.03, .14, 6), 0, M4(s * .22, .52, -.04, 1, 1, 1, 0, 0, s * -.25)]); }
+  pm(tl, torso);
+  const head = new THREE.Group(); head.position.set(0, .7, .01); torso.add(head);
+  const hl = [[superEllipsoid(.095, .118, .105, .8, 12, 9), 0, M4(0, 0, 0)], [superEllipsoid(.065, .055, .065, .9, 10, 7), 0, M4(0, -.075, .03)]];
+  for (const s of [-1, 1]) hl.push([taperTube(phantomHornPts(s, 1), [.042, .037, .028, .018, .009, .001], { radial: 7, seg: 14 }), 0, M4(0, 0, 0)]);
+  for (const x of [-.04, 0, .04]) hl.push([new THREE.ConeGeometry(.018, x ? .08 : .12, 5), 0, M4(x, .14 + (x ? 0 : .02), .03)]);
+  hl.push([taperTube([V3(0, .02, -.08), V3(0, -.2, -.16), V3(0, -.5, -.2)], [.09, .1, .02], { radial: 7, seg: 8 }), 0, M4(0, 0, 0)]); // mane
+  pm(hl, head);
+  const eyes = new THREE.Mesh(mergeColored([[G.sphLo, 0, M4(-.038, .02, .095, .028, .014, .012)], [G.sphLo, 0, M4(.038, .02, .095, .028, .014, .012)], [G.sphLo, 0, M4(0, .072, .1, .01, .02, .006)]]), phantomEyeMat); eyes.frustumCulled = false; head.add(eyes);
+  const arms = [];
+  for (const s of [-1, 1]) {
+    const sh = new THREE.Group(); sh.position.set(s * .22, .4, 0); torso.add(sh);
+    pm([[taperTube([V3(0, 0, 0), V3(0, -.14, 0), V3(0, -.28, 0)], [.075, .065, .06], { radial: 7, seg: 6 }), 0, M4(0, 0, 0)]], sh);
+    const el = new THREE.Group(); el.position.y = -.28; sh.add(el);
+    pm([[lathe([[.055, 0], [.075, -.09], [.1, -.21], [.12, -.31], [.03, -.3]], 10), 0, M4(0, 0, 0)], ...(s < 0 ? [[G.sphLo, 0, M4(0, -.36, 0, .035, .05, .04)]] : [])], el);
+    const hand = new THREE.Group(); hand.position.y = -.34; el.add(hand);
+    if (s > 0) { pm([[G.sphLo, 0, M4(0, -.02, 0, .035, .05, .04)]], hand); const sg = new THREE.Group(); sg.position.set(0, -.03, .01); sg.rotation.x = Math.PI / 2; hand.add(sg);
+      pm([[new THREE.ConeGeometry(1, 1, 4), 0, M4(0, .82, 0, .045, 1.45, .014)], [G.box, 0, M4(0, .08, 0, .16, .03, .04)], [G.cyl, 0, M4(0, -.04, 0, .018, .16, .018)]], sg); }
+    arms.push({ sh, el, hand, s });
+  }
+  holder.scale.setScalar(PHANTOM.S);
+  return { holder, root, body, torso, head, arms, eyes, lvl: 0, target: 0, op: 0 };
+}
+const demonPhantom = buildPhantom();
+/* sky palettes for the tutorial: white (start) → pale purple (after the 法相 is summoned) */
+const CLOUD_PAL = [
+  { top: 0xd2dbea, mid: 0xf0f2f7, bot: 0xffffff, sun: [1, .97, .92], fog: 0xf1f2f6, hemi: 0xf4f4ff, hemiG: 0x9a98a8, sunL: 0xfff6ea },
+  { top: 0x8f7cc6, mid: 0xc8b8e8, bot: 0xefe6f9, sun: [.95, .8, 1], fog: 0xe0d2f0, hemi: 0xe6d4ff, hemiG: 0x8a7090, sunL: 0xe8ccff },
+];
+const demonSky = { k: -1, target: 0, applied: -1 };
+const _ca = new THREE.Color(), _cb = new THREE.Color();
+function applyCloudTint(k) {
+  if (!world || world.name !== 'cloud') return; demonSky.applied = k; const A = CLOUD_PAL[0], B = CLOUD_PAL[1];
+  const L = (a, b, tgt) => tgt.copy(_ca.set(a)).lerp(_cb.set(b), k);
+  L(A.top, B.top, skyMat.uniforms.top.value); L(A.mid, B.mid, skyMat.uniforms.mid.value); L(A.bot, B.bot, skyMat.uniforms.bot.value);
+  skyMat.uniforms.sunCol.value.setRGB(...A.sun.map((v, i) => lerp(v, B.sun[i], k)));
+  L(A.fog, B.fog, scene.fog.color); L(A.hemi, B.hemi, hemi.color); L(A.hemiG, B.hemiG, hemi.groundColor); L(A.sunL, B.sunL, sunL.color);
+}
+function resetDemonPhantom() { demonSky.k = 0; demonSky.target = 0; applyCloudTint(0); demonPhantom.lvl = 0; demonPhantom.target = 0; demonPhantom.holder.visible = false; }
+function summonDemonPhantom(instant) { demonPhantom.target = 1; demonSky.target = 1; if (instant) { demonPhantom.lvl = 1; demonSky.k = 1; applyCloudTint(1); } }
+let _phLast = 0;
+function updateDemonPhantom() {
+  const dt = clamp(gameT - _phLast, 0, .1); _phLast = gameT;
+  if (demonSky.k >= 0 && demonSky.k !== demonSky.target) { demonSky.k = demonSky.target > demonSky.k ? Math.min(demonSky.target, demonSky.k + dt / 3.4) : Math.max(demonSky.target, demonSky.k - dt / 3.4); const e = demonSky.k; applyCloudTint(e * e * (3 - 2 * e)); }
+  const P = demonPhantom, src = shixiong;
+  P.lvl += (P.target > P.lvl ? 1 : -1) * Math.min(Math.abs(P.target - P.lvl), dt / PHANTOM.RISE);
+  const show = P.lvl > 0 && mode === 'tutorial' && world && world.name === 'cloud' && src.holder.visible;
+  P.holder.visible = show; if (!show) return;
+  const m = src.model, sh = src.holder, k = 1 - Math.pow(1 - P.lvl, 3);
+  // follow position/rotation: directly behind 魔神, facing the same way, rising out of the clouds
+  const yaw = sh.rotation.y, fx = Math.sin(yaw), fz = Math.cos(yaw);
+  P.holder.position.set(sh.position.x - fx * PHANTOM.BACK, sh.position.y + lerp(-14, PHANTOM.SINK, k), sh.position.z - fz * PHANTOM.BACK);
+  P.holder.rotation.set(sh.rotation.x, yaw, sh.rotation.z);
+  // mirror the rig every frame (same joint layout as buildImmortal)
+  P.root.position.copy(m.root.position); P.root.rotation.copy(m.root.rotation); P.root.scale.copy(m.root.scale);
+  P.body.position.copy(m.body.position); P.body.rotation.copy(m.body.rotation);
+  P.torso.rotation.copy(m.torso.rotation); P.head.rotation.copy(m.head.rotation);
+  for (let i = 0; i < 2; i++) { const a = m.arms[i], b = P.arms[i]; b.sh.rotation.copy(a.sh.rotation); b.el.rotation.copy(a.el.rotation); b.hand.rotation.copy(a.hand.rotation); }
+  // keep the view of 魔神 clear: fade when the camera gets close to the avatar's body axis
+  const cd = Math.hypot(camera.position.x - P.holder.position.x, camera.position.z - P.holder.position.z);
+  const near = clamp((cd - 3) / 6, .3, 1);
+  P.op = k * near * (.92 + Math.sin(gameT * 2.3) * .08);
+  phantomMat.uniforms.op.value = P.op; phantomMat.uniforms.gy.value = H(sh.position.x, sh.position.z) - .2;
+  phantomMat.uniforms.flash.value = Math.max(0, (src.flash || 0) * .25);
+  phantomEyeMat.opacity = Math.min(1, P.op * 1.3);
+  // faint purple flame / mist around the base
+  if (state !== 'title' && Math.random() < .55 * k) { const a = rand(0, 6.28), r = rand(1.2, 3.2); emit(P.holder.position.x + Math.cos(a) * r, H(sh.position.x, sh.position.z) + rand(0, 1.2), P.holder.position.z + Math.sin(a) * r, rand(-.2, .2), rand(.8, 2), rand(-.2, .2), Math.random() < .5 ? 0x8a3aff : 0x3a0a60, rand(.9, 1.7), rand(1.2, 2.2), 0); }
+  if (Math.random() < .25 * k) { const hp = P.head.getWorldPosition(V3()); emit(hp.x + rand(-1, 1), hp.y + rand(.5, 2.2), hp.z + rand(-1, 1), 0, rand(.5, 1.4), 0, 0xc070ff, rand(.5, 1), rand(.8, 1.4), 0); }
 }
 /* ---------------- poses ---------------- */
 L_IDLE = LK(0, [-.2, -.22, -.5], [.25, .72, -.6], [0, .6, .72]);
@@ -2015,6 +2112,7 @@ const TUT = [
   { id: 's2', t: '<b>飞剑</b>：剑脱手疾飞，穿透敌人后不到 1 秒便飞回手中', hl: 'btn-s2', on: (ty) => ty === 'catch' },
   { id: 'block', t: '魔神即将出招！看到<b>紫光与「!」</b>时按<b>格挡</b>——挡下近身攻击即触发<b>弹反</b>：反击、大幅削韧并震退对手', hl: 'btn-block', on: (ty) => ty === 'block', enter() { endBreak(shixiong); shixiong.stagger = 0; shixiong.forced = 'blink'; shixiong.cd = 1.5; SK.block.t = 0; }, exit() { shixiong.forced = null; shixiong.cd = 3; } },
   { id: 'wine', t: '你被剑气所伤！点击左侧<b>酒葫芦</b>饮酒，每口恢复 <b>15%</b> 气血', hl: 'wine', on: (ty) => ty === 'drink', enter() { player.hp = Math.round(player.maxHp * .52); hudDirty = true; shake = .4; $('vign').style.opacity = .8; setTimeout(() => $('vign').style.opacity = 0, 300); player.wine = Math.max(1, player.wine); } },
+  { id: 'summon', t: '魔神：「仙尊，就凭这点本事？……且看本尊法相！」', enter() { startSummon(); }, check: () => false },
   { id: 'dahe', t: '神通 · <b>大河之剑</b>（神通中央）：巨剑自天而降，伤害最高；击飞目标，震退周围小怪（首领不会被击退）', hl: 'st-dahe', st: 'dahe', on: (ty, id) => ty === 'cast' && id === 'dahe', wait: 2.2 },
   { id: 'wanjian', t: '神通 · <b>万剑归宗</b>（上）：双手持剑，万道剑气自身后飞出，持续 5 秒', hl: 'st-wanjian', st: 'wanjian', on: (ty, id) => ty === 'cast' && id === 'wanjian', wait: 5.4 },
   { id: 'jianyu', t: '神通 · <b>剑雨</b>（左）：<b>按住并拖动</b>按钮瞄准落点，松手施放（轻点则落在脚下）。剑雨持续 10 秒并<b>减速</b>其中的敌人', hl: 'st-jianyu', st: 'jianyu', on: (ty, id) => ty === 'cast' && id === 'jianyu', wait: 2.5 },
@@ -2022,7 +2120,7 @@ const TUT = [
   { id: 'hudun', t: '神通 · <b>护盾</b>（下）：法球环绕周身，吸收相当于 <b>20% 气血上限</b>的伤害', hl: 'st-hudun', st: 'hudun', on: (ty, id) => ty === 'cast' && id === 'hudun', wait: 2.5 },
 ];
 function startTutorial() {
-  mode = 'tutorial'; state = 'play'; setWorld('cloud'); clearFx(); clearProj(); resetSkills(); setupLiBai(); placePlayer(world.spawn);
+  mode = 'tutorial'; state = 'play'; setWorld('cloud'); resetDemonPhantom(); summon.on = false; clearFx(); clearProj(); resetSkills(); setupLiBai(); placePlayer(world.spawn);
   enemies.length = 0; enemies.push(shixiong); zheng.holder.visible = false;
   Object.assign(shixiong, { hp: 50000, maxHp: 50000, x: 0, z: -6.5, act: null, cd: 3, ai: true, visible: true, forced: null, dead: false, dmgK: SHIXIONG_DMGK, cutLift: 0, stagger: 0 }); initTough(shixiong, SHIXIONG_TOUGH);
   shixiong.holder.visible = true; shixiong.model.sword.bladeM.emissiveIntensity = 1.4;
@@ -2050,6 +2148,7 @@ function tutEvent(ty, id) { if (mode !== 'tutorial' || state !== 'play' || !tut.
 function tutBlockCue(on) { $('blockcue').style.display = on ? 'block' : 'none'; }
 function updateTutorial(dt) {
   if (!tut.cur) return;
+  updateSummon(dt);
   if (tut.wait > 0) { tut.wait -= dt; if (tut.wait <= 0) nextStep(); return; }
   if (tut.cur.check && tut.cur.check()) completeStep();
   positionHighlight();
@@ -2067,7 +2166,24 @@ function positionHighlight() {
   const el = $(c.hl); if (!el) { hl.style.display = 'none'; return; } const r = el.getBoundingClientRect();
   const pad = 8; hl.style.display = 'block'; hl.style.left = (r.left - pad) + 'px'; hl.style.top = (r.top - pad) + 'px'; hl.style.width = (r.width + pad * 2) + 'px'; hl.style.height = (r.height + pad * 2) + 'px';
 }
-function skipTutorial() { if (mode !== 'tutorial') return; hideGuide(); $('skip').style.display = 'none'; resetSkills(); clearProj(); startStory(); }
+function skipTutorial() { if (mode !== 'tutorial') return; summon.on = false; hideGuide(); $('skip').style.display = 'none'; resetSkills(); clearProj(); startStory(); }
+/* ===== 魔神祭出法相 (story beat between the basic skills and the 神通 lessons) ===== */
+const summon = { on: false, t: 0, fired: false, px: 0, pz: 0 };
+function startSummon() {
+  const e = shixiong; if (e.broken) endBreak(e); if (e.act) e.onInterrupt(); e.ai = false; e.stagger = 0; e.forced = null; tutBlockCue(false); clearProj();
+  Object.assign(summon, { on: true, t: 0, fired: false, px: player.x, pz: player.z });
+  setPose(e, 'cast', 6); sfx('roar');
+}
+function updateSummon(dt) {
+  if (!summon.on) return; const e = shixiong; summon.t += dt; const t = summon.t;
+  player.x = summon.px; player.z = summon.pz;
+  player.yaw += angDiff(player.yaw, Math.atan2(-(e.x - player.x), -(e.z - player.z))) * Math.min(1, dt * 4);
+  const pt = t < 1.1 ? .03 : t < 4.1 ? .36 : .04; player.pitch = lerp(player.pitch, pt, Math.min(1, dt * (t < 4.1 ? 1.6 : 2.4)));
+  faceTo(e, player.x, player.z, dt * 5);
+  if (!summon.fired && t >= 1.0) { summon.fired = true; summonDemonPhantom(); setPose(e, 'sky', 4); sfx('boom'); sfx('whoosh'); shake = Math.max(shake, .35); flashScreen('#b070ff', .35, .9); smoke(V3(e.x, 1, e.z)); }
+  if (summon.fired && t < 3.6) shake = Math.max(shake, .06);
+  if (t >= 5.2) { summon.on = false; e.ai = true; e.cd = 1.6; setPose(e, 'idle', 5); $('guide').classList.add('done'); sfx('ding'); tut.wait = .6; }
+}
 /* ===== cutscene ===== */
 const cut = { t: 0, fired: {} };
 let lostSword = null;
@@ -2429,6 +2545,7 @@ function update(dtR) {
     preDisplace(e, dt); updateTough(e, dt); e.update(edt); postDisplace(e, dt);
   }
   if (mode === 'tutorial' && shixiong.cutLift) shixiong.holder.position.y += shixiong.cutLift;
+  updateDemonPhantom();
   updateProj(dt); updateFly(dt); updateUlt(dt); updateWanjian(dt); updateZones(dt); updateOrb(dt); updateDecoy(dt);
   updateFx(dt); updateParticles(dt); updateNums(dtR); updateSNums(dtR);
   updateVM(dt); updateHUD();
@@ -3539,6 +3656,7 @@ function updateCh1(dt, dtR) {
 }
 /* debug / test hooks */
 Object.assign(window.__G, { ch1, startCh1, resumeCh1, setupCP, dlgTap, SEG, ACAD, DG, worlds, endFight, levelUp, CP_ORDER, useNow() { if (curUse) curUse.fn(); return !!curUse; }, FOE_HEAVY, FOE_DART, FOE_MOHAN, FOE_GHOST, npcSolids });
+Object.assign(window.__G, { tutForce() { completeStep(); }, skyTop() { return skyMat.uniforms.top.value.getHexString(); }, summon, demonPhantom, demonSky, startTutorial, phantomMat, get tutIdx() { return tut.i; } });
 Object.defineProperties(window.__G, { curUse: { get() { return curUse; } }, world: { get() { return world; } } });
 </script>
 </body>
