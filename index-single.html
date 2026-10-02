@@ -178,6 +178,14 @@ html,body{width:100%;height:100%;overflow:hidden;background:#0b0a18;touch-action
 #slotback{margin:10px auto 0;padding:5px 26px;font-size:14px}
 #nmerr{min-height:18px;margin-top:6px;font-size:12px;color:#ff9a8a}
 #saveinfo.warn{color:#ff9a8a}
+#opening{display:none;z-index:23;background:#000;padding:0 9vw}
+#optxt{max-width:660px;font-family:var(--kai);font-size:calc(21px*var(--u));line-height:2;letter-spacing:3px;color:#ece3cc;text-shadow:0 0 14px rgba(255,220,160,.18);text-align:justify;text-align-last:center;opacity:0}
+#opdots{position:absolute;bottom:22px;left:50%;transform:translateX(-50%);display:flex;gap:8px}
+#opdots i{width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,.18)}
+#opdots i.on{background:#d9c08a}
+#opdots i.past{background:rgba(217,192,138,.45)}
+#ophint{position:absolute;bottom:38px;left:50%;transform:translateX(-50%);font-size:11px;letter-spacing:3px;color:rgba(255,255,255,.28)}
+#opskip{position:absolute;right:calc(18px + var(--sr));top:14px;font-size:14px;letter-spacing:2px;padding:5px 16px;border-radius:16px;border:1px solid rgba(255,255,255,.35);background:rgba(255,255,255,.06);color:#ddd;font-family:inherit}
 #confirm{display:none;z-index:25;background:rgba(4,2,12,.72)}
 #confirm .panel p{max-width:360px;line-height:22px}
 .ver{position:fixed;right:10px;bottom:6px;font-size:10px;color:rgba(255,255,255,.45)}
@@ -232,8 +240,8 @@ html,body{width:100%;height:100%;overflow:hidden;background:#0b0a18;touch-action
 <div id="vign"></div><div id="stealthov"></div><div id="flash"></div>
 <div id="touch"></div>
 <div id="hud">
-  <div id="tl"><div class="avatar" id="avatar">李</div><div><div id="lvl"><span id="pname">李白</span>Lv<b id="lvnum">90</b></div><div class="xpbar"><i id="xpfill"></i><span id="xptxt">0/45</span></div></div></div>
-  <div id="boss"><div id="bossname">剑魔 · 师兄</div><div class="bbar"><i id="bossfill"></i><span id="bosstxt"></span></div><div class="tbar" id="tbar"><i id="tfill"></i><span id="ttxt">韧性</span></div></div>
+  <div id="tl"><div class="avatar" id="avatar">仙</div><div><div id="lvl"><span id="pname">仙尊</span>Lv<b id="lvnum">90</b></div><div class="xpbar"><i id="xpfill"></i><span id="xptxt">0/45</span></div></div></div>
+  <div id="boss"><div id="bossname">魔神</div><div class="bbar"><i id="bossfill"></i><span id="bosstxt"></span></div><div class="tbar" id="tbar"><i id="tfill"></i><span id="ttxt">韧性</span></div></div>
   <div id="tr"><div id="hprow"><div class="hplabel">气血</div><div class="hpbar" id="hpbar"><em id="hpghost"></em><i id="hpfill"></i><div class="sh" id="shfill"></div><span id="hptxt">200/200</span></div></div>
     <div id="shield">◈ <span id="shtxt">护盾 100</span></div><button id="skip">跳过教程 ›</button></div>
   <div id="guide"><div id="gstep">教程</div><div id="gtext"></div><button id="gnext">继续</button></div>
@@ -276,6 +284,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:#0b0a18;touch-action
   <div><button id="go">开始游戏</button><button id="cont">继续游戏</button><button id="newsave">新建存档</button></div>
   <div class="ver">v3</div>
 </div>
+<div id="opening" class="ov"><div id="optxt"></div><div id="opdots"></div><div id="ophint">轻触屏幕继续</div><button id="opskip">跳过 ›</button></div>
 <div id="story" class="ov"><div id="storytxt"></div><div id="storynext">— 点击继续 —</div></div>
 <div id="namebox" class="ov"><div class="panel"><h3>你的剑修之名</h3><p>从今日起，由你接过剑仙的使命</p><input id="nm" maxlength="8" value="无名剑修" autocomplete="off"><br><div id="nmerr"></div><button class="gbtn" id="nmok">踏上剑途</button></div></div>
 <div id="dead" class="ov"><b>你已陨落</b><span>狰的攻势凶猛——留意红色预警，闪避或格挡弹反；用斩马削空韧性令其破防，气血不足时饮酒。</span><button class="gbtn" id="retry">再次挑战</button></div>
@@ -871,7 +880,7 @@ function auraMat(hex, power = 2.2, strength = 1) {
     fragmentShader: GLSL_NOISE + `uniform vec3 col; uniform float t,k; varying vec3 vN; varying vec3 vV; varying vec3 vP; void main(){ float f=pow(1.-abs(dot(vN,vV)),${power.toFixed(2)}); float n=fb(vec2(vP.x*3.+vP.z*2., vP.y*2.5-t*1.6)); float a=f*(.45+.9*n)*k; gl_FragColor=vec4(col*a,a); }` });
 }
 
-/* ===== humanoid sword immortal (used for 师兄 and the decoy) ===== */
+/* ===== humanoid sword immortal (used for 魔神 and the decoy) ===== */
 function buildImmortal(o) {
   const root = new THREE.Group(), body = new THREE.Group(); root.add(body);
   const robe = phys(o.robe, { roughness: .62, sheen: .8, sheenColor: new THREE.Color(o.sheen || 0xffffff), sheenRoughness: .4 });
@@ -1071,7 +1080,7 @@ const TUNE = {
     breakMin: 7, breakMax: 10, refillT: 5, minMult: .2, maxMult: .85, parryStagger: .9 }, // v3c: no idle regen; break → 7–10s stagger (100% dmg) → 5s refill
 };
 const ALL_ST = ['dahe', 'wanjian', 'jianyu', 'yinshen', 'hudun'];
-const player = { x: 0, z: 7, yaw: 0, pitch: -.04, lv: 90, xp: 0, hp: 1980, maxHp: 1980, atk: 279, name: '李白', dead: false, riding: false, rideT: 0, lastHurt: -99, moveAmt: 0, bob: 0,
+const player = { x: 0, z: 7, yaw: 0, pitch: -.04, lv: 90, xp: 0, hp: 1980, maxHp: 1980, atk: 279, name: '仙尊', dead: false, riding: false, rideT: 0, lastHurt: -99, moveAmt: 0, bob: 0,
   wine: 2, wineMax: 2, shield: 0, shieldMax: 200, blockT: 0, stealthT: 0, ambushT: 0, unlocked: ALL_ST.slice(), minHpFrac: 0, dashT: 0, dashV: V3(), slow: 1 };
 const hasSt = id => player.unlocked.includes(id);
 let rideTilt = 0, camY = 1.7, gameT = 0, state = 'title', mode = 'tutorial', shake = 0, yawVel = 0, hudDirty = true, camRoll = 0, camDrop = 0, fovKick = 0, timeScale = 1;
@@ -1244,7 +1253,7 @@ function smoke(p, hex = 0x8a3aff) { burst(p, 40, hex, 5, .9, .7, 1, .3); burst(p
 function faceTo(e, x, z, k) { e.yaw += angDiff(e.yaw, Math.atan2(x - e.x, z - e.z)) * Math.min(1, k); }
 function inFront(e, px, pz, range, half) { const dx = px - e.x, dz = pz - e.z, d = Math.hypot(dx, dz); if (d > range) return false; if (d < 1.2) return true; return Math.abs(angDiff(e.yaw, Math.atan2(dx, dz))) < half; }
 
-/* ===== 剑魔 · 师兄 ===== */
+/* ===== 魔神 (tutorial boss; internal id 'shixiong') ===== */
 function makeShixiong() {
   const m = buildImmortal({ robe: 0x3a1a5c, inner: 0xd2c4ea, trim: 0xd0aa5a, skin: 0xe8d6da, eye: 0xd060ff, eyeI: 3.5, angry: true, mark: true, sash: 0x1e0c2e, jade: 0xb070ff, ribbon: 0xa048ff, sheen: 0xc890ff, hairSheen: 0x8040c0,
     sword: { blade: 0x3a2650, glow: 0xb050ff, glowI: 1.4, gold: 0x9a7ad0, grip: 0x1a0c22, jade: 0xc070ff, jadeE: 0x6020a0 } });
@@ -1253,14 +1262,67 @@ function makeShixiong() {
   const aura1 = mk(G.sph, auraMat(0xa040ff, 2.0, .9), m.body, 0, 1.05, 0, .55, 1.15, .5);
   const aura2 = mk(G.sph, auraMat(0x6010c0, 1.4, .5), m.body, 0, 1.1, 0, .75, 1.35, .7);
   const mist = mk(discGeo, new THREE.MeshBasicMaterial({ color: 0x2a0a40, transparent: true, opacity: .45, depthWrite: false }), holder, 0, .02, 0, 1.2, 1.2, 1.2); mist.rotation.x = -Math.PI / 2;
-  const e = { kind: 'shixiong', boss: true, name: '剑魔 · 师兄', lvTxt: '???', x: 0, z: -6.5, y: .3, yaw: 0, radius: .7, height: 2.2, hp: 100000, maxHp: 100000, floorHp: 0, armor: 1,
+  const e = { kind: 'shixiong', boss: true, name: '魔神', lvTxt: '???', x: 0, z: -6.5, y: .3, yaw: 0, radius: .7, height: 2.2, hp: 100000, maxHp: 100000, floorHp: 0, armor: 1,
     model: m, holder, mats: m.mats, pose: clonePose(IPOSE.idle), tgt: IPOSE.idle, poseK: 8, act: null, cd: 2.5, ai: true, flash: 0, warnT: 0, home: V3(0, 0, -6.5), strafe: 0, last: '', dead: false, dmgK: 1, forced: null, visible: true,
     onInterrupt() { this.act = null; this.visible = true; if (timeScale < 1) timeScale = 1; tutBlockCue(false); setPose(this, 'idle', 6); this.cd = Math.max(this.cd, this.forced ? 1.6 : 2.2); this.model.sword.bladeM.emissiveIntensity = 1.4; } };
   initTough(e, 300);
+  e.divine = addDivine(m, holder);
   e.update = dt => updateShixiong(e, dt);
   for (const mt of [purpleSwordM]) mt.userData.keepE = true;
   m.sword.bladeM.userData.keepE = true;
   return e;
+}
+/* 魔神 divine adornments: rune halo, glowing horns, sash streamers, orbiting flying swords (all cheap, shared mats) */
+const haloTex = canvasTex(512, 512, (c, w, h) => {
+  const cx = w / 2, cy = h / 2; c.clearRect(0, 0, w, h); c.strokeStyle = '#fff'; c.fillStyle = '#fff'; c.lineCap = 'round';
+  c.lineWidth = 5; c.beginPath(); c.arc(cx, cy, 236, 0, 7); c.stroke();
+  c.lineWidth = 2.5; c.beginPath(); c.arc(cx, cy, 214, 0, 7); c.stroke(); c.beginPath(); c.arc(cx, cy, 160, 0, 7); c.stroke();
+  // rune glyphs between the rings
+  let sd = 7; const r = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
+  for (let i = 0; i < 24; i++) {
+    c.save(); c.translate(cx, cy); c.rotate(i / 24 * Math.PI * 2); c.translate(0, -187); c.lineWidth = 3.2; c.beginPath();
+    const n = 2 + Math.floor(r() * 3); for (let k = 0; k < n; k++) { const x0 = (r() - .5) * 18, y0 = (r() - .5) * 26, x1 = (r() - .5) * 18, y1 = (r() - .5) * 26; c.moveTo(x0, y0); c.lineTo(x1, y1); }
+    c.stroke(); if (r() < .5) { c.beginPath(); c.arc((r() - .5) * 10, (r() - .5) * 14, 3, 0, 7); c.fill(); } c.restore();
+  }
+  // inner spokes + small diamonds
+  for (let i = 0; i < 12; i++) { c.save(); c.translate(cx, cy); c.rotate(i / 12 * Math.PI * 2); c.lineWidth = 2; c.beginPath(); c.moveTo(0, -160); c.lineTo(0, -128); c.stroke(); c.beginPath(); c.moveTo(0, -122); c.lineTo(5, -114); c.lineTo(0, -106); c.lineTo(-5, -114); c.closePath(); c.fill(); c.restore(); }
+});
+function addDivine(m, holder) {
+  const glow = (hex, op) => new THREE.MeshBasicMaterial({ color: hex, map: haloTex, transparent: true, opacity: op, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false });
+  // halo: two counter-rotating rune discs behind the head (on torso so it follows the lean)
+  const halo = new THREE.Group(); halo.position.set(0, .76, -.24); m.torso.add(halo);
+  const h1 = mk(new THREE.PlaneGeometry(1, 1), glow(0xc070ff, .85), halo, 0, 0, 0, .78, .78, 1);
+  const h2 = mk(new THREE.PlaneGeometry(1, 1), glow(0x7a30ff, .5), halo, 0, 0, -.01, .5, .5, 1);
+  const core = mk(discGeo, new THREE.MeshBasicMaterial({ color: 0x5a20a0, transparent: true, opacity: .22, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }), halo, 0, 0, -.02, .2, .2, 1);
+  // horns: slim curved, glowing purple-gold, swept back from the temples
+  const hornM = new THREE.MeshStandardMaterial({ color: 0x2a1240, emissive: 0xa050ff, emissiveIntensity: 1.3, metalness: .6, roughness: .3 }); hornM.userData.keepE = true;
+  for (const s of [-1, 1]) mk(taperTube([V3(s * .06, .08, .03), V3(s * .1, .16, -.0), V3(s * .12, .24, -.07), V3(s * .1, .3, -.15)], [.016, .012, .007, .001], { radial: 7, seg: 16 }), hornM, m.head);
+  // sash streamers (飘带) from the belt, waving
+  const sm = new THREE.MeshStandardMaterial({ color: 0x8a40e0, emissive: 0x6a20c0, emissiveIntensity: .45, roughness: .5, transparent: true, opacity: .82, side: THREE.DoubleSide });
+  sm.onBeforeCompile = sh => { sh.uniforms.t = timeU; sh.vertexShader = 'uniform float t;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n float dd = clamp(-position.y*1.4, 0., 1.6); transformed.z += sin(t*2.4 - position.y*5.)*.07*dd - dd*.05; transformed.x += sin(t*1.9 - position.y*4. + position.x*9.)*.035*dd;'); };
+  for (const s of [-1, 1]) mk(taperTube([V3(s * .17, .02, -.06), V3(s * .22, -.25, -.18), V3(s * .26, -.55, -.3), V3(s * .25, -.85, -.42), V3(s * .3, -1.1, -.6)], [.03, .034, .036, .03, .012], { radial: 6, flat: .1, seg: 40, noCap: true }), sm, m.torso);
+  // orbiting flying swords
+  const orbit = new THREE.Group(); orbit.position.y = 1.25; holder.add(orbit);
+  const goldM = new THREE.MeshStandardMaterial({ color: 0xc8a8ff, metalness: .9, roughness: .3, emissive: 0x402070, emissiveIntensity: .6 });
+  const swords = [], sheathM = new THREE.MeshBasicMaterial({ color: 0xd090ff, transparent: true, opacity: .5, blending: THREE.AdditiveBlending, depthWrite: false });
+  for (let i = 0; i < 4; i++) {
+    const g = new THREE.Group(); orbit.add(g);
+    mk(G.cone, purpleSwordM, g, 0, .2, 0, .022, .44, .007);          // blade (points +Y)
+    mk(G.box, goldM, g, 0, -.03, 0, .09, .018, .025);                // guard
+    mk(G.cyl, goldM, g, 0, -.09, 0, .012, .1, .012);                 // grip
+    mk(G.sphLo, sheathM, g, 0, .2, 0, .045, .28, .02);              // glow sheath
+    swords.push(g);
+  }
+  return { halo, h1, h2, core, orbit, swords };
+}
+function updateDivine(e, dt) {
+  const d = e.divine; if (!d) return;
+  d.h1.rotation.z += dt * .35; d.h2.rotation.z -= dt * .6;
+  const pul = .8 + Math.sin(gameT * 2.2) * .12; d.h1.material.opacity = .85 * pul; d.core.material.opacity = .18 + Math.sin(gameT * 3) * .06;
+  d.halo.position.y = .76 + Math.sin(gameT * 1.3) * .015;
+  // swords orbit around him, slightly tilted, blades pointing along the orbit
+  const hide = e.act && e.act.name === 'swords'; d.orbit.visible = !hide;
+  d.swords.forEach((g, i) => { const a = gameT * .9 + i * Math.PI / 2, r = .95; g.position.set(Math.cos(a) * r, Math.sin(a * 2 + i) * .12 + Math.sin(a) * .18, Math.sin(a) * r); g.rotation.set(0, -a, 0); g.rotateX(-1.25); });
 }
 function setPose(e, name, k = 8) { e.tgt = IPOSE[name]; e.poseK = k; }
 function updateShixiong(e, dt) {
@@ -1284,6 +1346,7 @@ function updateShixiong(e, dt) {
   applyIPose(e.model, e.pose, e.tgt, Math.min(1, dt * e.poseK));
   e.model.body.rotation.z = Math.sin(gameT * 1.1) * .02;
   e.model.locks.forEach((l, i) => l.rotation.z = Math.sin(gameT * 2 + i) * .08);
+  updateDivine(e, dt);
   if (e.flash > 0) { e.flash = Math.max(0, e.flash - dt * 5); setFlash(e, e.flash * .7); }
   if (e.visible && Math.random() < .6) { const a = rand(0, 6.28), r = rand(.2, .6); emit(e.x + Math.cos(a) * r, e.holder.position.y + rand(0, 2), e.z + Math.sin(a) * r, 0, rand(.6, 1.6), 0, Math.random() < .3 ? 0x2a0a40 : 0xb060ff, rand(.2, .45), rand(.6, 1.2), 0); }
   e.warnT = Math.max(0, e.warnT - dt);
@@ -1872,21 +1935,21 @@ const zheng = makeZheng(); zheng.holder.visible = false;
 let valleyT = 0, fightStart = 0;
 function placePlayer(sp) { player.x = sp.x; player.z = sp.z; player.yaw = sp.yaw; player.pitch = -.04; camY = H(sp.x, sp.z) + 1.7; }
 function setupLiBai() {
-  player.name = '李白'; player.lv = 90; player.xp = 0; recalc(); player.hp = player.maxHp; player.wine = 2; player.wineMax = 2; player.unlocked = ALL_ST.slice(); player.minHpFrac = .3; player.dead = false;
-  setOutfit(0xeef1f6, 0x5fa6d8); $('avatar').textContent = '李'; hudDirty = true;
+  player.name = '仙尊'; player.tutChar = true; player.lv = 90; player.xp = 0; recalc(); player.hp = player.maxHp; player.wine = 2; player.wineMax = 2; player.unlocked = ALL_ST.slice(); player.minHpFrac = .3; player.dead = false;
+  setOutfit(0xeef1f6, 0x5fa6d8); $('avatar').textContent = '仙'; hudDirty = true;
 }
 /* ===== tutorial ===== */
 const SHIXIONG_TOUGH = 300; // tutorial: same rules as 狰
-const SHIXIONG_DMGK = 2.75; // 师兄 hits scaled to 李白's v3 气血 (5450)
+const SHIXIONG_DMGK = 2.75; // 魔神 hits scaled to 仙尊's v3 气血 (5450)
 const tut = { i: -1, cur: null, wait: 0, moved: 0, looked: 0, hits: 0, casts: 0, fails: 0, floorHp: 1 };
 const TUT = [
-  { id: 'intro', t: '你是诗剑仙 · 李白。师兄修炼魔剑走火入魔，于云海之巅拦住了你的去路。', next: true },
-  { id: 'move', t: '按住<b>左下摇杆</b>移动，向师兄靠近', hl: 'joy', check: () => tut.moved > 3 },
+  { id: 'intro', t: '你是剑修始祖 · 仙尊。为争夺「天地第一剑」，魔神与你反目，于云海之巅拦住了你的去路。', next: true },
+  { id: 'move', t: '按住<b>左下摇杆</b>移动，向魔神靠近', hl: 'joy', check: () => tut.moved > 3 },
   { id: 'look', t: '在<b>屏幕右侧滑动</b>，转动视角', hl: 'look', check: () => tut.looked > .9 },
-  { id: 'atk', t: '靠近师兄，点击<b>普攻</b>，命中 3 次', hl: 'btn-atk', on: (ty) => (ty === 'hit' && ++tut.hits >= 3) || (ty === 'cast' && ++tut.casts >= 8) },
+  { id: 'atk', t: '靠近魔神，点击<b>普攻</b>，命中 3 次', hl: 'btn-atk', on: (ty) => (ty === 'hit' && ++tut.hits >= 3) || (ty === 'cast' && ++tut.casts >= 8) },
   { id: 's1', t: '<b>斩马</b>：横向大范围挥斩，<b>削减韧性最多</b>。首领血条下的金色条是<b>韧性</b>：韧性越高受伤越低；打空即「破防」，首领硬直 7–10 秒并受全额伤害，之后 5 秒内韧性回满', hl: 'btn-s1', on: (ty, id) => ty === 'cast' && id === 's1' },
   { id: 's2', t: '<b>飞剑</b>：剑脱手疾飞，穿透敌人后不到 1 秒便飞回手中', hl: 'btn-s2', on: (ty) => ty === 'catch' },
-  { id: 'block', t: '师兄即将出招！看到<b>紫光与「!」</b>时按<b>格挡</b>——挡下近身攻击即触发<b>弹反</b>：反击、大幅削韧并震退对手', hl: 'btn-block', on: (ty) => ty === 'block', enter() { endBreak(shixiong); shixiong.stagger = 0; shixiong.forced = 'blink'; shixiong.cd = 1.5; SK.block.t = 0; }, exit() { shixiong.forced = null; shixiong.cd = 3; } },
+  { id: 'block', t: '魔神即将出招！看到<b>紫光与「!」</b>时按<b>格挡</b>——挡下近身攻击即触发<b>弹反</b>：反击、大幅削韧并震退对手', hl: 'btn-block', on: (ty) => ty === 'block', enter() { endBreak(shixiong); shixiong.stagger = 0; shixiong.forced = 'blink'; shixiong.cd = 1.5; SK.block.t = 0; }, exit() { shixiong.forced = null; shixiong.cd = 3; } },
   { id: 'wine', t: '你被剑气所伤！点击左侧<b>酒葫芦</b>饮酒，每口恢复 <b>15%</b> 气血', hl: 'wine', on: (ty) => ty === 'drink', enter() { player.hp = Math.round(player.maxHp * .52); hudDirty = true; shake = .4; $('vign').style.opacity = .8; setTimeout(() => $('vign').style.opacity = 0, 300); player.wine = Math.max(1, player.wine); } },
   { id: 'dahe', t: '神通 · <b>大河之剑</b>（神通中央）：巨剑自天而降，伤害最高；击飞目标，震退周围小怪（首领不会被击退）', hl: 'st-dahe', st: 'dahe', on: (ty, id) => ty === 'cast' && id === 'dahe', wait: 2.2 },
   { id: 'wanjian', t: '神通 · <b>万剑归宗</b>（上）：双手持剑，万道剑气自身后飞出，持续 5 秒', hl: 'st-wanjian', st: 'wanjian', on: (ty, id) => ty === 'cast' && id === 'wanjian', wait: 5.4 },
@@ -1949,7 +2012,7 @@ function startCutscene() {
   state = 'cut'; cut.t = 0; cut.fired = {}; $('skip').style.display = 'none'; document.body.classList.add('cine');
   resetSkills(); clearProj();
   const e = shixiong; e.act = null; e.ai = false; e.floorHp = 0; e.hp = Math.round(e.maxHp * .08); e.cutLift = 0;
-  sub('师兄', '师弟……你的剑，终究慢了我一步。');
+  sub('魔神', '仙尊……你的剑，终究慢了我一步。');
 }
 const purpleSky = [new THREE.Color(0x12062a), new THREE.Color(0x5a2a8a), new THREE.Color(0xc070c0)];
 function updateCut(dt) {
@@ -1959,7 +2022,7 @@ function updateCut(dt) {
   const k = smooth(0, 2.4, t);
   skyMat.uniforms.top.value.lerp(purpleSky[0], dt * .8); skyMat.uniforms.mid.value.lerp(purpleSky[1], dt * .8); skyMat.uniforms.bot.value.lerp(purpleSky[2], dt * .5);
   if (t < 2.5) { e.cutLift = k * 1.6; setPose(e, 'sky', 4); e.model.sword.bladeM.emissiveIntensity = 2 + k * 5; const tip = swordTip(e); for (let i = 0; i < 6; i++) { const a = rand(0, 6.28), r = rand(1.5, 3.5); const p = tip.clone().add(V3(Math.cos(a) * r, rand(-1.5, 2), Math.sin(a) * r)); const v = tip.clone().sub(p).multiplyScalar(2.2); emit(p.x, p.y, p.z, v.x, v.y, v.z, Math.random() < .3 ? 0x300a50 : 0xc070ff, .5, .45, 0); } shake = Math.max(shake, .04 + k * .08); }
-  once('l2', 1.2, () => sub('师兄', '这天下第一剑……只能是我的！'));
+  once('l2', 1.2, () => sub('魔神', '这天地第一剑……只能是我的！'));
   once('slash', 2.5, () => {
     setPose(e, 'slash', 16); sfx('whoosh'); sfx('roar');
     const from = V3(e.x, e.holder.position.y + 1.3, e.z); const dir = V3(player.x - from.x, camY - .3 - from.y, player.z - from.z).normalize();
@@ -1978,12 +2041,12 @@ function updateCut(dt) {
     playVM('fallen', 1.0, [R_IDLE, RK(1, [.3, -.75, -.4], [.3, .4, -.8], [.4, -.6, .6])], [L_IDLE, LK(1, [-.3, -.8, -.4], [.1, .2, -1], [0, .6, .72])]); VM.hold = true;
   });
   if (t > 2.95) { const kk = smooth(2.95, 4.3, t); camDrop = kk * 1.32; camRoll = kk * 1.15; player.pitch = lerp(player.pitch, .32, dt * 1.5); $('c').style.filter = `grayscale(${(kk * .75).toFixed(2)}) brightness(${(1 - kk * .25).toFixed(2)})`; e.cutLift = lerp(e.cutLift, .4, dt * 2); if (t > 3.6) setPose(e, 'idle', 2); }
-  once('l3', 3.7, () => sub('李白', '师兄……你……'));
+  once('l3', 3.7, () => sub('仙尊', '魔神……你……'));
   once('fade', 5.0, () => { $('fade').style.transition = 'opacity 1.4s'; $('fade').style.opacity = 1; });
   once('story', 6.6, () => startStory());
 }
 /* ===== black screen story + naming ===== */
-const STORY = '李白剑仙陨落之后，一位普通的剑修将接替他的使命。';
+const STORY = '仙尊陨落之后，一位普通的剑修将接替他的使命。';
 let storyTimer = null;
 function startStory() {
   state = 'story'; resetInputs('story'); document.body.className = 'm-story'; $('sub').classList.remove('show');
@@ -2015,7 +2078,7 @@ function listSaves() { const st = readStore(); return st.slots.slice().sort((a, 
 function nameError(v) { const st = readStore(); if (st.slots.some(d => d.name === v)) return `已有名为「${v}」的存档，请换一个名字`; if (st.slots.length >= MAX_SLOTS) return `存档已满（最多 ${MAX_SLOTS} 个），请先在「继续游戏」中删除一个存档`; return ''; }
 function suggestName() { const st = readStore(); let n = '无名剑修', k = 2; while (st.slots.some(d => d.name === n)) n = '无名剑修' + k++; return n; }
 function saveGame() {
-  if (player.name === '李白' || !activeSlot) return false;
+  if (player.tutChar || !activeSlot) return false;
   const st = readStore(); let d = st.slots.find(x => x.id === activeSlot);
   if (!d) { if (st.slots.length >= MAX_SLOTS) return false; d = { id: activeSlot }; st.slots.push(d); }
   Object.assign(d, { v: 3, name: player.name, lv: player.lv, xp: player.xp, stage: 'valley', unlocked: player.unlocked.slice(), wine: player.wine, wineMax: player.wineMax, wins: player.wins || 0, time: Date.now() });
@@ -2024,9 +2087,9 @@ function saveGame() {
 function loadSave(id) { const st = readStore(); return st.slots.find(d => d.id === (id || st.last)) || null; }
 function deleteSave(id) { const st = readStore(); st.slots = st.slots.filter(d => d.id !== id); if (st.last === id) st.last = null; writeStore(st); }
 function wipeSave() { try { localStorage.removeItem(SAVES_KEY); localStorage.removeItem(OLD_SAVE_KEY); } catch (e) { } }
-function applySave(d) { activeSlot = d.id; player.name = d.name; player.lv = clamp(d.lv | 0, 1, 100); player.xp = Math.max(0, d.xp | 0); player.unlocked = Array.isArray(d.unlocked) ? d.unlocked.filter(x => ALL_ST.includes(x)) : []; player.wineMax = Math.max(1, d.wineMax | 0 || 2); player.wine = clamp(d.wine ?? player.wineMax, 0, player.wineMax); player.wins = d.wins | 0; }
+function applySave(d) { player.tutChar = false; activeSlot = d.id; player.name = d.name; player.lv = clamp(d.lv | 0, 1, 100); player.xp = Math.max(0, d.xp | 0); player.unlocked = Array.isArray(d.unlocked) ? d.unlocked.filter(x => ALL_ST.includes(x)) : []; player.wineMax = Math.max(1, d.wineMax | 0 || 2); player.wine = clamp(d.wine ?? player.wineMax, 0, player.wineMax); player.wins = d.wins | 0; }
 function newCareer(name) {
-  activeSlot = 's' + Date.now().toString(36) + Math.floor(Math.random() * 1e4).toString(36);
+  player.tutChar = false; activeSlot = 's' + Date.now().toString(36) + Math.floor(Math.random() * 1e4).toString(36);
   player.name = name || '无名剑修'; player.lv = 1; player.xp = 0; player.unlocked = []; player.wineMax = 2; player.wine = 2; player.wins = 0;
   saveGame(); startValley();
 }
@@ -2044,6 +2107,7 @@ let confirmYes = null;
 function showConfirm(title, txt, onYes) { $('cfmtitle').textContent = title; $('cfmtxt').textContent = txt; confirmYes = onYes; resetInputs('confirm'); $('confirm').style.display = 'flex'; }
 /* ===== valley fight ===== */
 function startValley(opt = {}) {
+  if (!op.done) { op.done = true; clearTimeout(op.timer); $('opening').style.display = 'none'; }
   initAudio();
   hideGuide(); tut.cur = null; $('skip').style.display = 'none';
   mode = 'valley'; state = 'play'; setWorld('valley'); clearFx(); clearProj(); resetSkills();
@@ -2141,7 +2205,7 @@ document.addEventListener('visibilitychange', () => { if (document.hidden) reset
 addEventListener('orientationchange', () => resetInputs('orientation')); addEventListener('resize', () => resetInputs('resize'));
 // any overlay/dialog becoming visible (or leaving play) resets inputs — checked every frame
 let __ipS = null, __ipO = '';
-window.__inputWatch = () => { const ov = ['start', 'story', 'namebox', 'dead', 'win', 'confirm', 'slots'].filter(i => { const d = $(i).style.display; return d === 'flex' || d === 'block'; }).join(','); if (state !== __ipS || ov !== __ipO) { if ((state !== 'play' && __ipS === 'play') || (ov && ov !== __ipO)) resetInputs('overlay:' + (ov || state)); __ipS = state; __ipO = ov; } };
+window.__inputWatch = () => { const ov = ['start', 'opening', 'story', 'namebox', 'dead', 'win', 'confirm', 'slots'].filter(i => { const d = $(i).style.display; return d === 'flex' || d === 'block'; }).join(','); if (state !== __ipS || ov !== __ipO) { if ((state !== 'play' && __ipS === 'play') || (ov && ov !== __ipO)) resetInputs('overlay:' + (ov || state)); __ipS = state; __ipO = ov; } };
 function bindBtn(id, skill) {
   const el = $(id);
   if (skill === 'jianyu') { // press-and-drag aiming
@@ -2314,7 +2378,7 @@ function titleUpdate(dt) {
   shixiong.ai = false; shixiong.update(dt); updateParticles(dt); updateFx(dt);
   vRoot.visible = false;
 }
-function render() { renderer.clear(); renderer.render(scene, camera); if (state !== 'title' && state !== 'story' && state !== 'name') { renderer.clearDepth(); renderer.render(vScene, vCam); } }
+function render() { renderer.clear(); renderer.render(scene, camera); if (state !== 'title' && state !== 'story' && state !== 'name' && state !== 'opening') { renderer.clearDepth(); renderer.render(vScene, vCam); } }
 let last = performance.now();
 function frame(now) {
   requestAnimationFrame(frame); window.__inputWatch();
@@ -2335,7 +2399,34 @@ function refreshTitle() {
   if (has) $('saveinfo').textContent = `共 ${list.length} 个存档` + (last ? ` · 上次：剑修「${last.name}」 Lv${last.lv}` : '');
 }
 refreshTitle();
-function startNewSave() { if (listSaves().length >= MAX_SLOTS) { toastTitle(`存档已满（最多 ${MAX_SLOTS} 个），请先删除一个存档`); return; } activeSlot = null; initAudio(); $('start').style.display = 'none'; $('slots').style.display = 'none'; goFull(); startTutorial(); }
+function startNewSave() { if (listSaves().length >= MAX_SLOTS) { toastTitle(`存档已满（最多 ${MAX_SLOTS} 个），请先删除一个存档`); return; } activeSlot = null; initAudio(); $('start').style.display = 'none'; $('slots').style.display = 'none'; goFull(); playOpening(); }
+/* ===== black-screen opening (3 paragraphs, fade in → hold → fade out; 跳过 skips all, tap advances) ===== */
+const OPENING = [
+  '约三千万年前，天地孕育了一只修为通天的异兽，开辟出这片后人称为“仙境”的天地。而在这天地之中，异兽横行，凶残至极。',
+  '又过了约两千万年，两位剑修始祖——仙尊与魔神合力，在大陆中央建立起一座宏大的修仙之地，为世人提供优秀的修炼资源。',
+  '距今五百万年前，天地之间出现了一柄号称“天地第一剑”的圣剑。魔神想用这天地第一剑镇压众生，仙尊却想将其封印。因意见不合，仙尊与魔神在天地间大打出手……',
+];
+const OP_T = { fadeIn: 1.6, hold: 4.2, fadeOut: 1.2, gap: .35 };
+const op = { i: -1, phase: '', timer: null, done: true };
+function opSet(fn, s) { clearTimeout(op.timer); op.timer = setTimeout(fn, s * 1000); }
+function playOpening() {
+  state = 'opening'; document.body.className = 'm-story'; resetInputs('opening');
+  const el = $('opening'); el.style.display = 'flex'; op.i = -1; op.done = false; opNext();
+}
+function opNext() {
+  if (op.done) return; op.i++;
+  if (op.i >= OPENING.length) { endOpening(); return; }
+  const t = $('optxt'); t.style.transition = 'none'; t.style.opacity = 0; t.textContent = OPENING[op.i]; void t.offsetWidth;
+  t.style.transition = `opacity ${OP_T.fadeIn}s ease-in-out`; t.style.opacity = 1; op.phase = 'in';
+  $('opdots').innerHTML = OPENING.map((_, k) => `<i class="${k === op.i ? 'on' : k < op.i ? 'past' : ''}"></i>`).join('');
+  opSet(() => { op.phase = 'hold'; opSet(opOut, opHold(op.i)); }, OP_T.fadeIn);
+}
+function opHold(i) { return Math.max(OP_T.hold, OPENING[i].length * .085); } // ~5s for short paras, ~6.7s for the longer 3rd
+function opOut() { if (op.done || op.phase === 'out') return; op.phase = 'out'; const t = $('optxt'); t.style.transition = `opacity ${OP_T.fadeOut}s ease-in-out`; t.style.opacity = 0; opSet(opNext, OP_T.fadeOut + OP_T.gap); }
+function opTap() { if (op.done) return; if (op.phase === 'in' || op.phase === 'hold') opOut(); }
+function endOpening() { if (op.done) return; op.done = true; clearTimeout(op.timer); $('opening').style.display = 'none'; startTutorial(); }
+$('opening').addEventListener('click', opTap);
+$('opskip').addEventListener('click', e => { e.stopPropagation(); endOpening(); });
 function toastTitle(t) { const el = $('saveinfo'); el.style.display = 'block'; el.textContent = t; el.classList.remove('warn'); void el.offsetWidth; el.classList.add('warn'); }
 $('go').addEventListener('click', startNewSave);
 $('newsave').addEventListener('click', startNewSave);
@@ -2352,7 +2443,7 @@ window.__G = { renderer, camera, vCam, vRoot, rHand, lHand, player, enemies, shi
   get state() { return state; }, get mode() { return mode; }, get camY() { return camY; }, set timeScale(v) { timeScale = v; },
   step(n, dt = 1 / 60) { for (let i = 0; i < n; i++) { if (state === 'title') titleUpdate(dt); else if (state === 'play' || state === 'cut' || state === 'win' || state === 'dead') update(dt); } },
   start() { $('go').click(); }, next() { completeStep(); }, skip() { skipTutorial(); }, valley(n) { startValley(n || '测试剑修'); },
-  resetCd() { for (const k in SK) SK[k].t = 0; }, TUNE, ZHENG, FLY, JY, jyAim, joy, IN, resetInputs, get atkHeld() { return atkHeld; }, get camPtr() { return camPtr; }, spawnMinion, saveGame, loadSave, wipeSave, newCareer, listSaves, deleteSave, enterSlot, showSlots, get activeSlot() { return activeSlot; }, startValley, hitEnemy, get parryCount() { return parryCount; }, get rideRams() { return rideRams; }, get jyTarget() { return jyTarget; }, tp(x, z, yaw) { player.x = x; player.z = z; if (yaw !== undefined) player.yaw = yaw; camY = H(x, z) + 1.7; },
+  resetCd() { for (const k in SK) SK[k].t = 0; }, TUNE, ZHENG, FLY, JY, jyAim, joy, IN, resetInputs, get atkHeld() { return atkHeld; }, get camPtr() { return camPtr; }, spawnMinion, saveGame, loadSave, wipeSave, newCareer, listSaves, deleteSave, enterSlot, showSlots, get activeSlot() { return activeSlot; }, op, playOpening, endOpening, startValley, hitEnemy, get parryCount() { return parryCount; }, get rideRams() { return rideRams; }, get jyTarget() { return jyTarget; }, tp(x, z, yaw) { player.x = x; player.z = z; if (yaw !== undefined) player.yaw = yaw; camY = H(x, z) + 1.7; },
   face(e, d) { const a = Math.atan2(player.x - e.x, player.z - e.z); player.yaw = Math.atan2(-(e.x - player.x), -(e.z - player.z)); },
   pose(rk, lk, lmode) { playVM('test', 1e9, rk ? [rk, rk] : null, lk ? [lk, lk] : null, [], lmode || 'jz'); VM.hold = true; }, RK, LK, LF, setWorld, startZhengAct, startShixiongAct, hurtPlayer };
 </script>

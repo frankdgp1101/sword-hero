@@ -178,6 +178,14 @@ html,body{width:100%;height:100%;overflow:hidden;background:#0b0a18;touch-action
 #slotback{margin:10px auto 0;padding:5px 26px;font-size:14px}
 #nmerr{min-height:18px;margin-top:6px;font-size:12px;color:#ff9a8a}
 #saveinfo.warn{color:#ff9a8a}
+#opening{display:none;z-index:23;background:#000;padding:0 9vw}
+#optxt{max-width:660px;font-family:var(--kai);font-size:calc(21px*var(--u));line-height:2;letter-spacing:3px;color:#ece3cc;text-shadow:0 0 14px rgba(255,220,160,.18);text-align:justify;text-align-last:center;opacity:0}
+#opdots{position:absolute;bottom:22px;left:50%;transform:translateX(-50%);display:flex;gap:8px}
+#opdots i{width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,.18)}
+#opdots i.on{background:#d9c08a}
+#opdots i.past{background:rgba(217,192,138,.45)}
+#ophint{position:absolute;bottom:38px;left:50%;transform:translateX(-50%);font-size:11px;letter-spacing:3px;color:rgba(255,255,255,.28)}
+#opskip{position:absolute;right:calc(18px + var(--sr));top:14px;font-size:14px;letter-spacing:2px;padding:5px 16px;border-radius:16px;border:1px solid rgba(255,255,255,.35);background:rgba(255,255,255,.06);color:#ddd;font-family:inherit}
 #confirm{display:none;z-index:25;background:rgba(4,2,12,.72)}
 #confirm .panel p{max-width:360px;line-height:22px}
 .ver{position:fixed;right:10px;bottom:6px;font-size:10px;color:rgba(255,255,255,.45)}
@@ -232,8 +240,8 @@ html,body{width:100%;height:100%;overflow:hidden;background:#0b0a18;touch-action
 <div id="vign"></div><div id="stealthov"></div><div id="flash"></div>
 <div id="touch"></div>
 <div id="hud">
-  <div id="tl"><div class="avatar" id="avatar">李</div><div><div id="lvl"><span id="pname">李白</span>Lv<b id="lvnum">90</b></div><div class="xpbar"><i id="xpfill"></i><span id="xptxt">0/45</span></div></div></div>
-  <div id="boss"><div id="bossname">剑魔 · 师兄</div><div class="bbar"><i id="bossfill"></i><span id="bosstxt"></span></div><div class="tbar" id="tbar"><i id="tfill"></i><span id="ttxt">韧性</span></div></div>
+  <div id="tl"><div class="avatar" id="avatar">仙</div><div><div id="lvl"><span id="pname">仙尊</span>Lv<b id="lvnum">90</b></div><div class="xpbar"><i id="xpfill"></i><span id="xptxt">0/45</span></div></div></div>
+  <div id="boss"><div id="bossname">魔神</div><div class="bbar"><i id="bossfill"></i><span id="bosstxt"></span></div><div class="tbar" id="tbar"><i id="tfill"></i><span id="ttxt">韧性</span></div></div>
   <div id="tr"><div id="hprow"><div class="hplabel">气血</div><div class="hpbar" id="hpbar"><em id="hpghost"></em><i id="hpfill"></i><div class="sh" id="shfill"></div><span id="hptxt">200/200</span></div></div>
     <div id="shield">◈ <span id="shtxt">护盾 100</span></div><button id="skip">跳过教程 ›</button></div>
   <div id="guide"><div id="gstep">教程</div><div id="gtext"></div><button id="gnext">继续</button></div>
@@ -276,6 +284,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:#0b0a18;touch-action
   <div><button id="go">开始游戏</button><button id="cont">继续游戏</button><button id="newsave">新建存档</button></div>
   <div class="ver">v3</div>
 </div>
+<div id="opening" class="ov"><div id="optxt"></div><div id="opdots"></div><div id="ophint">轻触屏幕继续</div><button id="opskip">跳过 ›</button></div>
 <div id="story" class="ov"><div id="storytxt"></div><div id="storynext">— 点击继续 —</div></div>
 <div id="namebox" class="ov"><div class="panel"><h3>你的剑修之名</h3><p>从今日起，由你接过剑仙的使命</p><input id="nm" maxlength="8" value="无名剑修" autocomplete="off"><br><div id="nmerr"></div><button class="gbtn" id="nmok">踏上剑途</button></div></div>
 <div id="dead" class="ov"><b>你已陨落</b><span>狰的攻势凶猛——留意红色预警，闪避或格挡弹反；用斩马削空韧性令其破防，气血不足时饮酒。</span><button class="gbtn" id="retry">再次挑战</button></div>
