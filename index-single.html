@@ -1146,7 +1146,7 @@ const player = { x: 0, z: 7, yaw: 0, pitch: -.04, lv: 90, xp: 0, hp: 1980, maxHp
 const hasSt = id => player.unlocked.includes(id);
 let rideTilt = 0, camY = 1.7, gameT = 0, state = 'title', mode = 'tutorial', shake = 0, yawVel = 0, hudDirty = true, camRoll = 0, camDrop = 0, fovKick = 0, timeScale = 1;
 const needXp = l => Math.round(30 * Math.pow(l, 1.5) + 40);
-function recalc() { const L = player.lv - 1; player.maxHp = TUNE.hp0 + TUNE.hpLv * L; player.atk = Math.round(TUNE.atk0 + TUNE.atkLv * L); player.shieldMax = Math.round(player.maxHp * TUNE.shieldFrac); }
+function recalc() { const L = player.lv - 1; player.maxHp = TUNE.hp0 + TUNE.hpLv * L + 10 * ((player.pages && player.pages.length) || 0); player.atk = Math.round(TUNE.atk0 + TUNE.atkLv * L); player.shieldMax = Math.round(player.maxHp * TUNE.shieldFrac); }
 const fwd = () => V3(-Math.sin(player.yaw), 0, -Math.cos(player.yaw));
 const rightV = () => V3(Math.cos(player.yaw), 0, -Math.sin(player.yaw));
 const ppos = () => V3(player.x, camY - .6, player.z);
@@ -1192,7 +1192,7 @@ function hitEnemy(e, base, kind, td = 0) {
   e.flash = 1; e.onHit && e.onHit(kind, d);
   if (e.tough) { e.lastHitT = gameT; if (!e.broken && !e.refill && td > 0) { e.T = Math.max(0, e.T - td); if (e.T <= 0 && e.hp > 0) breakBoss(e); } }
   const np = V3(e.x, e.y + e.height * .85 + (e.airY || 0), e.z);
-  if (amb) { showNum(np, '破隐一击 ' + d, 'amb'); sfx('clang'); flashScreen('#cff4ff', .3, .3); }
+  if (e.noNum) { } else if (amb) { showNum(np, '破隐一击 ' + d, 'amb'); sfx('clang'); flashScreen('#cff4ff', .3, .3); }
   else showNum(np, d, kind === 'ult' ? 'big' : (e.broken && kind !== 'tick') ? 'brkn' : crit ? 'crit' : (tm < .4 && kind !== 'tick') ? 'res' : kind === 'tick' ? 'tk' : 'n');
   burst(eCenter(e), kind === 'ult' ? 40 : 12, crit ? 0xffd040 : 0xbfe8ff, kind === 'ult' ? 12 : 6, .45, .4, -6);
   if (kind !== 'tick') sfx('hit');
@@ -1831,8 +1831,12 @@ function doZhanma() {
   SK.s1.t = SK.s1.cd; swordGlow = 1; sfx('whoosh');
   const keys = [R_IDLE, RK(.25, [.4, -.12, -.5], [1, .1, -.15], [.3, -.6, .75]), RK(.45, [0, -.14, -.56], [-.25, .12, -1], [.5, -.7, .5]), RK(.66, [-.38, -.12, -.5], [-1, .05, -.2], [.8, -.5, .3]), k_(R_IDLE, 1)];
   const lk = [L_IDLE, LK(.3, [-.32, -.3, -.5], [-.3, .5, -.8], [0, .8, .5]), LK(.7, [-.32, -.3, -.5], [-.3, .5, -.8], [0, .8, .5]), k_(L_IDLE, 1)];
-  playVM('s1', .62, keys, lk, [{ at: .38, fn: () => { slashArc(true, 0, 1, 0x7fd8ff); shake = Math.max(shake, .12); for (const m of enemiesInCone(5.6, 1.05)) hitEnemy(m, player.atk * TUNE.mult.s1, 's1', TUNE.tough.s1); } }]);
+  playVM('s1', .62, keys, lk, [{ at: .38, fn: () => { slashArc(true, 0, 1, 0x7fd8ff); shake = Math.max(shake, .12); for (const m of enemiesInCone(5.6, 1.05)) { hitEnemy(m, player.atk * TUNE.mult.s1, 's1', TUNE.tough.s1); if (m.kbS1 && !m.dead) zhanmaKB(m); } } }]);
 }
+/* 斩马 knockback (地宫 bridge phantoms): strong shove away from the player, biased toward the nearer bridge edge */
+const ZM_KB = { dist: 5.5, dur: .32, side: .7 };
+function zhanmaKB(m) { let dx = m.x - player.x, dz = m.z - player.z; const d = Math.hypot(dx, dz) || 1; dx /= d; dz /= d; const sx = Math.abs(m.x) > .3 ? Math.sign(m.x) : (Math.sign(m.x - player.x) || (Math.random() < .5 ? -1 : 1)); dx += sx * ZM_KB.side; const l = Math.hypot(dx, dz) || 1;
+  m.kbV = V3(dx / l * ZM_KB.dist / ZM_KB.dur, 0, dz / l * ZM_KB.dist / ZM_KB.dur); m.kbT = ZM_KB.dur; m.stagger = Math.max(m.stagger || 0, ZM_KB.dur + .35); if (m.act) cancelAct(m); burst(eCenter(m), 14, 0x7fd8ff, 6, .4, .4, -3); }
 /* 飞剑 — v3: fast out-and-back (whole trip < 1s) */
 const FLY = { out: 44, back: 54, range: 15 };
 const fly = { active: false, phase: 0, pos: V3(), dir: V3(), dist: 0, hit: new Set(), obj: buildSword({ scale: 1.9 }), roll: 0, t: 0 };
@@ -1849,6 +1853,8 @@ function launchFly() {
   fly.active = true; fly.phase = 0; fly.dist = 0; fly.t = 0; fly.hit.clear();
   fly.pos.set(player.x, camY - .35, player.z).addScaledVector(r, .25).addScaledVector(f, .8);
   fly.dir.copy(f); fly.dir.y = Math.sin(player.pitch) * .6; fly.dir.normalize(); fly.obj.g.visible = true;
+  FLY.range = (mode === 'ch1' && world.name === 'digong' && ch1.flags.needFly) ? 40 : 15;
+  for (const m of liveEnemies()) { if (!m.flyMagnet) continue; const c = eCenter(m), v = c.clone().sub(fly.pos), hd = Math.hypot(v.x, v.z); if (hd > FLY.range + 2) continue; const a = Math.acos(clamp((v.x * f.x + v.z * f.z) / Math.max(1e-3, hd), -1, 1)); if (a < .36) { fly.dir.copy(v.normalize()); break; } }
 }
 function updateFly(dt) {
   if (!fly.active) return;
@@ -2096,7 +2102,7 @@ const zheng = makeZheng(); zheng.holder.visible = false;
 let valleyT = 0, fightStart = 0;
 function placePlayer(sp) { player.x = sp.x; player.z = sp.z; player.yaw = sp.yaw; player.pitch = -.04; camY = H(sp.x, sp.z) + 1.7; }
 function setupLiBai() {
-  player.name = '仙尊'; player.tutChar = true; player.lv = 90; player.xp = 0; recalc(); player.hp = player.maxHp; player.wine = 2; player.wineMax = 2; player.unlocked = ALL_ST.slice(); player.rideOK = true; player.minHpFrac = .3; player.dead = false;
+  player.name = '仙尊'; player.tutChar = true; player.pages = []; player.lv = 90; player.xp = 0; recalc(); player.hp = player.maxHp; player.wine = 2; player.wineMax = 2; player.unlocked = ALL_ST.slice(); player.rideOK = true; player.minHpFrac = .3; player.dead = false;
   setOutfit(0xeef1f6, 0x5fa6d8); $('avatar').textContent = '仙'; hudDirty = true;
 }
 /* ===== tutorial ===== */
@@ -2261,16 +2267,16 @@ function saveGame() {
   if (player.tutChar || !activeSlot) return false;
   const st = readStore(); let d = st.slots.find(x => x.id === activeSlot);
   if (!d) { if (st.slots.length >= MAX_SLOTS) return false; d = { id: activeSlot }; st.slots.push(d); }
-  Object.assign(d, { v: 3, name: player.name, lv: player.lv, xp: player.xp, stage: mode === 'valley' ? 'valley' : 'ch1', ch: ch1.cp, rideOK: !!player.rideOK, unlocked: player.unlocked.slice(), wine: player.wine, wineMax: player.wineMax, wins: player.wins || 0, time: Date.now() });
+  Object.assign(d, { v: 3, name: player.name, lv: player.lv, xp: player.xp, stage: mode === 'valley' ? 'valley' : 'ch1', ch: ch1.cp, rideOK: !!player.rideOK, unlocked: player.unlocked.slice(), pages: (player.pages || []).slice(), wine: player.wine, wineMax: player.wineMax, wins: player.wins || 0, time: Date.now() });
   st.last = activeSlot; return writeStore(st);
 }
 function loadSave(id) { const st = readStore(); return st.slots.find(d => d.id === (id || st.last)) || null; }
 function deleteSave(id) { const st = readStore(); st.slots = st.slots.filter(d => d.id !== id); if (st.last === id) st.last = null; writeStore(st); }
 function wipeSave() { try { localStorage.removeItem(SAVES_KEY); localStorage.removeItem(OLD_SAVE_KEY); } catch (e) { } }
-function applySave(d) { player.tutChar = false; activeSlot = d.id; player.name = d.name; player.lv = clamp(d.lv | 0, 1, 100); player.xp = Math.max(0, d.xp | 0); player.unlocked = Array.isArray(d.unlocked) ? d.unlocked.filter(x => ALL_ST.includes(x)) : []; player.wineMax = Math.max(1, d.wineMax | 0 || 2); player.wine = clamp(d.wine ?? player.wineMax, 0, player.wineMax); player.wins = d.wins | 0; player.rideOK = !!d.rideOK; ch1.cp = d.ch || 'intro'; }
+function applySave(d) { player.tutChar = false; activeSlot = d.id; player.name = d.name; player.lv = clamp(d.lv | 0, 1, 100); player.xp = Math.max(0, d.xp | 0); player.unlocked = Array.isArray(d.unlocked) ? d.unlocked.filter(x => ALL_ST.includes(x)) : []; player.pages = Array.isArray(d.pages) ? d.pages.filter(i => Number.isInteger(i) && i >= 0 && i < 10).filter((v, k, arr) => arr.indexOf(v) === k) : []; player.wineMax = Math.max(1, d.wineMax | 0 || 2); player.wine = clamp(d.wine ?? player.wineMax, 0, player.wineMax); player.wins = d.wins | 0; player.rideOK = !!d.rideOK; ch1.cp = d.ch || 'intro'; }
 function newCareer(name) {
   player.tutChar = false; activeSlot = 's' + Date.now().toString(36) + Math.floor(Math.random() * 1e4).toString(36);
-  player.name = name || '无名剑修'; player.lv = 1; player.xp = 0; player.unlocked = []; player.wineMax = 2; player.wine = 2; player.wins = 0;
+  player.name = name || '无名剑修'; player.lv = 1; player.xp = 0; player.unlocked = []; player.pages = []; player.wineMax = 2; player.wine = 2; player.wins = 0;
   player.rideOK = false; ch1.cp = 'intro'; saveGame(); startCh1('intro');
 }
 const STAGE_CN = { valley: '第一章 · 学院' };
@@ -2512,7 +2518,7 @@ function update(dtR) {
     for (const c of world.cols || []) { const dx = player.x - c.x, dz = player.z - c.z, d = Math.hypot(dx, dz), mn = c.r + .45; if (d < mn && d > 1e-4) { player.x = c.x + dx / d * mn; player.z = c.z + dz / d * mn; } }
     if (H(player.x, player.z) < -1.15) { player.x = ox; player.z = oz; }
     if (world.resolve) { const ddx = player.x - ox, ddz = player.z - oz, n = Math.max(1, Math.ceil(Math.hypot(ddx, ddz) / .25)); let x = ox, z = oz; for (let i = 0; i < n; i++) { const r = world.resolve(x + ddx / n, z + ddz / n, .45); x = r[0]; z = r[1]; } player.x = x; player.z = z; if (mode === 'ch1') ch1PlayerClamp(); }
-    for (const m of liveEnemies()) { const dx = player.x - m.x, dz = player.z - m.z, d = Math.hypot(dx, dz), mn = m.radius + .7; if (d < mn && d > 1e-3) { player.x = m.x + dx / d * mn; player.z = m.z + dz / d * mn; } }
+    for (const m of liveEnemies()) { if (m.noPush) continue; const dx = player.x - m.x, dz = player.z - m.z, d = Math.hypot(dx, dz), mn = m.radius + .7; if (d < mn && d > 1e-3) { player.x = m.x + dx / d * mn; player.z = m.z + dz / d * mn; } }
     if (mode === 'tutorial') tut.moved += Math.hypot(player.x - ox, player.z - oz) * (moving ? 1 : 0);
   }
   player.moveAmt += ((moving ? mag : 0) - player.moveAmt) * Math.min(1, dt * 8);
@@ -2694,8 +2700,41 @@ function addBuilding(L, boxes, b) {
   // floor (slightly raised wood visual; walkable since ground height stays 0)
   L.push([G.box, b.floor || 0xc8a87e, M4(cx, .015, cz, W - .1, .03, D - .1)]);
 }
+/* v4.3 academy facilities: 药房, 食堂, 弟子居所, 大钟楼, 测灵石台 (all merged into the static mesh) */
+function addFacilities(L, boxes, cols) {
+  const A = ACAD, P = A.pharm, D = A.dining, M = A.dorm, B = A.bell;
+  addBuilding(L, boxes, { ...P, plaque: true, floor: 0xb89a70 });
+  addBuilding(L, boxes, { ...D, plaque: true, floor: 0xc0a074 });
+  addBuilding(L, boxes, { ...M, plaque: true, floor: 0xc8a87e });
+  const box = (x0, x1, z0, z1, h, c, solid = true) => { if (solid) boxes.push({ x0, x1, z0, z1 }); L.push([G.box, c, M4((x0 + x1) / 2, h / 2, (z0 + z1) / 2, x1 - x0, h, z1 - z0)]); };
+  const jarC = [0x8a5a3a, 0x6a7a5a, 0xa8986a, 0x5a4a3a, 0x9a3a2a];
+  // 药房: back shelves of jars, counter with herbs, drying racks, baskets
+  box(P.x0 + 1, P.x1 - 1, P.z0 + .8, P.z0 + 1.5, 3, 0x5a3420);
+  for (let r = 0; r < 3; r++) for (let k = 0; k < 14; k++) { const x = P.x0 + 1.5 + k * .8; L.push([G.cyl, jarC[(k + r) % 5], M4(x, .6 + r * .95, P.z0 + 1.62, .22, .5, .22)]); L.push([G.box, 0x6a4028, M4((P.x0 + P.x1) / 2, .32 + r * .95, P.z0 + 1.2, P.x1 - P.x0 - 2, .06, .8)]); }
+  box(P.x0 + 3, P.x1 - 3, -36.4, -35.6, 1.05, 0x6a4028);
+  for (let k = 0; k < 6; k++) { L.push([G.sphLo, k % 2 ? 0x6a9a4a : 0x8aaa5a, M4(P.x0 + 4 + k * 1.2, 1.15, -36, .35, .18, .3)]); }
+  L.push([G.box, 0x3a2a1a, M4(P.x0 + 6.2, 1.12, -36, .5, .04, .35)]); // scale tray
+  for (const x of [P.x0 + 1.6, P.x1 - 1.6]) { cols.push({ x, z: -32, r: .55 }); L.push([G.cyl, 0x9a7a4a, M4(x, .35, -32, .5, .7, .5)]); L.push([G.sphLo, 0x5a8a3a, M4(x, .75, -32, .45, .25, .45)]); }
+  for (let k = 0; k < 7; k++) L.push([G.box, k % 2 ? 0x7a9a5a : 0xa89a5a, M4(P.x0 + 2 + k * 1.6, 3.6, -38.5, .25, .7, .06)]); L.push([G.cyl, 0x5a3420, M4((P.x0 + P.x1) / 2, 3.95, -38.5, .04, P.x1 - P.x0 - 2, .04, 0, 0, Math.PI / 2)]);
+  // 食堂: two long tables with benches, stove + big pot, rice barrels
+  for (const tx of [D.x0 + 3.4, D.x1 - 3.4]) { box(tx - 1.5, tx + 1.5, -38.5, -30.5, .2, 0x7a5236); L.push([G.box, 0x6a4028, M4(tx, .78, -34.5, 1.3, .08, 8)]); for (const bx of [-1.15, 1.15]) L.push([G.box, 0x5a3420, M4(tx + bx, .42, -34.5, .4, .06, 7.6)]);
+    for (let k = 0; k < 5; k++) L.push([G.cyl, 0xf0ead8, M4(tx + (k % 2 ? .35 : -.35), .86, -37.5 + k * 1.5, .16, .06, .16)]); }
+  box(-58.2, -53.8, D.z0 + .8, D.z0 + 2, 1.1, 0x8a8478); L.push([G.cyl, 0x2a2420, M4(-56, 1.35, D.z0 + 1.4, .8, .5, .8)]); L.push([G.cyl, 0x5a5048, M4(-56, 3.2, D.z0 + 1.1, .25, 3, .25)]);
+  for (const x of [D.x0 + 1.4, D.x1 - 1.4]) { cols.push({ x, z: D.z0 + 1.6, r: .55 }); L.push([G.cyl, 0x9a7a4a, M4(x, .5, D.z0 + 1.6, .5, 1, .5)]); }
+  // 弟子居所: beds along the side walls, low tables
+  for (const bx of [M.x0 + 1.9, M.x1 - 1.9]) for (const bz of [-58.2, -55, -51.8]) { box(bx - 1.1, bx + 1.1, bz - .55, bz + .55, .5, 0x7a5236); L.push([G.box, 0xe8e0cc, M4(bx, .55, bz, 2, .1, .9)]); L.push([G.box, 0x6a8ab8, M4(bx + (bx < -56 ? -.7 : .7), .62, bz, .45, .1, .7)]); }
+  cols.push({ x: -56, z: -56.5, r: .6 }); L.push([G.cyl, 0x6a4028, M4(-56, .3, -56.5, .6, .6, .6)]);
+  // 大钟楼: stone base, red pillars, bell, double roof
+  box(B.x - 2.5, B.x + 2.5, B.z - 2.5, B.z + 2.5, 1.2, 0xd8d2c4);
+  for (const [px, pz] of [[-1.9, -1.9], [1.9, -1.9], [-1.9, 1.9], [1.9, 1.9]]) L.push([G.cyl, 0x9a3a2a, M4(B.x + px, 6, B.z + pz, .3, 9.6, .3)]);
+  L.push([G.box, 0xf6f4ee, M4(B.x, 3, B.z, 3.6, 3.6, 3.6)]); L.push([G.box, 0x7a5236, M4(B.x, 7.2, B.z, 4.6, .3, 4.6)]);
+  L.push([G.cyl, 0x8a6a3a, M4(B.x, 8.9, B.z, 1.1, 2, 1.1)]); L.push([G.cone, 0x8a6a3a, M4(B.x, 10.25, B.z, 1, .8, 1)]); L.push([G.cyl, 0x5a3420, M4(B.x, 10.8, B.z, .12, 4.4, .12, 0, 0, Math.PI / 2)]);
+  L.push([G.cone, 0xdfe6ee, M4(B.x, 12.2, B.z, 4.4, 1.8, 4.4, Math.PI / 4)]); L.push([G.cone, 0xdfe6ee, M4(B.x, 14, B.z, 2.6, 1.6, 2.6, Math.PI / 4)]); L.push([G.sph, 0xd8b25a, M4(B.x, 15.1, B.z, .3, .3, .3)]);
+  // spirit-stone pedestal in the square
+  cols.push({ x: A.ling.x, z: A.ling.z, r: .9 }); L.push([G.cyl, 0xd8d2c4, M4(A.ling.x, .55, A.ling.z, .85, 1.1, .85)]); L.push([G.cyl, 0xb8b2a4, M4(A.ling.x, 1.12, A.ling.z, .65, .1, .65)]);
+}
 /* ground texture painted from world rects (X -48..48, Z -66..44) */
-const ACG = { x0: -48, x1: 48, z0: -66, z1: 44 };
+const ACG = { x0: -68, x1: 68, z0: -66, z1: 44 };
 function acadGroundTex(paint) {
   return canvasTex(2048, 2048, (c, w, h) => {
     const sx = w / (ACG.x1 - ACG.x0), sz = h / (ACG.z1 - ACG.z0);
@@ -2706,7 +2745,7 @@ function acadGroundTex(paint) {
 }
 function buildAcademyWorld() {
   const g = new THREE.Group(); g.visible = false; scene.add(g);
-  const boxes = [], cols = [], L = [], bounds = { x0: -45.4, x1: 45.4, z0: -63.4, z1: 41.4 };
+  const boxes = [], cols = [], L = [], bounds = { x0: -65.4, x1: 65.4, z0: -63.4, z1: 41.4 };
   const A = ACAD;
   // ---- ground
   const tex = acadGroundTex(({ c, R, C, w, h, sx, sz }) => {
@@ -2725,11 +2764,18 @@ function buildAcademyWorld() {
     for (let z = -42; z < 41; z += 1.5) { c.beginPath(); c.moveTo((-3 - ACG.x0) * sx, (z - ACG.z0) * sz); c.lineTo((3 - ACG.x0) * sx, (z - ACG.z0) * sz); c.stroke(); }
     for (let x = 13; x <= 39; x += 2) { c.beginPath(); c.moveTo((x - ACG.x0) * sx, (-25 - ACG.z0) * sz); c.lineTo((x - ACG.x0) * sx, (1 - ACG.z0) * sz); c.stroke(); }
     for (let z = -25; z <= 1; z += 2) { c.beginPath(); c.moveTo((13 - ACG.x0) * sx, (z - ACG.z0) * sz); c.lineTo((39 - ACG.x0) * sx, (z - ACG.z0) * sz); c.stroke(); }
+    // v4.3 expansion: 大广场, long east-west avenue, facility paths, bell-tower plaza
+    C(A.square.x, A.square.z, A.square.r + .6, '#cfc8b6'); C(A.square.x, A.square.z, A.square.r, stone);
+    c.strokeStyle = 'rgba(150,138,112,.5)'; c.lineWidth = 4; for (const rr of [3, 7, A.square.r - .4]) { c.beginPath(); c.ellipse((A.square.x - ACG.x0) * sx, (A.square.z - ACG.z0) * sz, rr * sx, rr * sz, 0, 0, 7); c.stroke(); }
+    R(-64, -33, -3, 3, stone); R(39, 64, -3, 3, stone); R(13, 39, 1, 3, stone);
+    R(A.pharm.dx0, A.pharm.dx1, A.pharm.z1, -3, stone); R(A.dining.dx0, A.dining.dx1, A.dining.z1, -3, stone);
+    R(-48, -44, -47, -3, stone); R(A.dorm.dx0, -44, -47.5, -44, stone);
+    C(A.bell.x, A.bell.z, 5.2, stoneL);
     // water beds
     for (const p of A.ponds) C(p.x, p.z, p.r + .5, '#cfc7b0');
-    R(-46, 46, A.stream.z0 - .5, A.stream.z1 + .5, '#cfc7b0');
+    R(-68, 68, A.stream.z0 - .5, A.stream.z1 + .5, '#cfc7b0');
     for (const p of A.ponds) C(p.x, p.z, p.r, '#3f8fa0');
-    R(-46, 46, A.stream.z0, A.stream.z1, '#3f8fa0');
+    R(-68, 68, A.stream.z0, A.stream.z1, '#3f8fa0');
     R(-5, 5, A.stream.z0 - 1, A.stream.z1 + 1, stoneL);
   });
   tex.anisotropy = 8;
@@ -2737,17 +2783,18 @@ function buildAcademyWorld() {
   ground.rotation.x = -Math.PI / 2; ground.position.set((ACG.x0 + ACG.x1) / 2, 0, (ACG.z0 + ACG.z1) / 2); g.add(ground);
   const outer = new THREE.Mesh(new THREE.CircleGeometry(400, 24), new THREE.MeshLambertMaterial({ color: 0x8cb070 })); outer.rotation.x = -Math.PI / 2; outer.position.y = -.05; g.add(outer);
   // ---- outer wall (white with blue-grey tile cap) + gate
-  const OW = [[-46.6, 46.6, 41.4, 42.6], [-46.6, 46.6, -64.6, -63.4], [-46.6, -45.4, -64.6, 42.6], [45.4, 46.6, -64.6, 42.6]];
+  const OW = [[-66.6, 66.6, 41.4, 42.6], [-66.6, 66.6, -64.6, -63.4], [-66.6, -65.4, -64.6, 42.6], [65.4, 66.6, -64.6, 42.6]];
   for (const [a0, a1, c0, c1] of OW) { boxes.push({ x0: a0, x1: a1, z0: c0, z1: c1 }); const cx = (a0 + a1) / 2, cz = (c0 + c1) / 2, w = a1 - a0, d = c1 - c0; L.push([G.box, 0xf8f6f0, M4(cx, 1.6, cz, w, 3.2, d)]); L.push([G.box, 0x9aa8b8, M4(cx, 3.3, cz, w + .5, .25, d + .5)]); L.push([G.box, 0xb4beca, M4(cx, 3.5, cz, w * .98 + .1, .2, d * .5 + .1)]); }
   // gate (山门): pillars + roof on south wall; doors shown closed-ish with mist beyond
   for (const x of [-4.5, 4.5]) { L.push([G.cyl, 0x9a3a2a, M4(x, 3, 42, .45, 6, .45)]); L.push([G.box, 0xd8d2c4, M4(x, .3, 42, 1.4, .6, 1.4)]); }
-  L.push([G.box, 0x7a5236, M4(0, 5.6, 42, 10, .5, .7)]); L.push([G.box, 0x3a2418, M4(0, 4.6, 42.4, 3.4, 1.1, .15)]);
+  L.push([G.box, 0x7a5236, M4(0, 5.6, 42, 10, .5, .7)]); L.push([G.box, 0x3a2418, M4(0, 4.6, 42, 3.6, 1.2, .9)]);
   L.push([roofGeo(10, 2.4, 1.6, .8), 0xdfe6ee, M4(0, 5.85, 42)]);
   L.push([G.box, 0x6a4028, M4(-2.2, 2.3, 42.15, 4.2, 4.6, .2)]); L.push([G.box, 0x6a4028, M4(2.2, 2.3, 42.15, 4.2, 4.6, .2)]);
   for (const x of [-1.2, 1.2]) L.push([G.cyl, 0xd8b25a, M4(x * .9, 2.3, 42, .15, .06, .15, 0, Math.PI / 2)]);
   // ---- buildings
   addBuilding(L, boxes, { ...A.school, plaque: true, floor: 0xd2b48a });
   addBuilding(L, boxes, { ...A.lib, plaque: true, h: 5.2, rh: 4, floor: 0xb89268 });
+  addFacilities(L, boxes, cols);
   // 学堂 interior: desks, cushions, scrolls, teacher desk
   for (const x of [-36, -30, -24]) for (const z of [-42, -38.5, -35]) {
     boxes.push({ x0: x - .8, x1: x + .8, z0: z - .35, z1: z + .35 });
@@ -2775,7 +2822,7 @@ function buildAcademyWorld() {
   boxes.push({ x0: 7.3, x1: 9.7, z0: -46.5, z1: -45.5 }); L.push([G.box, 0x6a4028, M4(8.5, .75, -46, 2.4, .1, 1)]); for (const sx of [-1.1, 1.1]) L.push([G.box, 0x5a3420, M4(8.5 + sx, .37, -46, .1, .74, .9)]);
   // ---- stream + ponds (collision) + bridge
   const S = A.stream;
-  boxes.push({ x0: -46, x1: -5, z0: S.z0 + .3, z1: S.z1 - .3 }, { x0: 5, x1: 46, z0: S.z0 + .3, z1: S.z1 - .3 });
+  boxes.push({ x0: -66, x1: -5, z0: S.z0 + .3, z1: S.z1 - .3 }, { x0: 5, x1: 66, z0: S.z0 + .3, z1: S.z1 - .3 });
   for (const p of A.ponds) cols.push({ x: p.x, z: p.z, r: p.r - .2 });
   for (const sx of [-1, 1]) { boxes.push({ x0: sx > 0 ? 4.7 : -5.3, x1: sx > 0 ? 5.3 : -4.7, z0: S.z0 - .8, z1: S.z1 + .8 }); L.push([G.box, 0xc84a3a, M4(sx * 5, .55, (S.z0 + S.z1) / 2, .3, 1.1, S.z1 - S.z0 + 1.6)]); L.push([G.box, 0xeae6da, M4(sx * 5, 1.1, (S.z0 + S.z1) / 2, .4, .12, S.z1 - S.z0 + 1.7)]); }
   L.push([G.box, 0xd8d2c4, M4(0, .04, (S.z0 + S.z1) / 2, 10, .08, S.z1 - S.z0 + 2)]);
@@ -2788,7 +2835,9 @@ function buildAcademyWorld() {
   L.push([G.box, 0xd8d2c4, M4(-13.5, .05, 30, 6.4, .1, 7.4)]); L.push([G.cone, 0xdfe6ee, M4(-13.5, 4.4, 30, 5.6, 1.9, 5.6, Math.PI / 4)]); L.push([G.sph, 0xd8b25a, M4(-13.5, 5.45, 30, .25, .25, .25)]);
   cols.push({ x: -13.5, z: 30, r: .6 }); L.push([G.cyl, 0xe8e2d4, M4(-13.5, .4, 30, .6, .8, .6)]);
   // ---- stone lanterns along the main path
-  for (let z = 36; z > -28; z -= 9) { if (Math.abs(z - (S.z0 + S.z1) / 2) < 5 || Math.abs(z) < 5) continue; for (const x of [-4.4, 4.4]) { cols.push({ x, z, r: .38 }); L.push([G.box, 0xd8d2c4, M4(x, .5, z, .5, 1, .5)]); L.push([G.box, 0xfff2c0, M4(x, 1.2, z, .42, .4, .42)]); L.push([G.cone, 0xb8b2a4, M4(x, 1.65, z, .5, .5, .5, Math.PI / 4)]); } }
+  const lanternPts = []; for (const [x, z] of [[-52, 4.4], [-44, -4.4], [-22, 4.4], [-14, -4.4], [46, 4.4], [60, -4.4], [46, -4.4]]) lanternPts.push([x, z]);
+  for (let z = 36; z > -28; z -= 9) { if (Math.abs(z - (S.z0 + S.z1) / 2) < 5 || (z > -19.5 && z < 7.5)) continue; for (const x of [-4.4, 4.4]) lanternPts.push([x, z]); }
+  for (const [x, z] of lanternPts) { cols.push({ x, z, r: .38 }); L.push([G.box, 0xd8d2c4, M4(x, .5, z, .5, 1, .5)]); L.push([G.box, 0xfff2c0, M4(x, 1.2, z, .42, .4, .42)]); L.push([G.cone, 0xb8b2a4, M4(x, 1.65, z, .5, .5, .5, Math.PI / 4)]); }
   // ---- rocks (怪石) with collision
   for (const [x, z, s] of [[30, 36, 1.2], [36, 24, 1.4], [-38, 22, 1.3], [-8, 34, 1.0], [12, 30, 1.1], [-42, 6, 1.2], [42, 10, 1.3], [-10, -58, 1.1], [30, -55, 1.4]]) {
     cols.push({ x, z, r: s * .9 }); const geo = new THREE.IcosahedronGeometry(1, 1); const p = geo.attributes.position; for (let i = 0; i < p.count; i++) { const n = .75 + .4 * vnoise(p.getX(i) * 2 + x, p.getZ(i) * 2 + z); p.setXYZ(i, p.getX(i) * n, (p.getY(i) * .5 + .5) * 2.2 * n, p.getZ(i) * n); } geo.computeVertexNormals(); L.push([geo, 0xa8aab0, M4(x, -.1, z, s, s, s, srnd(0, 6))]);
@@ -2802,7 +2851,7 @@ function buildAcademyWorld() {
     return true;
   };
   const trees = [];
-  for (let tries = 0; tries < 4000 && trees.length < 64; tries++) { const x = srnd(-45, 45), z = srnd(-63, 41); if (!clearOf(x, z, .55)) continue; const t = { x, z, r: .55, kind: srand() < .55 ? 0 : 1, s: srnd(.85, 1.3) }; trees.push(t); cols.push({ x, z, r: .55 }); }
+  for (let tries = 0; tries < 7000 && trees.length < 96; tries++) { const x = srnd(-65, 65), z = srnd(-63, 41); if (!clearOf(x, z, .55)) continue; const t = { x, z, r: .55, kind: srand() < .55 ? 0 : 1, s: srnd(.85, 1.3) }; trees.push(t); cols.push({ x, z, r: .55 }); }
   const mm = new THREE.Matrix4(), q = new THREE.Quaternion();
   const blossomG = mergeColored([[new THREE.CylinderGeometry(.16, .26, 2.6, 6), 0x6a4a3a, M4(0, 1.3, 0)], [new THREE.CylinderGeometry(.07, .1, 1.4, 5), 0x6a4a3a, M4(.5, 2.6, 0, 1, 1, 1, 0, 0, -.6)], [G.sphLo, 0xf6c4d4, M4(0, 3.4, 0, 1.6, 1.15, 1.6)], [G.sphLo, 0xfad8e4, M4(.9, 3.0, .4, 1.1, .85, 1.1)], [G.sphLo, 0xf0b0c8, M4(-.7, 3.1, -.5, 1.2, .9, 1.2)], [G.sphLo, 0xfce8ee, M4(.2, 3.9, -.3, .9, .7, .9)]]);
   const pineG = mergeColored([[new THREE.CylinderGeometry(.16, .26, 2.2, 6), 0x5a3d26, M4(0, 1.1, 0)], [new THREE.ConeGeometry(1.7, 2.6, 8), 0x2f6a44, M4(0, 2.8, 0)], [new THREE.ConeGeometry(1.3, 2.2, 8), 0x3a7a4c, M4(0, 4.1, 0)], [new THREE.ConeGeometry(.85, 1.8, 8), 0x4a8a58, M4(0, 5.2, 0)]]);
@@ -2818,7 +2867,7 @@ function buildAcademyWorld() {
   g.add(new THREE.Mesh(mergeColored(L), new THREE.MeshLambertMaterial({ vertexColors: true })));
   // ---- water (one transparent mesh)
   const wl = []; for (const p of A.ponds) wl.push([new THREE.CircleGeometry(p.r, 32), 0xffffff, M4(p.x, .03, p.z, 1, 1, 1, 0, -Math.PI / 2)]);
-  wl.push([new THREE.PlaneGeometry(92, S.z1 - S.z0), 0xffffff, M4(0, .03, (S.z0 + S.z1) / 2, 1, 1, 1, 0, -Math.PI / 2)]);
+  wl.push([new THREE.PlaneGeometry(132, S.z1 - S.z0), 0xffffff, M4(0, .03, (S.z0 + S.z1) / 2, 1, 1, 1, 0, -Math.PI / 2)]);
   const waterM = new THREE.MeshStandardMaterial({ color: 0x7fd0e0, roughness: .06, metalness: .2, transparent: true, opacity: .62, envMapIntensity: 1.6, vertexColors: false });
   waterM.onBeforeCompile = sh => { sh.uniforms.t = timeU; sh.fragmentShader = 'uniform float t;\n' + sh.fragmentShader.replace('#include <normal_fragment_maps>', '#include <normal_fragment_maps>\n normal = normalize(normal + vec3(sin(vViewPosition.x*1.7+t*1.3)*.06, 0., cos(vViewPosition.z*1.9+t*1.1)*.06));'); };
   const water = new THREE.Mesh(mergeColored(wl), waterM); water.renderOrder = 1; g.add(water);
@@ -2829,6 +2878,23 @@ function buildAcademyWorld() {
   const cl = []; for (let i = 0; i < 26; i++) { const a = srnd(0, 6.28), r = srnd(80, 240); blobCloud(cl, Math.cos(a) * r, srnd(-2, 14), Math.sin(a) * r, srnd(8, 18), 5, 0xffffff, .35); }
   for (let i = 0; i < 10; i++) { const a = srnd(0, 6.28), r = srnd(200, 420); blobCloud(cl, Math.cos(a) * r, srnd(70, 130), Math.sin(a) * r, srnd(18, 34), 5, 0xfff4f8, .3); }
   const clouds = new THREE.Mesh(mergeColored(cl), new THREE.MeshLambertMaterial({ vertexColors: true, emissive: 0xb0b8c8, emissiveIntensity: .5, transparent: true, opacity: .9 })); g.add(clouds);
+  // ---- 牌匾 「天剑学院」 (both faces of the gate beam)
+  const plaqueTex = canvasTex(512, 160, (c, w, h) => { c.fillStyle = '#2a170e'; c.fillRect(0, 0, w, h); c.strokeStyle = '#d8b25a'; c.lineWidth = 8; c.strokeRect(10, 10, w - 20, h - 20); c.fillStyle = '#f0cf72'; c.font = 'bold 104px serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('天剑学院', w / 2, h / 2 + 4); });
+  const plM = new THREE.MeshBasicMaterial({ map: plaqueTex }); for (const [z, ry] of [[42.47, 0], [41.53, Math.PI]]) { const m = mk(new THREE.PlaneGeometry(3.4, 1.06), plM, g, 0, 4.6, z); m.rotation.y = ry; }
+  // ---- 测灵根: spirit stone on a pedestal in the square
+  const lingM = new THREE.MeshStandardMaterial({ color: 0xd8e8f0, emissive: 0x6080a0, emissiveIntensity: .3, roughness: .2, metalness: .1, flatShading: true });
+  const lingStone = mk(new THREE.IcosahedronGeometry(.62, 0), lingM, g, A.ling.x, 1.75, A.ling.z, 1, 1.35, 1);
+  const lingBeam = mk(new THREE.CylinderGeometry(.5, .9, 16, 12, 1, true), new THREE.MeshBasicMaterial({ color: 0xb050ff, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false }), g, A.ling.x, 8, A.ling.z); lingBeam.visible = false;
+  // ---- night dressing: lantern glows + moon (hidden by day)
+  const glowL = lanternPts.map(([x, z]) => [G.sphLo, 0xffc070, M4(x, 1.2, z, .55, .45, .55)]);
+  const lanternGlow = new THREE.Mesh(mergeColored(glowL), new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: .85, blending: THREE.AdditiveBlending, depthWrite: false })); lanternGlow.visible = false; g.add(lanternGlow);
+  const moon = new THREE.Mesh(new THREE.CircleGeometry(9, 24), new THREE.MeshBasicMaterial({ color: 0xf4f0d8, fog: false })); moon.position.set(-120, 130, -260); moon.lookAt(0, 0, 0); moon.visible = false; g.add(moon);
+  // ---- 漂浮书页 ×10
+  const pageM = new THREE.MeshBasicMaterial({ color: 0xfff6dc, side: THREE.DoubleSide }), pageAura = auraMat(0xffe0a0, 1.4, 1.4);
+  const pages = A.pages.map(([x, z], i) => { const pg = new THREE.Group(); pg.position.set(x, 1.4, z); g.add(pg); mk(new THREE.PlaneGeometry(.42, .56), pageM, pg, 0, 0, 0); mk(G.sph, pageAura, pg, 0, 0, 0, .55, .55, .55); pg.visible = false; return pg; });
+  // ---- 御剑光环 ×6 (rings training)
+  const ringM = new THREE.MeshBasicMaterial({ color: 0xffd36a, transparent: true, opacity: .9, blending: THREE.AdditiveBlending, depthWrite: false, fog: false });
+  const flyRings = A.flyRings.map(([x, z, y], i) => { const rg = new THREE.Group(); rg.position.set(x, y, z); g.add(rg); mk(new THREE.TorusGeometry(1.9, .09, 6, 32), ringM, rg); mk(new THREE.TorusGeometry(2.1, .04, 4, 32), ringM, rg); const nx = A.flyRings[Math.min(i + 1, A.flyRings.length - 1)], pv = A.flyRings[Math.max(0, i - 1)]; rg.rotation.y = Math.atan2(nx[0] - pv[0], nx[1] - pv[1]); rg.visible = false; return rg; });
   // ---- library hidden door (visible only while 隐身) — own mesh, toggled by chapter logic
   const hd = new THREE.Group(); hd.position.set(A.hidden.x, 0, A.hidden.z + .05); g.add(hd);
   const doorTex = canvasTex(256, 384, (c, w, h) => { const gr = c.createRadialGradient(w / 2, h * .55, 10, w / 2, h * .55, h * .6); gr.addColorStop(0, 'rgba(255,220,255,1)'); gr.addColorStop(.35, 'rgba(190,90,255,.95)'); gr.addColorStop(1, 'rgba(60,0,120,0)'); c.fillStyle = gr; c.fillRect(0, 0, w, h); c.strokeStyle = 'rgba(255,230,255,.95)'; c.lineWidth = 6; c.strokeRect(30, 40, w - 60, h - 50); c.font = 'bold 60px serif'; c.fillStyle = 'rgba(80,0,120,.8)'; c.textAlign = 'center'; c.fillText('魔', w / 2, h * .58); });
@@ -2836,7 +2902,7 @@ function buildAcademyWorld() {
   mk(new THREE.PlaneGeometry(2.6, 3.6), hdM, hd, 0, 1.8, 0);
   hd.visible = false;
   return {
-    name: 'academy', group: g, R: 1e5, boxes, cols, bounds, resolve: makeCollider(boxes, cols, bounds, npcSolids), spawn: { x: 0, z: 36, yaw: 0 }, hiddenDoor: hd, hiddenMat: hdM,
+    name: 'academy', group: g, R: 1e5, boxes, cols, bounds, resolve: makeCollider(boxes, cols, bounds, npcSolids), spawn: { x: 0, z: 36, yaw: 0 }, hiddenDoor: hd, hiddenMat: hdM, lingStone, lingM, lingBeam, lanternGlow, moon, pages, flyRings,
     H: () => 0, sky: [0x5a9ae0, 0xb8daf4, 0xeaf2f6], sunDir: V3(-.4, .7, -.45).normalize(), sunCol: [1, .95, .85], fog: [0xdce8f0, 60, 300],
     hemi: [0xf0f6ff, 0xa89a80, .95], sunL: [0xfff4e4, 1.9], ground: 0x9ab87a,
     update(dt) {
@@ -2852,52 +2918,155 @@ const ACAD = {
   shelfX: [-10.2, -7, -3.8, 3.8, 7, 10.2], shelfZ0: -57.2, shelfZ1: -50.2,
   book: { x: -8.4, z: -46 }, hidden: { x: 0, z: -59.2 },
   ring: { x: 26, z: -12, r: 10 },
+  square: { x: 0, z: -6, r: 12 }, ling: { x: 0, z: -8 },
+  pharm: { x0: 48, x1: 62, z0: -42, z1: -30, dx0: 53.5, dx1: 56.5 }, dining: { x0: -64, x1: -48, z0: -42, z1: -26, dx0: -57.5, dx1: -54.5 }, dorm: { x0: -64, x1: -48, z0: -60, z1: -48, dx0: -57.5, dx1: -54.5 },
+  bell: { x: -32, z: 8 }, dummy: { x: -30, z: -20 },
+  pages: [[-40, 34], [-30, 12], [-58, -10], [-56, -34], [-38, -20], [8.5, -48.6], [18, 37], [44, -14], [55, -33], [58, 12]],
+  flyRings: [[0, -24, 2.3], [-14, -1, 2.3], [-24, 8, 2.4], [-8, 10, 2.3], [14, 8, 2.3], [26, -12, 2.4]],
   stream: { z0: 16, z1: 20 },
   ponds: [{ x: -27, z: 30, r: 6 }, { x: 26, z: 30, r: 5.5 }],
-  keepClear: [[-3.5, 3.5, -42, 42], [-34, -2, -3.5, 3.5], [-34, -26, -30, -2], [2, 13, -3.5, 3.5], [12, 42, -27, 3], [-17, 17, -43, -29], [-45, -15, -29, -3], [-6, 6, 14, 22], [-18, -9, 25, 35]],
+  keepClear: [[-3.5, 3.5, -42, 42], [-34, -2, -3.5, 3.5], [-34, -26, -30, -2], [2, 13, -3.5, 3.5], [12, 42, -27, 3], [-17, 17, -43, -29], [-45, -15, -29, -3], [-6, 6, 14, 22], [-18, -9, 25, 35], [-13, 13, -19, 7], [-66, -33, -4, 4], [39, 66, -4, 4], [52, 58, -30, -3], [-59, -54, -26, -3], [-49, -43, -48, -3], [-58, -43, -48, -43], [-38, -26, 2, 14]],
 };
 ACAD.school.dx0 = -32; ACAD.school.dx1 = -28;
 /* ===== 地宫 (underground palace) ===== */
-const DG = { x0: -10, x1: 10, z0: -16, z1: 14, pillars: [[-5.5, -7], [5.5, -7], [-5.5, 1], [5.5, 1], [-5.5, 8.5], [5.5, 8.5]], book: { x: 0, z: -12.6 }, spawn: { x: 0, z: 10.6, yaw: 0 }, stairs: { x: 0, z: 12.6 } };
+/* ===== 地宫 (v4.3): entry corridor → 石门一 → 断崖大殿 (飞剑机关 · 升起石桥) → 石门二 → 圣书密室 ===== */
+const DG = { x0: -10, x1: 10, z0: -16, z1: 14, pillars: [[-5.5, -7], [5.5, -7], [-5.5, 1], [5.5, 1], [-5.5, 8.5], [5.5, 8.5]], book: { x: 0, z: -12.6 },
+  spawn: { x: 0, z: 56, yaw: 0 }, door1Z: 51, door2Z: 15, chasm: { z0: 19, z1: 45, hw: 2.25 }, nearEdge: { x: 0, z: 46.6 }, hallIn: { x: 0, z: 11.5 }, HW: 12 };
+/* split stone door with a big round button; front face at zf (facing +z) */
+function makeSplitDoor(g, zf, w, h, btnY, btnR) {
+  const stoneM = new THREE.MeshLambertMaterial({ color: 0x4a3e58 }), btnM = new THREE.MeshStandardMaterial({ color: 0x2a1236, emissive: 0x8a30ff, emissiveIntensity: .7, roughness: .4, metalness: .3 });
+  const ringM = new THREE.MeshBasicMaterial({ color: 0xd090ff }), crackM = new THREE.MeshBasicMaterial({ color: 0xc070ff, transparent: true, opacity: .25, blending: THREE.AdditiveBlending, depthWrite: false });
+  const haloM = new THREE.MeshBasicMaterial({ color: 0xc070ff, transparent: true, opacity: .85, blending: THREE.AdditiveBlending, depthWrite: false }), glowM = new THREE.MeshBasicMaterial({ color: 0x8030d0, transparent: true, opacity: .28, blending: THREE.AdditiveBlending, depthWrite: false, fog: false });
+  const halves = [];
+  for (const s of [-1, 1]) {
+    const hg = new THREE.Group(); g.add(hg);
+    const slab = new THREE.Mesh(G.box, stoneM); slab.scale.set(w / 2, h, .8); slab.position.set(s * w / 4, h / 2, zf - .5); hg.add(slab);
+    for (let k = 0; k < 3; k++) mk(G.box, crackM, hg, s * w / 4, 1 + k * 1.6, zf - .08, w / 2 - .6, .06, .02); // rune lines
+    const disc = new THREE.Mesh(new THREE.CylinderGeometry(btnR, btnR, .24, 24, 1, false, s > 0 ? 0 : Math.PI, Math.PI), btnM); disc.rotation.x = Math.PI / 2; disc.position.set(0, btnY, zf + .02); hg.add(disc);
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(btnR * .78, .07, 6, 24, Math.PI), ringM); ring.rotation.z = s > 0 ? -Math.PI / 2 : Math.PI / 2; ring.position.set(0, btnY, zf + .16); hg.add(ring);
+    const halo = new THREE.Mesh(new THREE.TorusGeometry(btnR * 1.22, .16, 6, 24, Math.PI), haloM); halo.rotation.z = ring.rotation.z; halo.position.set(0, btnY, zf + .05); hg.add(halo);
+    const glow = new THREE.Mesh(new THREE.CircleGeometry(btnR * 1.9, 20, s > 0 ? -Math.PI / 2 : Math.PI / 2, Math.PI), glowM); glow.position.set(0, btnY, zf + .03); hg.add(glow);
+    halves.push({ g: hg, s, disc, ring, halo, glow });
+  }
+  const crack = mk(G.box, new THREE.MeshBasicMaterial({ color: 0xe0a0ff, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false }), g, 0, h / 2, zf + .05, .08, h, .05);
+  return { halves, crack, btnM, k: 0, target: 0, open: false, zf, w, btnY, btnR };
+}
 function buildDigongWorld() {
   const g = new THREE.Group(); g.visible = false; scene.add(g);
-  const boxes = [], cols = [], L = [], bounds = { x0: DG.x0 + .6, x1: DG.x1 - .6, z0: DG.z0 + .6, z1: DG.z1 - .6 };
-  const floorTex = canvasTex(1024, 1024, (c, w, h) => { c.fillStyle = '#2a2232'; c.fillRect(0, 0, w, h); for (let i = 0; i < 16; i++) for (let j = 0; j < 16; j++) { const v = 34 + Math.random() * 14; c.fillStyle = `rgb(${v},${v - 6},${v + 8})`; c.fillRect(i * 64 + 2, j * 64 + 2, 60, 60); } c.strokeStyle = 'rgba(190,90,255,.55)'; c.lineWidth = 5; c.beginPath(); c.arc(w / 2, h * .25, 150, 0, 7); c.stroke(); c.beginPath(); c.arc(w / 2, h * .25, 110, 0, 7); c.stroke(); for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2; c.beginPath(); c.moveTo(w / 2 + Math.cos(a) * 110, h * .25 + Math.sin(a) * 110); c.lineTo(w / 2 + Math.cos(a + 2.1) * 110, h * .25 + Math.sin(a + 2.1) * 110); c.stroke(); } });
+  const C = DG.chasm, W = DG.HW, boxes = [], cols = [], L = [], bounds = { x0: -W + .6, x1: W - .6, z0: DG.z0 + .6, z1: 57.4 };
+  const floorTex = canvasTex(1024, 1024, (c, w, h) => { c.fillStyle = '#2a2232'; c.fillRect(0, 0, w, h); for (let i = 0; i < 16; i++) for (let j = 0; j < 16; j++) { const v = 34 + Math.random() * 14; c.fillStyle = `rgb(${v},${v - 6},${v + 8})`; c.fillRect(i * 64 + 2, j * 64 + 2, 60, 60); } c.strokeStyle = 'rgba(190,90,255,.55)'; c.lineWidth = 5; c.beginPath(); c.arc(w / 2, h * .25, 150, 0, 7); c.stroke(); c.beginPath(); c.arc(w / 2, h * .25, 110, 0, 7); c.stroke(); for (let i = 0; i < 6; i++) { const a = i / 6 * 6.28; c.beginPath(); c.moveTo(w / 2 + Math.cos(a) * 110, h * .25 + Math.sin(a) * 110); c.lineTo(w / 2 + Math.cos(a + 2.1) * 110, h * .25 + Math.sin(a + 2.1) * 110); c.stroke(); } });
   const fl = new THREE.Mesh(new THREE.PlaneGeometry(DG.x1 - DG.x0, DG.z1 - DG.z0), new THREE.MeshLambertMaterial({ map: floorTex })); fl.rotation.x = -Math.PI / 2; fl.position.set(0, 0, (DG.z0 + DG.z1) / 2); g.add(fl);
-  const wallC = 0x3a3044, H = 7;
-  for (const [a0, a1, c0, c1] of [[DG.x0 - 1, DG.x1 + 1, DG.z0 - 1, DG.z0], [DG.x0 - 1, DG.x1 + 1, DG.z1, DG.z1 + 1], [DG.x0 - 1, DG.x0, DG.z0, DG.z1], [DG.x1, DG.x1 + 1, DG.z0, DG.z1]]) { boxes.push({ x0: a0, x1: a1, z0: c0, z1: c1 }); L.push([G.box, wallC, M4((a0 + a1) / 2, H / 2, (c0 + c1) / 2, a1 - a0, H, c1 - c0)]); }
-  L.push([G.box, 0x1a1420, M4(0, H, (DG.z0 + DG.z1) / 2, DG.x1 - DG.x0 + 2, .3, DG.z1 - DG.z0 + 2)]);
-  for (const [x, z] of DG.pillars) { cols.push({ x, z, r: .75 }); L.push([G.cyl, 0x4a3a56, M4(x, H / 2, z, .6, H, .6)]); L.push([G.box, 0x2a2232, M4(x, .3, z, 1.6, .6, 1.6)]); L.push([G.box, 0x2a2232, M4(x, H - .3, z, 1.5, .6, 1.5)]); }
-  // altar + 魔修圣书 lectern
-  boxes.push({ x0: -2.2, x1: 2.2, z0: DG.z0, z1: -13.6 }); L.push([G.box, 0x2a2232, M4(0, .4, (DG.z0 - 13.6) / 2, 4.4, .8, -13.6 - DG.z0)]);
+  const wallC = 0x3a3044, Hh = 7, HB = 16, box = (x0, x1, y0, y1, z0, z1, c) => L.push([G.box, c, M4((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2, x1 - x0, y1 - y0, z1 - z0)]);
+  // ---- secret chamber (original hall) ----
+  for (const [a0, a1, c0, c1] of [[DG.x0 - 1, DG.x1 + 1, DG.z0 - 1, DG.z0], [-W, DG.x0, DG.z0, DG.z1], [DG.x1, W, DG.z0, DG.z1]]) { boxes.push({ x0: a0, x1: a1, z0: c0, z1: c1 }); box(a0, a1, 0, Hh, c0, c1, wallC); }
+  box(DG.x0 - 1, DG.x1 + 1, Hh, Hh + .3, DG.z0 - 1, DG.z1, 0x1a1420);
+  for (const [x, z] of DG.pillars) { cols.push({ x, z, r: .75 }); L.push([G.cyl, 0x4a3a56, M4(x, Hh / 2, z, .6, Hh, .6)]); L.push([G.box, 0x2a2232, M4(x, .3, z, 1.6, .6, 1.6)]); L.push([G.box, 0x2a2232, M4(x, Hh - .3, z, 1.5, .6, 1.5)]); }
+  boxes.push({ x0: -2.2, x1: 2.2, z0: DG.z0, z1: -13.05 }); box(-2.2, 2.2, 0, .8, DG.z0, -13.6, 0x2a2232);
   cols.push({ x: DG.book.x, z: DG.book.z, r: .5 }); L.push([G.cyl, 0x1a1420, M4(DG.book.x, .55, DG.book.z, .15, 1.1, .15)]); L.push([G.box, 0x2a1a30, M4(DG.book.x, 1.15, DG.book.z, .8, .1, .6, 0, .35)]);
-  // stairs (exit) at south
-  for (let i = 0; i < 6; i++) { const dep = 2.4 - i * .38; L.push([G.box, i % 2 ? 0x4a3e56 : 0x54486a, M4(0, (i + 1) * .15, DG.z1 - dep / 2, 3.6, (i + 1) * .3, dep)]); }
-  boxes.push({ x0: -1.8, x1: 1.8, z0: DG.z1 - 2.4, z1: DG.z1 });
-  for (const sx of [-2, 2]) { L.push([G.box, 0x2a2232, M4(sx, 1.1, DG.z1 - 1.2, .4, 2.2, 2.4)]); boxes.push({ x0: sx - .2, x1: sx + .2, z0: DG.z1 - 2.4, z1: DG.z1 }); }
-  L.push([G.box, 0x0a0810, M4(0, 2.9, DG.z1 - .04, 3.2, 2.2, .05)]);
-  // chains/runes on walls
-  for (let i = 0; i < 6; i++) { const z = DG.z0 + 3 + i * 4.6; for (const sx of [-1, 1]) L.push([G.box, 0x6a3a9a, M4(sx * (DG.x1 - .05), 3.2, z, .05, 1.6, .9)]); }
+  for (let i = 0; i < 6; i++) { const z = DG.z0 + 3 + i * 4.4; for (const sx of [-1, 1]) L.push([G.box, 0x6a3a9a, M4(sx * (DG.x1 - .05), 3.2, z, .05, 1.6, .9)]); }
+  // ---- wall 2 (between far ledge and chamber): fixed parts + split door (x -5..5) ----
+  const z2 = DG.door2Z; for (const s of [-1, 1]) { boxes.push({ x0: s < 0 ? -W : 5, x1: s < 0 ? -5 : W, z0: z2 - 1, z1: z2 }); box(s < 0 ? -W : 5, s < 0 ? -5 : W, -30, HB, z2 - 1, z2, wallC); }
+  box(-5, 5, 6.5, HB, z2 - 1, z2, wallC); const door2Box = { x0: -5, x1: 5, z0: z2 - 1, z1: z2 }; boxes.push(door2Box);
+  // ---- chasm hall: far ledge (z 15..19), chasm (19..45), near ledge (45..50) ----
+  box(-W, W, -30, 0, z2, C.z0, 0x3a3046); box(-W, W, -30, 0, C.z1, DG.door1Z - 1, 0x3a3046);
+  for (const s of [-1, 1]) { const x0 = s < 0 ? -W - 1 : W, x1 = s < 0 ? -W : W + 1; boxes.push({ x0, x1, z0: z2, z1: DG.door1Z }); box(x0, x1, -30, HB, z2 - 1, DG.door1Z, wallC); for (let i = 0; i < 7; i++) L.push([G.box, 0x6a3a9a, M4(s * (W - .05), 4 + (i % 2) * 3, 17 + i * 4.8, .05, 2, .6)]); }
+  for (const [z0, z1] of [[C.z0 - .6, C.z0], [C.z1, C.z1 + .6]]) for (const s of [-1, 1]) box(s * 2.6 - .25, s * 2.6 + .25, 0, .9, z0 + .05, z1 - .05, 0x54486a); // bridge-head posts
+  const chasmBox = { x0: -W, x1: W, z0: C.z0, z1: C.z1 }; boxes.push(chasmBox);
+  // abyss: dark floor far below + purple haze
+  const abyss = new THREE.Mesh(new THREE.PlaneGeometry(W * 2, C.z1 - C.z0), new THREE.MeshBasicMaterial({ color: 0x0a0412 })); abyss.rotation.x = -Math.PI / 2; abyss.position.set(0, -26, (C.z0 + C.z1) / 2); g.add(abyss);
+  const haze = new THREE.Mesh(new THREE.PlaneGeometry(W * 2, C.z1 - C.z0), new THREE.MeshBasicMaterial({ color: 0x5a20a0, transparent: true, opacity: .35, blending: THREE.AdditiveBlending, depthWrite: false })); haze.rotation.x = -Math.PI / 2; haze.position.set(0, -9, (C.z0 + C.z1) / 2); g.add(haze);
+  // ---- wall 1 + entry corridor ----
+  const z1 = DG.door1Z; for (const s of [-1, 1]) { boxes.push({ x0: s < 0 ? -W : 5, x1: s < 0 ? -5 : W, z0: z1 - 1, z1 }); box(s < 0 ? -W : 5, s < 0 ? -5 : W, -30, HB, z1 - 1, z1, wallC); }
+  box(-5, 5, -.4, 0, z1 - 1.02, z1 + .02, 0x342a3e); box(-5, 5, -.4, 0, z2 - 1.02, z2 + .02, 0x342a3e); box(-5, 5, 6.5, HB, z1 - 1, z1, wallC); const door1Box = { x0: -5, x1: 5, z0: z1 - 1, z1 }; boxes.push(door1Box);
+  for (const s of [-1, 1]) { boxes.push({ x0: s < 0 ? -W : 4.5, x1: s < 0 ? -4.5 : W, z0: z1, z1: 59 }); box(s < 0 ? -5.5 : 4.5, s < 0 ? -4.5 : 5.5, 0, 6.5, z1, 58.6, wallC); }
+  box(-5.5, 5.5, -.4, 0, z1, 58.6, 0x342a3e); box(-5.5, 5.5, 6.5, 6.8, z1, 58.6, 0x1a1420); box(-5.5, 5.5, 0, 6.5, 58, 58.6, wallC);
   g.add(new THREE.Mesh(mergeColored(L), new THREE.MeshLambertMaterial({ vertexColors: true })));
-  // glowing braziers (shared emissive mat) along walls — collision
-  const fireM = new THREE.MeshBasicMaterial({ color: 0xc070ff });
-  const fires = [];
-  for (const z of [-10, -3, 5]) for (const sx of [-1, 1]) { const x = sx * 8.6; cols.push({ x, z, r: .45 }); mk(G.cyl, std(0x2a2232), g, x, .5, z, .35, 1, .35); fires.push(mk(G.sphLo, fireM, g, x, 1.2, z, .25, .35, .25)); }
+  // bridge (rises from the chasm)
+  const bridge = new THREE.Group(); g.add(bridge); const blen = C.z1 - C.z0 + .4;
+  mk(G.box, new THREE.MeshLambertMaterial({ color: 0x5a4e6a }), bridge, 0, -.3, (C.z0 + C.z1) / 2, C.hw * 2, .6, blen);
+  const edgeM = new THREE.MeshBasicMaterial({ color: 0xb060ff, transparent: true, opacity: .8, blending: THREE.AdditiveBlending, depthWrite: false });
+  for (const s of [-1, 1]) mk(G.box, edgeM, bridge, s * (C.hw - .06), .01, (C.z0 + C.z1) / 2, .1, .04, blen);
+  for (let i = 0; i < 6; i++) mk(G.box, new THREE.MeshLambertMaterial({ color: 0x3a3048 }), bridge, 0, -1.4, C.z0 + 2 + i * 4.4, C.hw * 1.6, 2.2, .5);
+  bridge.position.y = -16; bridge.visible = false;
+  // purple barrier in doorway 2 (solid unless the player is 隐身)
+  const barrierBox = { x0: -5, x1: 5, z0: z2 - 1.2, z1: z2 + .2, off: true }; boxes.push(barrierBox);
+  const barM = new THREE.MeshBasicMaterial({ color: 0xa040ff, transparent: true, opacity: .45, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
+  const barrier = new THREE.Group(); barrier.visible = false; g.add(barrier); mk(G.box, barM, barrier, 0, 3.25, z2 - .5, 9.8, 6.5, .08);
+  const barRingM = new THREE.MeshBasicMaterial({ color: 0xe0b0ff, transparent: true, opacity: .7, blending: THREE.AdditiveBlending, depthWrite: false });
+  for (let i = 0; i < 4; i++) mk(G.box, barRingM, barrier, 0, .8 + i * 1.6, z2 - .5, 9.8, .05, .1);
+  const door1 = makeSplitDoor(g, z1, 10, 6.5, 2.6, 1.7), door2 = makeSplitDoor(g, z2, 10, 6.5, 3.2, 2.3);
+  door1.box = door1Box; door2.box = door2Box;
+  const fireM = new THREE.MeshBasicMaterial({ color: 0xc070ff }), fires = [];
+  const brazier = (x, z) => { cols.push({ x, z, r: .45 }); mk(G.cyl, std(0x2a2232), g, x, .5, z, .35, 1, .35); fires.push(mk(G.sphLo, fireM, g, x, 1.2, z, .25, .35, .25)); };
+  for (const z of [-10, -3, 5]) for (const sx of [-1, 1]) brazier(sx * 8.6, z);
+  for (const sx of [-1, 1]) { brazier(sx * 9.5, 47.5); brazier(sx * 9.5, 17); brazier(sx * 4.1, 55); }
   const bookGlow = mk(G.sph, auraMat(0xb050ff, 1.6, 1.4), g, DG.book.x, 1.3, DG.book.z, .5, .4, .5);
   const altarL = new THREE.PointLight(0xb060ff, 6, 14, 1.6); altarL.position.set(0, 2.5, -12); g.add(altarL);
-  return {
-    name: 'digong', group: g, R: 1e5, boxes, cols, bounds, resolve: makeCollider(boxes, cols, bounds, npcSolids), spawn: DG.spawn, bookGlow,
-    H: () => 0, sky: [0x08040e, 0x140a20, 0x1e1028], sunDir: V3(0, 1, 0), sunCol: [.4, .2, .6], fog: [0x1a0e28, 10, 48],
+  // floor-shatter visuals (boss end)
+  const pit = new THREE.Mesh(discGeo, new THREE.MeshBasicMaterial({ color: 0x040208 })); pit.rotation.x = -Math.PI / 2; pit.position.set(0, .03, -6); pit.visible = false; g.add(pit);
+  const W2 = {
+    name: 'digong', group: g, R: 1e5, boxes, cols, bounds, resolve: makeCollider(boxes, cols, bounds, npcSolids), spawn: DG.spawn, bookGlow, door1, door2, bridge, chasmBox, pit, bridgeK: 0, bridgeT: 0, barrier, barrierBox, barM, barOn: false,
+    H: () => 0, sky: [0x08040e, 0x140a20, 0x1e1028], sunDir: V3(0, 1, 0), sunCol: [.4, .2, .6], fog: [0x1a0e28, 14, 66],
     hemi: [0xc0a0f0, 0x5a4070, 2.6], sunL: [0xc0a0ff, .7], ground: 0x201828,
+    setState(o) { for (const [d, v] of [[door1, o.d1], [door2, o.d2]]) { d.k = d.target = v ? 1 : 0; d.open = !!v; applyDoor(d); }
+      W2.bridgeK = W2.bridgeT = o.br ? 1 : 0; applyBridge(W2); W2.barOn = !!o.bar; barrier.visible = W2.barOn; barrierBox.off = !W2.barOn; pit.visible = false; pit.scale.setScalar(1); },
+    openDoor(d) { d.target = 1; d.crackT = 0; sfx('stone'); },
+    raiseBridge() { W2.bridgeT = 1; bridge.visible = true; },
     update(dt) {
-      for (const f of fires) { f.scale.y = .35 + Math.sin(gameT * 9 + f.position.z) * .06; if (Math.random() < .25) emit(f.position.x + rand(-.15, .15), 1.3, f.position.z + rand(-.15, .15), 0, rand(.8, 1.6), 0, 0xc070ff, .35, .6, 0); }
-      if (Math.random() < .4) emit(rand(-9, 9), rand(0, 5), rand(-15, 13), rand(-.1, .1), rand(.05, .3), rand(-.1, .1), 0x9a50ff, .2, 3, 0);
+      for (const f of fires) { f.scale.y = .35 + Math.sin(gameT * 9 + f.position.z) * .06; if (Math.random() < .2) emit(f.position.x + rand(-.15, .15), 1.3, f.position.z + rand(-.15, .15), 0, rand(.8, 1.6), 0, 0xc070ff, .35, .6, 0); }
+      if (Math.random() < .5) emit(rand(-9, 9), rand(0, 5), rand(-15, 56), rand(-.1, .1), rand(.05, .3), rand(-.1, .1), 0x9a50ff, .2, 3, 0);
+      if (Math.random() < .4) emit(rand(-11, 11), rand(-12, -4), rand(C.z0, C.z1), 0, rand(1, 3), 0, 0x8a40ff, .5, 2, 0);
       bookGlow.scale.setScalar(.5 + Math.sin(gameT * 2.5) * .05);
+      if (barrier.visible) { const st = player.stealthT > 0; barM.opacity = (st ? .16 : .42) + Math.sin(gameT * 3) * .06; barrier.children.forEach((m, i) => { if (i) m.position.y = .4 + ((gameT * .8 + i * 1.6) % 6.4); }); if (Math.random() < .4) emit(rand(-4.8, 4.8), rand(0, 6.4), DG.door2Z - .5, 0, rand(.2, .6), 0, 0xc080ff, .25, .9, 0); }
+      for (const d of [door1, door2]) {
+        if (d.target > d.k) { d.crackT = (d.crackT || 0) + dt; d.crack.material.opacity = Math.min(1, d.crackT * 2) * (1 - d.k); if (d.crackT > .7) { d.k = Math.min(1, d.k + dt / 1.8); if (Math.random() < .6) emit(rand(-1, 1) * d.k * 5, rand(0, 6), d.zf + .3, rand(-1, 1), rand(-.5, .5), .5, 0x8a7a9a, .4, .8, -3); shake = Math.max(shake, .05); } applyDoor(d); }
+      }
+      if (W2.bridgeT > W2.bridgeK) { W2.bridgeK = Math.min(1, W2.bridgeK + dt / 2.6); shake = Math.max(shake, .07); if (Math.random() < .8) emit(rand(-2.2, 2.2), bridge.position.y, rand(C.z0, C.z1), 0, rand(2, 4), 0, 0xb070ff, .5, .8, -2); applyBridge(W2); }
     },
   };
+  return W2;
+}
+function applyDoor(d) { const e = d.k * d.k * (3 - 2 * d.k); for (const h of d.halves) { h.g.position.x = h.s * e * 5.3; h.disc.visible = h.ring.visible = h.halo.visible = h.glow.visible = d.k < .98; } d.box.off = d.k > .55; d.open = d.k >= 1; if (d.k >= 1) d.crack.material.opacity = 0; d.btnM.emissiveIntensity = d.target ? 2.2 : .7; }
+function applyBridge(w) { const e = 1 - Math.pow(1 - w.bridgeK, 3); w.bridge.position.y = lerp(-16, 0, e); w.bridge.visible = w.bridgeK > 0; w.chasmBox.off = w.bridgeK >= 1; }
+/* ===== 地底洞天 (cave below the 地宫): winding tunnel guided by a purple orb → 紫光晶石 → 传送阵 ===== */
+const CAVE = { rects: [[-5, 5, 22, 32], [-2, 2, 7, 22], [-2, 16, 4, 8], [12, 16, -12, 4], [-8, 16, -16, -12], [-16, 0, -34, -16]],
+  spawn: { x: 0, z: 28.5, yaw: 0 }, crystal: { x: -8, z: -27.5 }, circle: { x: -8, z: -20.5 },
+  orbPath: [[0, 24], [0, 13], [0, 6], [7, 6], [14, 6], [14, -2], [14, -10], [14, -14], [5, -14], [-4, -14], [-8, -18], [-8, -22.5]] };
+function buildCaveWorld() {
+  const g = new THREE.Group(); g.visible = false; scene.add(g);
+  const X0 = -18, X1 = 18, Z0 = -36, Z1 = 34, walk = (x, z) => CAVE.rects.some(r => x > r[0] && x < r[1] && z > r[2] && z < r[3]);
+  const boxes = [], L = []; let sd = 11; const rr = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
+  for (let z = Z0; z < Z1; z++) { let run = null; for (let x = X0; x <= X1; x++) { const solid = x < X1 && !walk(x + .5, z + .5); if (solid && run === null) run = x; if (!solid && run !== null) { boxes.push({ x0: run, x1: x, z0: z, z1: z + 1 }); run = null; } } }
+  // rock wall visuals: only cells bordering the walkable area (merged)
+  for (let z = Z0; z < Z1; z++) for (let x = X0; x < X1; x++) { if (walk(x + .5, z + .5)) continue; let edge = false; for (const [a, b] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, -1], [1, -1], [-1, 1]]) if (walk(x + .5 + a, z + .5 + b)) edge = true; if (!edge) continue; const h = 3.6 + rr() * 3.2, c = rr() < .5 ? 0x3a3242 : 0x2e2836; L.push([G.box, c, M4(x + .5, h / 2, z + .5, 1.05 + rr() * .3, h, 1.05 + rr() * .3, rr() * .6)]); if (rr() < .12) L.push([new THREE.ConeGeometry(.18, .7, 5), 0xb070ff, M4(x + .5 + (rr() - .5) * .6, .5 + rr() * 2.5, z + .5 + (rr() - .5) * .6, 1, 1, 1, rr() * 3, (rr() - .5) * 1.2, (rr() - .5) * 1.2)]); }
+  for (const r of CAVE.rects) { L.push([G.box, 0x241e2a, M4((r[0] + r[1]) / 2, -.2, (r[2] + r[3]) / 2, r[1] - r[0] + 1, .4, r[3] - r[2] + 1)]); L.push([G.box, 0x120e16, M4((r[0] + r[1]) / 2, 7, (r[2] + r[3]) / 2, r[1] - r[0] + 2, .4, r[3] - r[2] + 2)]); }
+  for (let i = 0; i < 40; i++) { const r = CAVE.rects[(rr() * CAVE.rects.length) | 0]; const x = r[0] + .8 + rr() * (r[1] - r[0] - 1.6), z = r[2] + .8 + rr() * (r[3] - r[2] - 1.6); L.push([new THREE.ConeGeometry(.12 + rr() * .15, .6 + rr(), 5), 0x4a3e56, M4(x, 6.8 - .4, z, 1, 1, 1, 0, Math.PI)]); }
+  g.add(new THREE.Mesh(mergeColored(L), new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true })));
+  const cols = [{ x: CAVE.crystal.x, z: CAVE.crystal.z, r: 1.3 }];
+  const crystal = new THREE.Group(); crystal.position.set(CAVE.crystal.x, 1.9, CAVE.crystal.z); g.add(crystal);
+  const crM = new THREE.MeshStandardMaterial({ color: 0x8a40e0, emissive: 0xa050ff, emissiveIntensity: 1.4, roughness: .15, metalness: .2, transparent: true, opacity: .92, flatShading: true });
+  const core = new THREE.Mesh(new THREE.IcosahedronGeometry(1.15, 1), crM); crystal.add(core); const aura = mk(G.sph, auraMat(0xc070ff, 1.8, 1.4), crystal, 0, 0, 0, 1.7, 1.7, 1.7);
+  const crL = new THREE.PointLight(0xb060ff, 5, 16, 1.6); crL.position.set(CAVE.crystal.x, 2.4, CAVE.crystal.z); g.add(crL);
+  const orb = new THREE.Group(); g.add(orb); mk(G.sphLo, new THREE.MeshBasicMaterial({ color: 0xf0d0ff }), orb, 0, 0, 0, .16, .16, .16); mk(G.sph, auraMat(0xc070ff, 1.4, 1.6), orb, 0, 0, 0, .45, .45, .45);
+  const circle = new THREE.Group(); circle.position.set(CAVE.circle.x, .04, CAVE.circle.z); circle.visible = false; g.add(circle);
+  const cm = addMat(0xc080ff, .85); const c1 = mk(ringGeo, cm, circle, 0, 0, 0, 1.7, 1.7, 1.7); c1.rotation.x = -Math.PI / 2; const c2 = mk(ringGeo, addMat(0x8a40ff, .6), circle, 0, .01, 0, 1.1, 1.1, 1.1); c2.rotation.x = -Math.PI / 2; const c3 = mk(discGeo, addMat(0x6a20c0, .25), circle, 0, .005, 0, 1.7, 1.7, 1.7); c3.rotation.x = -Math.PI / 2;
+  const bounds = { x0: X0 + .5, x1: X1 - .5, z0: Z0 + .5, z1: Z1 - .5 };
+  const W = {
+    name: 'cave', group: g, R: 1e5, boxes, cols, bounds, resolve: makeCollider(boxes, cols, bounds, npcSolids), spawn: CAVE.spawn, crystal, core, aura, crL, orb, circle, walk, orbI: 0, orbOn: false,
+    H: () => 0, sky: [0x040208, 0x0a0610, 0x100a16], sunDir: V3(0, 1, 0), sunCol: [.3, .2, .45], fog: [0x120c1a, 8, 36],
+    hemi: [0xc8b0f0, 0x4a3a60, 3.4], sunL: [0xa090d0, .5], ground: 0x18121e,
+    update(dt) {
+      crystal.rotation.y += dt * .5; crystal.position.y = 1.9 + Math.sin(gameT * 1.3) * .12; if (crystal.visible && Math.random() < .5) emit(CAVE.crystal.x + rand(-1.5, 1.5), rand(.5, 3), CAVE.crystal.z + rand(-1.5, 1.5), 0, rand(.3, .8), 0, 0xc080ff, .3, 1.2, 0);
+      if (circle.visible) { c1.rotation.z += dt * .8; c2.rotation.z -= dt * 1.4; if (Math.random() < .6) { const a = rand(0, 6.28); emit(CAVE.circle.x + Math.cos(a) * 1.6, .1, CAVE.circle.z + Math.sin(a) * 1.6, 0, rand(1, 2.2), 0, 0xc080ff, .3, .9, 0); } }
+      if (orb.visible && Math.random() < .5) emit(orb.position.x + rand(-.1, .1), orb.position.y, orb.position.z + rand(-.1, .1), 0, rand(-.2, .2), 0, 0xd0a0ff, .18, .7, 0);
+    },
+  };
+  return W;
 }
 worlds.academy = buildAcademyWorld();
 worlds.digong = buildDigongWorld();
+worlds.cave = buildCaveWorld();
+
 /* ================= v4 · 第一章 — characters (primitive-built, merged per limb: ~5 draw calls each) ================= */
 const CPOSE = {
   idle: { ar: [0, .1], al: [0, -.1], lean: 0, twist: 0, crouch: 0 },
@@ -2991,7 +3160,21 @@ const CAST = {
     extraBody(B, w) { B.push([new THREE.ConeGeometry(.36 * w, .62, 12), 0x26302c, M4(0, 1.3, -.02, 1, 1, .85)]); for (let i = 0; i < 6; i++) B.push([G.cone, 0xc8d0d8, M4(-.12 + i * .05, 1.0, .2 * w * .78 + .02, .012, .07, .012, 0, Math.PI)]); } },
   ghost: { name: '魔修虚影', title: '', h: 1.3, w: 1.15, robe: 0x5a20a0, lower: 0x3a1070, trim: 0xd090ff, inner: 0x8a40d0, skin: 0x7a40c0, hair: 0x2a0a50, eye: 0xffd0ff, angry: true, sleeve: .14, noLegs: true, ghost: true, ghostMat: ghostCharMat,
     head(Hd, hair) { for (const s of [-1, 1]) Hd.push([G.cone, 0xd090ff, M4(s * .07, .26, -.02, .02, .14, .02, 0, -.3, s * -.4)]); Hd.push([G.box, hair, M4(0, -.1, -.09, .24, .45, .05)]); } },
+  dummy: { name: '黑甲陪练', title: '木人', h: 1.08, w: 1.25, robe: 0x1c1c22, lower: 0x141418, trim: 0x6a6a76, inner: 0x2a2a32, skin: 0x2a2a30, hair: 0x101014, sash: 0x8a2a2a, sleeve: .08, hairStyle: 'bald', eye: 0xd04030,
+    head(Hd) { Hd.push([G.box, 0x18181e, M4(0, .06, 0, .27, .3, .27)]); Hd.push([G.box, 0x6a6a76, M4(0, .08, .14, .2, .03, .02)]); Hd.push([G.cone, 0x2a2a32, M4(0, .26, 0, .1, .12, .1)]); },
+    extraBody(B, w) { for (const s of [-1, 1]) B.push([G.sph, 0x2a2a32, M4(s * .23 * w, 1.47, 0, .12 * w, .08, .12)]); B.push([G.box, 0x24242a, M4(0, 1.2, .16 * w, .36 * w, .4, .04)]); } },
+  d1: { name: '弟子甲', title: '外门', h: .98, w: .9, robe: 0x5a7aa8, lower: 0x4a6890, trim: 0xe8eef4, inner: 0xf2f4f8, hair: 0x16121a, sash: 0x2a3a5a, sleeve: .08 },
+  d2: { name: '弟子乙', title: '外门', h: .94, w: .82, robe: 0xa86a5a, lower: 0x8a5446, trim: 0xf4ece4, inner: 0xf8f2ea, hair: 0x1a1210, sash: 0x5a2a20, sleeve: .07 },
+  d3: { name: '弟子丙', title: '外门', h: 1.0, w: .95, robe: 0x7a8a5a, lower: 0x627048, trim: 0xeef2e4, inner: 0xf4f6ee, hair: 0x121010, sash: 0x3a4a2a, sleeve: .08 },
+  pharm: { name: '药师', title: '药房', h: .96, w: 1.0, robe: 0x8a7a5a, lower: 0x6e6046, trim: 0x4a6a3a, inner: 0xeee6d4, hair: 0xb8b8b0, brow: 0xd8d8d0, sash: 0x4a6a3a, sleeve: .12 },
+  cook: { name: '伙夫', title: '食堂', h: .98, w: 1.3, robe: 0xd8d0c0, lower: 0x9a8a70, trim: 0x6a5a40, inner: 0xf4f0e8, skin: 0xe0b090, hair: 0x2a2018, sash: 0x8a3a2a, sleeve: .09, hairStyle: 'bald' },
+  guard: { name: '守门弟子', title: '山门', h: 1.04, w: 1.05, robe: 0x4a5a6a, lower: 0x3a4856, trim: 0xd8b25a, inner: 0xe8e8e8, hair: 0x101014, sash: 0x8a2a2a, sleeve: .07, weaponR: W_GREAT, weaponRx: 1.0 },
+  appr: { name: '魔修学徒虚影', title: '', h: .95, w: .85, robe: 0x6a30b0, lower: 0x4a1a80, trim: 0xc080ff, inner: 0x8a50d0, skin: 0x8a50c0, hair: 0x2a0a50, eye: 0xffc0ff, angry: true, sleeve: .1, noLegs: true, ghost: true, ghostMat: null,
+    head(Hd, hair) { Hd.push([G.box, hair, M4(0, -.1, -.09, .22, .4, .05)]); } },
 };
+/* each 学徒虚影 gets its own shader material (independent fade / hit flash), sharing the global time uniform */
+function newApprMat() { const m = ghostCharMat.clone(); m.uniforms.t = timeU; m.uniforms.col.value.set(0xb070ff); m.userData.keepE = true; return m; }
+function makeAppr() { CAST.appr.ghostMat = newApprMat(); const a = makeActor('appr', { float: true, kbS1: true, speed: 2.6 }); a.world = 'digong'; return a; }
 function makeActor(id, extra = {}) {
   const c = CAST[id], m = buildChar(c);
   const holder = new THREE.Group(); holder.add(m.root); scene.add(holder); holder.visible = false;
@@ -3015,7 +3198,7 @@ function animActor(a, dt) {
   m.body.rotation.set(cur.lean + a.moveAmt * .06, cur.twist + a.spin, 0);
   m.body.position.y = -cur.crouch * .55 + Math.abs(Math.sin(a.ph)) * .04 * a.moveAmt + idleB * (a.float ? 4 : 0);
   m.head.rotation.x = -cur.lean * .4 + (a.headTilt || 0);
-  if (a.flash > 0) { a.flash = Math.max(0, a.flash - dt * 5); if (a.model.mat === ghostCharMat) ghostCharMat.uniforms.fl.value = a.flash * .6; else setFlash(a, a.flash * .7); }
+  if (a.flash > 0) { a.flash = Math.max(0, a.flash - dt * 5); const mu = a.model.mat && a.model.mat.uniforms; if (mu && mu.fl) mu.fl.value = a.flash * .6; else setFlash(a, a.flash * .7); }
 }
 function placeActor(a, x, z, yaw) { a.x = x; a.z = z; if (yaw !== undefined) a.yaw = yaw; a.path = null; a.moveAmt = 0; syncActor(a); }
 function syncActor(a) { // self-heal any non-finite transform so a bad value can never make an actor vanish permanently
@@ -3035,14 +3218,14 @@ function walkPath(a, dt) {
 /* ================= foe AI (duels + phantom) ================= */
 function foeTarget(e) { if (e.tgtAlly && ch1.ally && !ch1.ally.retreat) return { x: ch1.ally.x, z: ch1.ally.z, ally: true }; const p = aimPos(); return { x: p.x, z: p.z }; }
 function foeHitArea(e, x, z, r, dmg, kb, melee = true) {
-  let hit = false;
+  let hit = false; dmg = Math.round(dmg * (e.dmgMul || 1));
   if (playerNear(x, z, r + .3)) { const res = hurtPlayer(dmg, { attacker: e, x: e.x, z: e.z, melee }); if (res === 'hit' && kb) knockPlayer(e.x, e.z, kb); hit = true; }
   else if (player.stealthT > 0 && decoy.active && Math.hypot(decoy.pos.x - x, decoy.pos.z - z) < r + .3) decoyHit();
   const al = ch1.ally; if (al && ch1.fight && ch1.fight.withAlly && !al.retreat && Math.hypot(al.x - x, al.z - z) < r + .3) allyHurt(dmg);
   return hit;
 }
 function foeMeleeFront(e, range, half, dmg, kb) {
-  let hit = false;
+  let hit = false; dmg = Math.round(dmg * (e.dmgMul || 1));
   if (inFront(e, player.x, player.z, range, half)) { const res = hurtPlayer(dmg, { attacker: e, x: e.x, z: e.z, melee: true }); if (res === 'hit' && kb) knockPlayer(e.x, e.z, kb); hit = true; }
   else if (player.stealthT > 0 && decoy.active && inFront(e, decoy.pos.x, decoy.pos.z, range, half)) decoyHit();
   const al = ch1.ally; if (al && ch1.fight && ch1.fight.withAlly && !al.retreat && inFront(e, al.x, al.z, range, half)) allyHurt(dmg);
@@ -3151,37 +3334,89 @@ const FOE_MOHAN = {
 /* ---- 魔修虚影: floating phantom; may target 林清风 ---- */
 const FOE_GHOST = {
   hp: 7600, tough: 260, lv: 5, idlePose: 'float', speed: 3.0, deadPose: 'sky',
-  cd: e => rand(1.0, 1.6),
-  think(e, dt, tg, d, dx, dz) { faceActor(e, tg.x, tg.z, dt * 4); if (d > 2.8) moveFoe(e, dx, dz, FOE_GHOST.speed, dt); e.reT = (e.reT || 0) - dt; if (e.reT <= 0) { e.reT = rand(3, 5); e.tgtAlly = !!(ch1.ally && !ch1.ally.retreat && Math.random() < .3); } },
-  pick(e, d) { const r = Math.random(); if (d < 3.2) return r < .55 ? 'claw' : r < .8 ? 'nova' : 'grasp'; return r < .4 ? 'orbs' : r < .75 ? 'grasp' : 'nova'; },
+  cd: e => rand(1.0, 1.6) * (e.cdMul || 1),
+  reset(e) { // phase 1 baseline (also used on restart); fight ends via cutscene at 10% hp
+    if (e.baseS === undefined) { e.baseS = e.model.root.scale.x; e.baseR = e.radius; e.baseH = e.height; }
+    e.model.root.scale.setScalar(e.baseS); e.radius = e.r = e.baseR; e.height = e.baseH; e.p2 = false; e.trans = 0; e.dmgMul = 1; e.spMul = 1; e.cdMul = 1; e.floorHp = Math.round(e.maxHp * .1); ghostCharMat.uniforms.col.value.set(0x9a40ff);
+  },
+  think(e, dt, tg, d, dx, dz) { faceActor(e, tg.x, tg.z, dt * 4); if (d > 2.8 * (e.p2 ? 1.2 : 1)) moveFoe(e, dx, dz, FOE_GHOST.speed * (e.spMul || 1), dt); e.reT = (e.reT || 0) - dt; if (e.reT <= 0) { e.reT = rand(3, 5); e.tgtAlly = !!(ch1.ally && !ch1.ally.retreat && Math.random() < .3); } },
+  pick(e, d) { const r = Math.random(); if (e.p2 && r < .24) return 'rain'; if (d < 3.2 * (e.p2 ? 1.2 : 1)) return r < .55 ? 'claw' : r < .8 ? 'nova' : 'grasp'; return r < .4 ? 'orbs' : r < .75 ? 'grasp' : 'nova'; },
   acts: {
     claw(e, A) { A.dur = 1.5; setActorPose(e, 'windR'); e.poseK = 7; e.warnT = .6; const fx = e.x + Math.sin(e.yaw) * 1.6, fz = e.z + Math.cos(e.yaw) * 1.6; teleCircle(fx, fz, 2.2, .6, 0xb040ff);
       A.step = (t, p) => { if (p < .6 && t >= .6) { setActorPose(e, 'slashR'); e.poseK = 22; sfx('swish'); foeSlashFx(e, 0xc060ff, .3, 1.2); foeHitArea(e, fx, fz, 2.2, 100, 1.6); } }; },
     orbs(e, A) { A.dur = 1.8; setActorPose(e, 'cast'); e.poseK = 6;
-      A.step = (t, p) => { if (p < .7 && t >= .7) { sfx('whoosh'); for (let i = 0; i < 5; i++) { const a = e.yaw + (i - 2) * .5, mesh = new THREE.Group(); mk(G.sphLo, new THREE.MeshBasicMaterial({ color: 0xe0b0ff }), mesh, 0, 0, 0, .22, .22, .22); mk(G.sphLo, addMat(0x9030ff, .6), mesh, 0, 0, 0, .45, .45, .45); spawnProj({ mesh, pos: V3(e.x, 1.6, e.z), vel: V3(Math.sin(a), 0, Math.cos(a)).multiplyScalar(5.5), r: .8, dmg: 45, life: 4, col: 0xb060ff, attacker: e, upd: pp => { const tg = aimPos(), v = V3(tg.x - pp.pos.x, 0, tg.z - pp.pos.z).normalize().multiplyScalar(6.2); pp.vel.lerp(v, .025); pp.pos.y = lerp(pp.pos.y, 1.2, .05); } }); } } }; },
+      A.step = (t, p) => { if (p < .7 && t >= .7) { sfx('whoosh'); for (let i = 0; i < 5; i++) { const a = e.yaw + (i - 2) * .5, mesh = new THREE.Group(); mk(G.sphLo, new THREE.MeshBasicMaterial({ color: 0xe0b0ff }), mesh, 0, 0, 0, .22, .22, .22); mk(G.sphLo, addMat(0x9030ff, .6), mesh, 0, 0, 0, .45, .45, .45); spawnProj({ mesh, pos: V3(e.x, 1.6, e.z), vel: V3(Math.sin(a), 0, Math.cos(a)).multiplyScalar(5.5), r: .8, dmg: Math.round(45 * (e.dmgMul || 1)), life: 4, col: 0xb060ff, attacker: e, upd: pp => { const tg = aimPos(), v = V3(tg.x - pp.pos.x, 0, tg.z - pp.pos.z).normalize().multiplyScalar(6.2); pp.vel.lerp(v, .025); pp.pos.y = lerp(pp.pos.y, 1.2, .05); } }); } } }; },
     nova(e, A) { A.dur = 2.1; setActorPose(e, 'sky'); e.poseK = 5; e.warnT = 1.3; teleCircle(e.x, e.z, 5, 1.3, 0x8020ff);
       A.step = (t, p) => { if (p < 1.3 && t >= 1.3) { setActorPose(e, 'slam'); e.poseK = 20; sfx('boom'); shake = Math.max(shake, .45); shockRing(V3(e.x, 0, e.z), 0xc070ff, .5, 6, .7); burst(V3(e.x, 1, e.z), 60, 0xb060ff, 9, .6, .7, -2); foeHitArea(e, e.x, e.z, 5, 130, 3); } }; },
+    rain(e, A) { A.dur = 2.6; setActorPose(e, 'sky'); e.poseK = 6; sfx('roar');
+      A.step = (t, p) => { for (const at of [.3, .85, 1.4]) if (p < at && t >= at) { const tp = aimPos(), x = tp.x, z = tp.z; teleCircle(x, z, 1.8, .8, 0xc040ff, () => { sfx('stone'); burst(V3(x, .3, z), 24, 0xc070ff, 6, .5, .5, -4, .7); shockRing(V3(x, 0, z), 0xc070ff, .3, 2.2, .4); foeHitArea(e, x, z, 1.8, 60, 1.0); });
+          const s = cheapSword(purpleSwordM, purpleGoldM, 1.6); s.position.set(x, 7, z); s.rotation.x = Math.PI; addFx(s, .8, k => { s.position.y = .6 + 6.4 * (1 - k * k); }); } }; },
     grasp(e, A, tg) { A.dur = 1.6; setActorPose(e, 'cast'); e.poseK = 6; const pts = [[tg.x, tg.z]]; if (e.hp < e.maxHp * .5) { const p2 = tg.ally ? aimPos() : (ch1.ally && !ch1.ally.retreat ? ch1.ally : null); if (p2) pts.push([p2.x, p2.z]); }
       for (const [x, z] of pts) teleCircle(x, z, 2.0, 1.0, 0x9030ff, () => { sfx('stone'); burst(V3(x, .3, z), 30, 0xb060ff, 7, .5, .6, -4, .8); for (let k = 0; k < 6; k++) { const a = k / 6 * 6.28, s = cheapSword(purpleSwordM, purpleGoldM, 1.4); s.position.set(x + Math.cos(a) * .9, 0, z + Math.sin(a) * .9); s.rotation.z = Math.cos(a) * .4; s.rotation.x = -Math.sin(a) * .4; addFx(s, .6, kk => { s.position.y = Math.sin(Math.min(1, kk * 3) * Math.PI / 2) * .8 - .5 - kk * .3; }); } foeHitArea(e, x, z, 2.0, 90, 1.2, false); }); },
   },
-  tick(e, dt) { if (!e.dead && Math.random() < .8) emit(e.x + rand(-.5, .5), rand(.2, 2.6), e.z + rand(-.5, .5), 0, rand(.5, 1.4), 0, Math.random() < .3 ? 0x2a0a40 : 0xb060ff, rand(.3, .6), rand(.6, 1.2), 0); },
+  tick(e, dt) {
+    if (!e.dead && !e.p2 && !e.trans && e.hp < e.maxHp * .5) { // ---- phase 2 transition ----
+      e.trans = 1.6; if (e.act) cancelAct(e); e.act = null; e.warnT = 0; e.invuln = true; e.stagger = 1.7; e.holder.visible = true;
+      banner('魔修虚影 · 第二形态', '虚影暴涨，攻势更烈！', 1.8); sfx('roar'); shake = Math.max(shake, .55); flashScreen('#b060ff', .35, .6);
+      shockRing(V3(e.x, 0, e.z), 0xc070ff, .5, 7, .8); burst(V3(e.x, 1.5, e.z), 70, 0xb060ff, 9, .6, .9, -1); ghostCharMat.uniforms.col.value.set(0xc03cff);
+    }
+    if (e.trans > 0) { e.trans -= dt; const k = 1 - Math.max(0, e.trans) / 1.6; e.model.root.scale.setScalar(e.baseS * (1 + .45 * k * k * (3 - 2 * k))); e.stagger = Math.max(e.stagger, .05); if (Math.random() < .9) { const a = rand(0, 6.28), r = rand(1.5, 3); emit(e.x + Math.cos(a) * r, rand(.1, 3), e.z + Math.sin(a) * r, -Math.cos(a) * 3, rand(.5, 2), -Math.sin(a) * 3, 0xc070ff, .45, .6, 0); }
+      if (e.trans <= 0) { e.trans = 0; e.p2 = true; e.invuln = false; e.dmgMul = 1.2; e.spMul = 1.3; e.cdMul = .78; e.radius = e.r = e.baseR * 1.3; e.height = e.baseH * 1.4; e.stagger = 0; e.cd = .6; sfx('boom'); shockRing(V3(e.x, 0, e.z), 0xffffff, .3, 4, .5); } }
+    if (!e.dead && Math.random() < (e.p2 ? 1 : .8)) emit(e.x + rand(-.5, .5), rand(.2, e.p2 ? 3.6 : 2.6), e.z + rand(-.5, .5), 0, rand(.5, 1.4), 0, Math.random() < .3 ? 0x2a0a40 : 0xb060ff, rand(.3, .6), rand(.6, 1.2), 0); },
   onDeadTick(e, dt) { e.fade = Math.max(0, (e.fade ?? 1) - dt * .5); ghostCharMat.uniforms.op.value = e.fade; if (Math.random() < .8) emit(e.x + rand(-.6, .6), rand(.2, 2.5), e.z + rand(-.6, .6), 0, rand(1, 2.4), 0, 0xc080ff, .5, .9, 0); },
 };
+/* ---- 魔修学徒虚影 (bridge fight): weak melee phantoms; knocked off the bridge = instant kill ---- */
+const FOE_APPR = {
+  hp: 520, tough: 0, lv: 2, idlePose: 'float', speed: 2.6, deadPose: 'sky',
+  cd: e => rand(1.6, 2.4),
+  think(e, dt, tg, d, dx, dz) { faceActor(e, tg.x, tg.z, dt * 5); if (d > 1.9) moveFoe(e, dx, dz, FOE_APPR.speed, dt); else if (Math.random() < dt * .8) e.sd = -(e.sd || 1); },
+  pick(e, d) { return d < 2.6 ? 'slash' : null; },
+  acts: {
+    slash(e, A) { A.dur = 1.25; setActorPose(e, 'windR'); e.poseK = 8; e.warnT = .5;
+      A.step = (t, p, dt, tg) => { if (t < .35) faceActor(e, tg.x, tg.z, dt * 6); if (p < .5 && t >= .5) { setActorPose(e, 'slashR'); e.poseK = 22; sfx('swish'); foeSlashFx(e, 0xb070ff, .2, .7); foeMeleeFront(e, 2.3, .9, 40, .4); } }; },
+  },
+  tick(e, dt) { apprBridge(e); if (!e.dead && Math.random() < .3) emit(e.x + rand(-.3, .3), rand(.2, 1.6), e.z + rand(-.3, .3), 0, rand(.3, .9), 0, Math.random() < .3 ? 0x2a0a40 : 0xb070ff, rand(.2, .4), rand(.5, 1), 0); },
+  onDeadTick(e, dt) {
+    e.fade = Math.max(0, (e.fade ?? 1) - dt * (e.falling ? .9 : 1.2)); e.model.mat.uniforms.op.value = e.fade;
+    if (e.falling) { e.fallV = (e.fallV || 0) + dt * 22; e.airY = (e.airY || 0) - e.fallV * dt; e.x += (e.fdx || 0) * dt; e.z += (e.fdz || 0) * dt; e.fdx *= .97; e.fdz *= .97; e.holder.rotation.x = Math.min(1.2, (e.holder.rotation.x || 0) + dt * 2); }
+    if (e.fade > 0 && Math.random() < .6) emit(e.x + rand(-.4, .4), (e.airY || 0) + rand(.2, 1.6), e.z + rand(-.4, .4), 0, rand(1, 2), 0, 0xc080ff, .35, .7, 0);
+  },
+};
+/* keep apprentices on the bridge while they walk; only a knockback can carry them over the edge */
+function apprBridge(e) {
+  if (e.dead || world.name !== 'digong' || !world.bridge) return; const C = DG.chasm;
+  if (e.z < C.z0 || e.z > C.z1) return;
+  if (e.kbT > 0) { if (Math.abs(e.x) > C.hw + .2) apprFall(e); return; }
+  e.x = clamp(e.x, -C.hw + .35, C.hw - .35);
+}
+function apprFall(e) {
+  if (e.dead) return; const v = e.kbV || V3(Math.sign(e.x), 0, 0); e.fdx = v.x * .35; e.fdz = v.z * .35; e.kbT = 0; e.falling = true; e.fallV = 2; e.passThrough = true;
+  showNum(V3(e.x, 1.8, e.z), '坠崖', 'brk'); sfx('whoosh'); burst(V3(e.x, .8, e.z), 26, 0xc080ff, 5, .5, .7, -3);
+  e.floorHp = 0; e.hp = 0; killEnemy(e); ch1.apprFalls = (ch1.apprFalls || 0) + 1;
+}
+/* ---- 林清风 (第二日切磋): a gentler 墨寒 moveset, no blink / burst, reduced damage ---- */
+const FOE_LIN = Object.assign({}, FOE_MOHAN, {
+  hp: 2600, tough: 150, lv: 3, speed: 3.2,
+  cd: e => rand(1.3, 2.0),
+  reset(e) { e.dmgMul = .62; e.floorHp = 0; },
+  pick(e, d) { const r = Math.random(); if (d < 3.2) return r < .75 ? 'combo' : 'dash'; return r < .6 ? 'wave' : 'dash'; },
+  tick(e, dt) { if (!e.dead && Math.random() < .35) emit(e.x + rand(-.4, .4), rand(.2, 1.9), e.z + rand(-.4, .4), 0, rand(.3, .8), 0, 0x6ff0e0, .3, .7, 0); },
+});
 /* ---- ally (林清风 in the phantom fight) ---- */
 function allyHurt(d) { const al = ch1.ally; if (!al || al.retreat) return; al.hpF = Math.max(0, al.hpF - d / 900); showNum(V3(al.x, 2.1, al.z), '-' + Math.round(d), 'allyh'); al.flash = 1; if (al.hpF < .3) { al.retreat = 6; toast('林清风：我先调息片刻，你撑住！'); } }
-function allyHit(e, d, td) { if (!e || e.dead || e.invuln) return; const tm = toughMult(e); const dmg = Math.max(1, Math.round(d * tm * rand(.9, 1.1))); e.hp = Math.max(0, e.hp - dmg); e.flash = 1; if (e.tough && !e.broken && !e.refill) { e.T = Math.max(0, e.T - td); if (e.T <= 0 && e.hp > 0) breakBoss(e); } showNum(V3(e.x, e.height * .8, e.z), dmg, 'ally'); burst(eCenter(e), 8, 0x8ff0e0, 5, .4, .35, -4); if (e.hp <= 0 && !e.dead) killEnemy(e); }
+function allyHit(e, d, td) { if (!e || e.dead || e.invuln) return; const tm = toughMult(e); const dmg = Math.max(1, Math.round(d * tm * rand(.9, 1.1))); e.hp = Math.max(e.floorHp || 0, e.hp - dmg); e.flash = 1; if (e.tough && !e.broken && !e.refill) { e.T = Math.max(0, e.T - td); if (e.T <= 0 && e.hp > 0) breakBoss(e); } showNum(V3(e.x, e.height * .8, e.z), dmg, 'ally'); burst(eCenter(e), 8, 0x8ff0e0, 5, .4, .35, -4); if (e.hp <= 0 && !e.dead) killEnemy(e); }
 /* ================= v4 · 第一章 学院 — story, dialogue, objectives, fights, saves ================= */
 const ch1 = { cp: 'intro', co: null, wait: null, fight: null, ally: null, follow: false, trail: [], A: null, flags: {}, timers: [], obj: null, camT: null, talking: false, uses: [], noRide: false, hl: null, lastSpeaker: null };
-const CP_ORDER = ['intro', 'school', 'arena', 'duel1', 'duel2', 'duel3', 'ceremony', 'library', 'hidden', 'digong', 'phantom', 'return', 'gate', 'done'];
-const CP_CN = { intro: '初入学院', school: '前往学堂', arena: '学院大比', duel1: '大比 · 第一场', duel2: '大比 · 第二场', duel3: '大比 · 决赛', ceremony: '颁奖', library: '图书馆禁阁', hidden: '无形之门', digong: '地宫', phantom: '地宫 · 魔修虚影', return: '返回地面', gate: '下山', done: '已完成' };
-const CP_LV = { intro: 1, school: 1, arena: 1, duel1: 1, duel2: 2, duel3: 3, ceremony: 5, library: 5, hidden: 5, digong: 5, phantom: 5, return: 5, gate: 5, done: 5 };
+const CP_ORDER = ['intro', 'lingen', 'school', 'day1', 'day2', 'day3', 'night', 'arena', 'duel1', 'duel2', 'duel3', 'ceremony', 'heart', 'library', 'hidden', 'digong', 'chasm', 'bridge', 'chamber', 'phantom', 'cave', 'return', 'rings', 'gate', 'done'];
+const CP_CN = { lingen: '测灵根', day1: '第一日 · 习剑', day2: '第二日 · 切磋', day3: '第三日 · 书页', night: '第三日 · 夜', heart: '同道', rings: '御剑试炼', intro: '初入学院', school: '前往学堂', arena: '学院大比', duel1: '大比 · 第一场', duel2: '大比 · 第二场', duel3: '大比 · 决赛', ceremony: '颁奖', library: '图书馆禁阁', hidden: '无形之门', digong: '地宫', chasm: '地宫 · 断崖', bridge: '地宫 · 石桥', chamber: '地宫 · 密室', phantom: '地宫 · 魔修虚影', cave: '地底洞天', return: '返回地面', gate: '下山', done: '已完成' };
+const CP_LV = { lingen: 1, day1: 1, day2: 1, day3: 1, night: 1, heart: 5, rings: 5, intro: 1, school: 1, arena: 1, duel1: 1, duel2: 2, duel3: 3, ceremony: 5, library: 5, hidden: 5, digong: 5, chasm: 5, bridge: 5, chamber: 5, phantom: 5, cave: 5, return: 5, gate: 5, done: 5 };
 function slotStageTxt(d) { if (d.stage !== 'ch1') return '第一章 · 学院'; return '第一章 · ' + (CP_CN[d.ch] || '学院'); }
 function cpIdx(c) { return CP_ORDER.indexOf(c); }
 function setCP(c) { ch1.cp = c; saveGame(); }
 /* ---------- actors ---------- */
 function ensureActors() {
   if (ch1.A) return ch1.A;
-  const A = ch1.A = { master: makeActor('master'), lin: makeActor('lin', { speed: 3.6 }), mohan: makeActor('mohan'), heavy: makeActor('heavy'), dart: makeActor('dart'), ghost: makeActor('ghost', { float: true }) };
+  const A = ch1.A = { master: makeActor('master'), lin: makeActor('lin', { speed: 3.6 }), mohan: makeActor('mohan'), heavy: makeActor('heavy'), dart: makeActor('dart'), ghost: makeActor('ghost', { float: true }), dummy: makeActor('dummy'), d1: makeActor('d1'), d2: makeActor('d2'), d3: makeActor('d3'), pharm: makeActor('pharm'), cook: makeActor('cook'), guard1: makeActor('guard'), guard2: makeActor('guard') };
   A.master.pose = 'whisk';
   // orbiting darts for 暗器弟子
   const orb = new THREE.Group(); scene.add(orb); orb.visible = false; A.dart.orbit = orb; const dm = new THREE.MeshStandardMaterial({ color: 0xd8e0e8, metalness: .9, roughness: .25, emissive: 0x2a6a50, emissiveIntensity: .6 });
@@ -3191,7 +3426,7 @@ function ensureActors() {
   // 墨寒 dark mist disc
   const mist = mk(discGeo, new THREE.MeshBasicMaterial({ color: 0x2a0a40, transparent: true, opacity: .4, depthWrite: false }), A.mohan.holder, 0, .03, 0, .9, .9, 1); mist.rotation.x = -Math.PI / 2;
   for (const k in A) { const a = A[k], el = document.createElement('div'); el.className = 'npcname' + (k === 'lin' ? ' ally' : ''); el.innerHTML = `${a.name}${a.title ? `<small>${a.title}</small>` : ''}`; el.style.display = 'none'; labelsEl.appendChild(el); a.label = el; }
-  for (const k of ['master', 'mohan', 'heavy', 'dart']) { A[k].solid = true; A[k].r = A[k].radius; npcSolids.push(A[k]); }
+  for (const k of ['master', 'mohan', 'heavy', 'dart', 'dummy', 'd1', 'd2', 'd3', 'pharm', 'cook', 'guard1', 'guard2']) { A[k].solid = true; A[k].r = A[k].radius; npcSolids.push(A[k]); }
   return A;
 }
 function showActor(a, wname, x, z, yaw, pose) { a.shown = true; a.world = wname; a.fighting = false; a.dead = false; a.act = null; a.path = null; a.airY = 0; a.spin = 0; a.holder.visible = true; placeActor(a, x, z, yaw ?? a.yaw); if (pose) a.pose = pose; a.solid = a.id !== 'lin' && a.id !== 'ghost' && !!npcSolids.includes(a); }
@@ -3214,7 +3449,7 @@ const wait = t => ({ t });
 const until = fn => ({ until: fn });
 /* ---------- dialogue ---------- */
 const dlg = { w: null, shown: 0, full: '', typing: false };
-function speakerActor(who) { const A = ch1.A; if (!A) return null; return { '青玄真人': A.master, '林清风': A.lin, '墨寒': A.mohan, '重剑弟子': A.heavy, '暗器弟子': A.dart, '魔修虚影': A.ghost }[who] || null; }
+function speakerActor(who) { const A = ch1.A; if (!A) return null; return { '青玄真人': A.master, '林清风': A.lin, '墨寒': A.mohan, '重剑弟子': A.heavy, '暗器弟子': A.dart, '魔修虚影': A.ghost, '弟子甲': A.d1, '弟子乙': A.d2, '弟子丙': A.d3, '药师': A.pharm, '伙夫': A.cook, '守门弟子': A.guard1 }[who] || null; }
 function openDlg(w) {
   ch1.talking = true; if (state === 'play') state = 'talk'; document.body.classList.add('talking'); resetInputs('talk');
   const who = w.who === '你' ? player.name : w.who, nm = $('dlgname');
@@ -3322,16 +3557,17 @@ function updateAlly(a, dt) {
 function startFight(a, def, opt = {}) {
   Object.assign(a, { fighting: true, def, ai: false, dead: false, hp: def.hp, maxHp: def.hp, lvTxt: String(def.lv), act: null, cd: 1.3, stagger: 0, warnT: 0, invuln: false, airY: 0, spin: 0, passThrough: false, solid: false, fade: 1, slowT: 0, kbT: 0 });
   a.holder.visible = true; a.onDeath = () => { if (ch1.fight && ch1.fight.e === a) { ch1.fight.won = true; ch1.fight.wonT = gameT; sfx('win'); timeScale = .4; ch1Timer(.9, () => { timeScale = 1; }); } };
-  initTough(a, def.tough); if (a.id === 'ghost') ghostCharMat.uniforms.op.value = 1;
+  initTough(a, def.tough); if (def.reset) def.reset(a); if (a.id === 'ghost') ghostCharMat.uniforms.op.value = 1;
   enemies.length = 0; enemies.push(a); clearProj();
-  ch1.fight = { e: a, def, ring: !!opt.ring, withAlly: !!opt.ally, won: false, ex: a.x, ez: a.z, eyaw: a.yaw, px: opt.px, pz: opt.pz, deaths: 0, lose: opt.lose || '胜败乃兵家常事，再来！', t0: gameT };
+  ch1.fight = { e: a, def, ring: !!opt.ring, withAlly: !!opt.ally, won: false, ex: a.x, ez: a.z, eyaw: a.yaw, px: opt.px, pz: opt.pz, deaths: 0, lose: opt.lose || '胜败乃兵家常事，再来！', t0: gameT, spar: !!opt.spar };
   document.body.classList.add('fight'); hudBossName = ''; hudDirty = true;
   if (opt.ally) { const al = ch1.A.lin; ch1.ally = al; al.hpF = 1; al.retreat = 0; al.atkCd = 2; }
 }
 function* fightIntro(title, subt) { banner(title, subt, 1.6); yield wait(1.7); banner('开始！', '', .9); sfx('clang'); ch1.fight.e.ai = true; ch1.fight.e.cd = .9; }
 function endFight() { const F = ch1.fight; if (!F) return; F.e.fighting = false; F.e.act = null; F.e.warnT = 0; F.e.invuln = false; F.e.airY = 0; F.e.spin = 0; F.e.holder.rotation.x = 0; if (F.e.id !== 'ghost') F.e.holder.visible = true; enemies.length = 0; clearProj(); ch1.fight = null; ch1.ally = null; document.body.classList.remove('fight'); player.hp = player.maxHp; player.wine = player.wineMax; resetSkills(); hudDirty = true; if (F.e.orbit) F.e.orbit.visible = false; }
 function ch1OnDeath() {
-  const F = ch1.fight; if (!F) { ch1Timer(1, () => { player.dead = false; player.hp = player.maxHp; hudDirty = true; }); return; }
+  const F = ch1.fight; if (!F) { ch1Timer(1, () => { player.dead = false; player.hp = player.maxHp; hudDirty = true; if (ch1.cp === 'bridge' && world.name === 'digong') { placePlayer({ x: 0, z: DG.chasm.z1 + 1.6, yaw: 0 }); banner('重整旗鼓', '虚影仍在桥上', 1.4); } }); return; }
+  if (F.spar) { F.lost = true; ch1Timer(.8, () => { player.dead = false; player.hp = Math.max(player.hp, Math.round(player.maxHp * .1)); hudDirty = true; }); return; }
   F.deaths++; F.e.ai = false; F.e.act = null; F.e.warnT = 0; clearProj();
   ch1Timer(1.3, () => { banner('败北', F.lose, 2.2); $('fade').style.transition = 'opacity .5s'; $('fade').style.opacity = .85; });
   ch1Timer(2.6, () => restartFight());
@@ -3339,7 +3575,7 @@ function ch1OnDeath() {
 function restartFight() {
   const F = ch1.fight; if (!F) return; const e = F.e;
   clearFx(); clearProj(); resetSkills();
-  Object.assign(e, { dead: false, hp: e.maxHp, act: null, cd: 1.5, stagger: 0, warnT: 0, invuln: false, airY: 0, spin: 0, x: F.ex, z: F.ez, yaw: F.eyaw, slowT: 0, kbT: 0, fade: 1 }); e.holder.visible = true; initTough(e, F.def.tough); if (e.id === 'ghost') ghostCharMat.uniforms.op.value = 1;
+  Object.assign(e, { dead: false, hp: e.maxHp, act: null, cd: 1.5, stagger: 0, warnT: 0, invuln: false, airY: 0, spin: 0, x: F.ex, z: F.ez, yaw: F.eyaw, slowT: 0, kbT: 0, fade: 1 }); e.holder.visible = true; initTough(e, F.def.tough); if (F.def.reset) F.def.reset(e); if (e.id === 'ghost') ghostCharMat.uniforms.op.value = 1;
   if (F.px !== undefined) { player.x = F.px; player.z = F.pz; player.yaw = faceYaw(e.x, e.z, player.x, player.z) + Math.PI; }
   player.dead = false; player.hp = player.maxHp; player.wine = player.wineMax; player.lastHurt = -99; hudDirty = true; $('vign').style.opacity = 0;
   if (ch1.ally) { ch1.ally.hpF = 1; ch1.ally.retreat = 0; placeActor(ch1.ally, e.x + 2.5, e.z + 4, ch1.ally.yaw); }
@@ -3369,13 +3605,24 @@ function setupCP(cp) {
   const A = ensureActors(); for (const k in A) hideActor(A[k]); ch1.uses.length = 0; ch1.flags = {}; ch1.follow = false; resetTrail(); setObj(null); ch1HintOff(); ch1.fight = null; ch1.ally = null; document.body.classList.remove('fight');
   if (player.lv < CP_LV[cp]) { player.lv = CP_LV[cp]; recalc(); }
   if (cpIdx(cp) > cpIdx('library') && !hasSt('yinshen')) player.unlocked.push('yinshen');
-  if (cpIdx(cp) >= cpIdx('gate')) player.rideOK = true;
-  const dig = cp === 'digong' || cp === 'phantom';
-  setWorld(dig ? 'digong' : 'academy');
+  if (cpIdx(cp) >= cpIdx('rings')) player.rideOK = true;
+  const dig = ['digong', 'chasm', 'bridge', 'chamber', 'phantom'].includes(cp);
+  hideAppr(); enemies.length = 0; ch1.pfall = null; ch1.anim = null; camDrop = 0; $('fade').style.opacity = 0;
+  setWorld(dig ? 'digong' : cp === 'cave' ? 'cave' : 'academy');
+  if (dig) worlds.digong.setState({ d1: cpIdx(cp) >= cpIdx('chasm'), br: cpIdx(cp) >= cpIdx('bridge'), d2: cpIdx(cp) >= cpIdx('chamber'), bar: cpIdx(cp) >= cpIdx('chamber') });
+  if (cp === 'cave') caveReset();
+  setNight(cp === 'night'); lingReset(); placeAmbient(cp);
   addUses();
   const lib = ACAD.lib, R = ACAD.ring;
   const arenaSet = (n) => { showActor(A.master, 'academy', R.x, -23.4, 0, 'whisk'); showActor(A.lin, 'academy', 14.6, -8, Math.PI / 2); A.lin.pose = 'idle'; showActor(A.mohan, 'academy', 14.6, -16, Math.PI / 2); if (n <= 1) showActor(A.heavy, 'academy', 38, -15.5, -Math.PI / 2); if (n <= 2) showActor(A.dart, 'academy', 38, -8.5, -Math.PI / 2); };
   switch (cp) {
+    case 'lingen': placePlayer({ x: 0, z: 30, yaw: 0 }); showActor(A.master, 'academy', -2.6, 33, Math.PI * .8, 'whisk'); break;
+    case 'day1': placePlayer({ x: ACAD.dummy.x, z: ACAD.dummy.z + 8, yaw: 0 }); showActor(A.master, 'academy', ACAD.dummy.x - 4.5, ACAD.dummy.z + 4, -.6, 'whisk'); break;
+    case 'day2': placePlayer({ x: R.x - 5, z: R.z, yaw: -Math.PI / 2 }); showActor(A.master, 'academy', R.x, -23.4, 0, 'whisk'); showActor(A.lin, 'academy', R.x + 4.5, R.z, Math.PI / 2); A.lin.pose = 'idle'; break;
+    case 'day3': placePlayer({ x: 4, z: -1, yaw: Math.PI * .8 }); showActor(A.master, 'academy', 2.6, -6.4, .4, 'whisk'); break;
+    case 'night': placePlayer({ x: -56, z: -45.4, yaw: -Math.PI / 2 }); break;
+    case 'heart': placePlayer({ x: -11.2, z: 24.4, yaw: 1.2 }); showActor(A.lin, 'academy', -13.2, 25.4, -2); A.lin.pose = 'idle'; break;
+    case 'rings': placePlayer({ x: 0, z: -37, yaw: 0 }); showActor(A.master, 'academy', 3.8, -38.6, -Math.PI * .75, 'whisk'); showActor(A.lin, 'academy', -1.8, -35.8, Math.PI); ch1.follow = true; player.rideOK = true; break;
     case 'intro': placePlayer(world.spawn); showActor(A.master, 'academy', 0, 31.5, Math.PI, 'whisk'); break;
     case 'school': placePlayer({ x: 0, z: 30, yaw: 0 }); showActor(A.master, 'academy', -2.6, 33, Math.PI * .8, 'whisk'); showActor(A.lin, 'academy', -27, -13, -1); showActor(A.mohan, 'academy', -33.5, -16.5, .6); break;
     case 'arena': placePlayer({ x: -24, z: -11, yaw: Math.PI / 2 }); showActor(A.lin, 'academy', -27.5, -11.5, 1.2); break;
@@ -3383,7 +3630,10 @@ function setupCP(cp) {
     case 'ceremony': placePlayer({ x: R.x, z: -15, yaw: 0 }); showActor(A.master, 'academy', R.x, -21, Math.PI, 'whisk'); showActor(A.lin, 'academy', R.x - 2.4, -15.2, Math.PI); showActor(A.mohan, 'academy', R.x + 3, -15.8, Math.PI); break;
     case 'library': case 'gate': case 'done': placePlayer({ x: 0, z: cp === 'library' ? -35 : -37, yaw: cp === 'library' ? 0 : Math.PI }); showActor(A.master, 'academy', 3.8, -38.6, cp === 'library' ? -Math.PI * .75 : Math.PI * .25, 'whisk'); showActor(A.lin, 'academy', -1.8, -33.8, Math.PI); ch1.follow = true; if (cp === 'done') placePlayer({ x: 0, z: 34, yaw: Math.PI }), placeActor(A.lin, 1.8, 32.5, Math.PI); break;
     case 'hidden': placePlayer({ x: -8.4, z: -44.4, yaw: 0 }); showActor(A.master, 'academy', 3.8, -38.6, -Math.PI * .75, 'whisk'); showActor(A.lin, 'academy', -6.2, -44.2, -1); ch1.follow = true; break;
-    case 'digong': placePlayer(DG.spawn); showActor(A.lin, 'digong', 1.9, 10.2, 0); ch1.follow = true; break;
+    case 'digong': placePlayer(DG.spawn); showActor(A.lin, 'digong', 1.9, DG.spawn.z + .8, 0); ch1.follow = true; break;
+    case 'chasm': case 'bridge': placePlayer({ x: 0, z: DG.chasm.z1 + 1.6, yaw: 0 }); showActor(A.lin, 'digong', 1.7, DG.chasm.z1 + 2.8, 0); ch1.follow = true; break;
+    case 'chamber': placePlayer({ x: 0, z: DG.door2Z + 2.6, yaw: 0 }); showActor(A.lin, 'digong', 1.7, DG.door2Z + 3.4, 0); ch1.follow = true; break;
+    case 'cave': placePlayer(CAVE.spawn); showActor(A.lin, 'cave', 1.5, CAVE.spawn.z - 1.2, Math.PI); ch1.follow = true; break;
     case 'phantom': placePlayer({ x: 0, z: -6, yaw: 0 }); showActor(A.lin, 'digong', 2.2, -5, -Math.PI * .8); ch1.follow = true; break;
     case 'return': placePlayer({ x: 0, z: -56.6, yaw: Math.PI }); showActor(A.master, 'academy', 3.8, -38.6, -Math.PI * .75, 'whisk'); showActor(A.lin, 'academy', 1.6, -56.2, Math.PI); ch1.follow = true; break;
   }
@@ -3392,8 +3642,14 @@ function setupCP(cp) {
 function addUses() {
   addUse({ world: 'academy', x: ACAD.book.x, z: ACAD.book.z, r: 2.4, label: '查看', cond: () => ch1.cp === 'library' && !ch1.flags.book, fn: () => { ch1.flags.book = true; } });
   addUse({ world: 'academy', x: ACAD.hidden.x, z: ACAD.hidden.z + .9, r: 2.8, label: '进入', cond: () => ch1.cp === 'hidden' && player.stealthT > 0, fn: () => { ch1.flags.door = true; } });
-  addUse({ world: 'digong', x: DG.book.x, z: DG.book.z, r: 2.6, label: '查看', cond: () => ch1.cp === 'digong' && !ch1.flags.tome, fn: () => { ch1.flags.tome = true; } });
-  addUse({ world: 'digong', x: 0, z: 12.2, r: 2.8, label: '返回地面', cond: () => ch1.cp === 'return' && world.name === 'digong', fn: () => { ch1.flags.exit = true; } });
+  addUse({ world: 'digong', x: DG.book.x, z: DG.book.z, r: 2.6, label: '查看', cond: () => ch1.cp === 'chamber' && !ch1.flags.tome, fn: () => { ch1.flags.tome = true; } });
+  addUse({ world: 'academy', x: ACAD.ling.x, z: ACAD.ling.z, r: 2.5, label: '触碰', cond: () => ch1.cp === 'lingen' && ch1.flags.atStone && !ch1.flags.ling, fn: () => { ch1.flags.ling = true; } });
+  addUse({ world: 'academy', x: -56, z: -52.5, r: 2.8, label: '歇息', cond: () => ch1.cp === 'day3' && !ch1.flags.rest, fn: () => { ch1.flags.rest = true; } });
+  addUse({ world: 'academy', x: -56, z: -52.5, r: 2.8, label: '就寝', cond: () => ch1.cp === 'night' && ch1.flags.metMo && !ch1.flags.sleep, fn: () => { ch1.flags.sleep = true; } });
+  ACAD.pages.forEach(([x, z], i) => addUse({ world: 'academy', x, z, r: 2.1, label: '收集', cond: () => pagesOpen() && !player.riding && !player.pages.includes(i), fn: () => collectPage(i) }));
+  for (const [k, lines] of Object.entries(CHAT)) addUse({ world: 'academy', npc: k, get x() { return ch1.A[k].x; }, get z() { return ch1.A[k].z; }, r: 2.4, label: '交谈', cond: () => ch1.A[k].shown && ch1.A[k].world === 'academy' && !ch1.talking && !ch1.chatOff, fn: () => { const a = ch1.A[k]; a.ci = ((a.ci ?? -1) + 1) % lines.length; bark(a.name, lines[a.ci]); a.faceP = 1; setTimeout(() => { a.faceP = 0; }, 2500); } });
+  addUse({ world: 'cave', x: CAVE.crystal.x, z: CAVE.crystal.z, r: 3.4, label: '吸收', cond: () => ch1.cp === 'cave' && ch1.flags.orbDone && !ch1.flags.absorb, fn: () => { ch1.flags.absorb = true; } });
+  addUse({ world: 'cave', x: CAVE.circle.x, z: CAVE.circle.z, r: 1.9, label: '传送', cond: () => ch1.cp === 'cave' && ch1.flags.absorbed && !ch1.flags.tp, fn: () => { ch1.flags.tp = true; } });
 }
 /* ---------- the script ---------- */
 const SEG = {};
@@ -3406,8 +3662,97 @@ SEG.intro = function* () {
   yield say('你', '多谢前辈救命之恩。此处是……？');
   yield say('青玄真人', '此乃天剑学院。院中弟子分为两派——仙修与魔修。仙修养心正气，魔修以力破法，各有其道。');
   yield say('青玄真人', '你既无处可去，便留下来，做为师的弟子吧。');
-  yield say('青玄真人', '今日弟子们都在学堂前的草坪上。去吧，见见你的同门。');
   A.master.pose = 'whisk'; placeActor(A.master, -2.6, 33, Math.PI * .8);
+};
+/* ---------- v4.3 第一章扩充: ambient NPCs, night look, 书页, 测灵石, 光环 ---------- */
+const CHAT = {
+  pharm: ['此乃凝气草，三年一熟，莫要乱碰。', '百年前仙魔一战，地脉尽染紫气，至今药性犹偏。'],
+  cook: ['饭要趁热！练剑之人，腹中无食可不成。', '老夫掌勺四十年，天才见得多了，活得长的没几个。'],
+  guard1: ['出入山门，须有令牌。', '山下近来不太平，夜里常见紫光。'],
+  guard2: ['大比之日，山门外挤满了看热闹的。', '守门三年，从未见人自外闯入。'],
+  d1: ['听说钟楼那口大钟，乃仙尊亲手所铸。'], d2: ['墨寒师兄的剑，快得看不清。'], d3: ['禁阁？我连门都没摸着过。'],
+};
+const AMB = { pharm: [55, -38.4], cook: [-56, -38.6], guard1: [-6.6, 39.4], guard2: [6.6, 39.4], d1: [-29, 12.4], d2: [-19, 25], d3: [44, 4] };
+function placeAmbient(cp) {
+  const A = ch1.A, i = cpIdx(cp), acad = world.name === 'academy';
+  for (const k of ['pharm', 'cook', 'guard1', 'guard2', 'd1', 'd2', 'd3', 'dummy']) hideActor(A[k]);
+  if (!acad || cp === 'intro') return;
+  const night = cp === 'night';
+  for (const k of ['pharm', 'cook', 'guard1', 'guard2']) { const [x, z] = AMB[k]; showActor(A[k], 'academy', x, z, k.startsWith('guard') ? Math.PI : 0, 'idle'); }
+  if (!night && cp !== 'lingen') for (const k of ['d1', 'd2', 'd3']) { const [x, z] = AMB[k]; showActor(A[k], 'academy', x, z, rand(-3, 3), 'idle'); }
+  if (cp === 'lingen') { const L = ACAD.ling; [[-3.6, -11.2], [3.8, -10.6], [4.6, -4.4]].forEach(([dx, dz], j) => { const a = A['d' + (j + 1)]; showActor(a, 'academy', L.x + dx, L.z + dz + 2, faceYaw(L.x + dx, L.z + dz + 2, L.x, L.z), 'idle'); }); }
+  if (cp === 'day1') { showActor(A.dummy, 'academy', ACAD.dummy.x, ACAD.dummy.z, 0, 'ready'); }
+}
+let NIGHT = null;
+function setNight(on) {
+  const W = worlds.academy; if (!NIGHT) NIGHT = { day: { sky: W.sky, fog: W.fog, hemi: W.hemi, sunL: W.sunL, sunDir: W.sunDir, sunCol: W.sunCol, ground: W.ground }, on: false };
+  if (NIGHT.on === !!on) return; NIGHT.on = !!on;
+  const N = on ? { sky: [0x050a1e, 0x101a3c, 0x1e2c50], fog: [0x141c34, 25, 150], hemi: [0x7080b8, 0x1a2030, 1.05], sunL: [0x9fb0ff, .55], sunDir: V3(-.4, .5, -.8).normalize(), sunCol: [.35, .4, .6], ground: 0x24302c } : NIGHT.day;
+  Object.assign(W, N); W.lanternGlow.visible = W.moon.visible = !!on;
+  if (world === W) setWorld('academy');
+}
+function lingReset() { const W = worlds.academy; W.lingM.emissive.set(0x6080a0); W.lingM.emissiveIntensity = .3; W.lingBeam.visible = false; }
+const pagesOpen = () => cpIdx(ch1.cp) >= cpIdx('day3') && ch1.cp !== 'done' && !ch1.ended;
+const PAGES = ['其一 · 魔神|吾生于北荒，父母皆亡于兽口。那年吾七岁，提一柄断剑，在尸山中守了三日三夜。', '其二 · 仙尊|初见魔神，他浑身是血，却仍挡在一群孩童身前。吾问其名，他说：“无名，只有剑。”', '其三 · 魔神|仙尊予吾一名，又予吾一杯酒。那是吾此生第一次，觉得这天地尚有温度。', '其四 · 仙尊|吾二人并肩百战，斩尽九州凶兽。立宗那日，他立于山巅，说：“从此再无人如我当年。”', '其五 · 魔神|众生愚弱，护之愈多，死之愈多。唯有一剑镇之，方得太平。仙尊不懂。', '其六 · 仙尊|太初降世，剑鸣三日不绝。吾见魔神眼中有光，那光，不似当年。', '其七 · 魔神|吾非为己。吾只是不愿再见尸山。可他说，以剑镇众生者，终为剑所噬。', '其八 · 仙尊|那一夜，他约吾于云海之上，未带酒，只带了剑。', '其九 · 魔神|吾败了？不，吾只是累了。仙尊，你封得住剑，封得住人心否？', '其十 · 仙尊|剑已封，人已散。若后世有人得见此页，切记：剑无善恶，执剑者有。'];
+const pageEl = (() => { const d = document.createElement('div'); d.id = 'pagep'; d.style.cssText = 'position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:min(78vw,520px);padding:22px 26px 16px;background:linear-gradient(#f6ecd2,#e8d8b0);color:#3a2a18;border:2px solid #8a6a3a;border-radius:6px;box-shadow:0 8px 30px rgba(0,0,0,.5);font-family:serif;z-index:60;display:none;text-align:left';
+  d.innerHTML = '<div style="font-size:12px;color:#8a6a3a;letter-spacing:2px">漂浮书页 · <span id="pagecnt"></span></div><b style="display:block;font-size:20px;margin:6px 0 10px"></b><p style="font-size:16px;line-height:1.75;margin:0"></p><div style="font-size:12px;color:#8a6a3a;text-align:right;margin-top:10px">▼ 轻触合上</div>';
+  document.body.appendChild(d); d.addEventListener('pointerdown', e => { e.stopPropagation(); closePage(); }); return d; })();
+function collectPage(i) {
+  if (player.pages.includes(i)) return; player.pages.push(i); recalc(); player.hp = Math.min(player.maxHp, player.hp + 10); hudDirty = true; saveGame();
+  const pg = worlds.academy.pages[i]; burst(pg.position.clone(), 24, 0xffe0a0, 4, .4, .6, 0); sfx('level');
+  const [t, x] = PAGES[i].split('|'); pageEl.querySelector('b').textContent = t; pageEl.querySelector('p').textContent = x; pageEl.querySelector('#pagecnt').textContent = `${player.pages.length}/10 · 气血上限 +10`;
+  pageEl.style.display = 'block'; ch1.reading = true; ch1.readPrev = state; if (state === 'play') state = 'cut'; resetInputs('page');
+}
+function closePage() { if (!ch1.reading) return; pageEl.style.display = 'none'; ch1.reading = false; if (state === 'cut') state = 'play'; sfx('swish'); }
+function ch1Academy(dt) {
+  const W = world, open = pagesOpen();
+  W.pages.forEach((pg, i) => { const v = open && !player.pages.includes(i); pg.visible = v; if (v) { pg.rotation.y += dt * 1.2; pg.position.y = 1.4 + Math.sin(gameT * 1.8 + i) * .18; if (Math.random() < .15) emit(pg.position.x + rand(-.3, .3), pg.position.y, pg.position.z + rand(-.3, .3), 0, .6, 0, 0xffe0a0, .18, .9, 0); } });
+  if (ch1.cp === 'rings' && ch1.flags.ringI !== undefined) {
+    const N = ACAD.flyRings.length, i = ch1.flags.ringI;
+    W.flyRings.forEach((rg, k) => { if (!rg.visible) return; rg.children[0].material.opacity = k === i ? .95 : .35; rg.scale.setScalar(k === i ? 1 + Math.sin(gameT * 5) * .05 : .85); });
+    if (i < N) { const [x, z] = ACAD.flyRings[i]; if (player.riding && Math.hypot(player.x - x, player.z - z) < 2.3) { const rg = W.flyRings[i]; rg.visible = false; burst(rg.position.clone(), 40, 0xffd36a, 6, .5, .6, 0); shockRing(V3(x, .1, z), 0xffd36a, .3, 3, .5); sfx('ding'); ch1.flags.ringI = i + 1; $('objtxt').textContent = `御剑穿过光环 ${i + 1}/${N}`; } }
+    if (!player.riding && SK.ride.t > 1.2) SK.ride.t = 1.2;
+  }
+  if (ch1.cp === 'day1' && SK.s1.t > 1.2 && ch1.flags.trainS1 !== undefined && ch1.flags.trainS1 < 5) SK.s1.t = 1.2;
+  if (ch1.cp === 'day1' && SK.s2.t > 1.2 && ch1.flags.trainS2 !== undefined) SK.s2.t = 1.2;
+}
+function* epilogue() { // 墨寒 in the dark, holding a purple 剑印 fragment
+  const A = ch1.A, f = $('fade'); for (const k in A) hideActor(A[k]); setNight(false);
+  setWorld('digong'); worlds.digong.setState({ d1: 1, d2: 1, br: 1 }); clearFx(); clearProj(); enemies.length = 0;
+  showActor(A.mohan, 'digong', 0, -10.8, 0, 'cast'); A.mohan.headTilt = .15;
+  placePlayer({ x: 0, z: -6.2, yaw: 0 }); player.pitch = .06;
+  const shard = new THREE.Group(); shard.position.set(.05, 1.45, -10.25); scene.add(shard);
+  mk(new THREE.OctahedronGeometry(.16, 0), new THREE.MeshBasicMaterial({ color: 0xe0b0ff }), shard, 0, 0, 0, 1, 1.8, 1); mk(G.sph, auraMat(0xb050ff, 1.6, 1.6), shard, 0, 0, 0, .55, .55, .55);
+  let t = 0; ch1.anim = dt => { t += dt; shard.rotation.y += dt * 1.6; shard.position.y = 1.45 + Math.sin(t * 2) * .04; if (Math.random() < .5) emit(shard.position.x + rand(-.2, .2), shard.position.y, shard.position.z + rand(-.2, .2), 0, rand(.3, .8), 0, 0xc070ff, .22, .8, 0); return !shard.parent; };
+  f.style.transition = 'opacity 1.4s'; f.style.opacity = 0; yield wait(1.8);
+  state = 'play'; yield say('墨寒', '第一印……'); state = 'cut';
+  yield wait(1.2); f.style.transition = 'opacity 1.2s'; f.style.opacity = 1; yield wait(1.3);
+  scene.remove(shard); hideActor(A.mohan); A.mohan.headTilt = 0;
+}
+/* ---------- 测灵根 ---------- */
+SEG.lingen = function* () {
+  const A = ch1.A, W = worlds.academy, L = ACAD.ling; setCP('lingen');
+  yield say('青玄真人', '且慢。入我门下，须先测灵根。随为师来。');
+  A.master.path = [[-1.6, 22], [-3.2, 8], [-2.6, L.z + 3.2]]; A.master.speed = 3.2; A.master.leading = true;
+  setObj('随师傅前往大广场', () => A.master, 'academy');
+  yield until(() => (!A.master.path || !A.master.path.length) && Math.hypot(player.x - L.x, player.z - L.z) < 7);
+  A.master.leading = false; faceActor(A.master, L.x, L.z, 1); ch1.flags.atStone = true;
+  yield say('青玄真人', '此乃测灵石。以掌覆之，灵根自现。');
+  setObj('以手触碰测灵石', { x: L.x, z: L.z, height: 2.2 }, 'academy');
+  yield until(() => ch1.flags.ling);
+  setObj(null); state = 'cut'; resetInputs('ling'); sfx('ding');
+  { let k = 0; W.lingBeam.visible = true; ch1.anim = dt => { k += dt; const e = Math.min(1, k / 1.4); W.lingM.emissive.setRGB(.38 + .3 * e, .5 - .35 * e, .63 + .37 * e); W.lingM.emissiveIntensity = .3 + e * 2.2 + Math.sin(k * 14) * .2 * e; W.lingBeam.material.opacity = e * (.45 + Math.sin(k * 6) * .1);
+      if (Math.random() < .8) emit(L.x + rand(-.6, .6), rand(1, 3), L.z + rand(-.6, .6), 0, rand(1, 3), 0, 0xc070ff, .35, .8, 0); if (k > .9 && !this_f) { this_f = 1; sfx('roar'); shake = Math.max(shake, .3); flashScreen('#c080ff', .35, .5); shockRing(V3(L.x, .1, L.z), 0xb060ff, .3, 6, .7); } return k > 2.2; }; var this_f = 0; }
+  yield until(() => !ch1.anim);
+  state = 'play';
+  yield say('弟子甲', '紫光？从未见过……');
+  yield say('弟子乙', '这是什么灵根？');
+  yield say('弟子丙', '测灵石……莫不是坏了？');
+  A.master.headTilt = .25; yield say('青玄真人', '……'); A.master.headTilt = 0;
+  yield say('青玄真人', '灵根之相，因人而异，不必多问。');
+  W.lingBeam.visible = false; W.lingM.emissiveIntensity = .9;
+  yield say('青玄真人', '同门都在学堂前的草坪上。去吧，见见他们。');
+  for (const [k, p] of [['d1', [-29, 12.4]], ['d2', [-19, 25]], ['d3', [44, 4]]]) { A[k].path = [p]; A[k].speed = 2.4; }
 };
 SEG.school = function* () {
   const A = ch1.A; setCP('school');
@@ -3428,12 +3773,84 @@ SEG.school = function* () {
   A.mohan.path = [[-30, -6], [-30, 0], [-6, 0]]; A.mohan.speed = 2.6;
   yield wait(1.6);
 };
+/* ---------- 第一日: 黑甲陪练 ---------- */
+SEG.day1 = function* () {
+  const A = ch1.A, D = A.dummy, P = ACAD.dummy;
+  yield* fadeSwap(() => { setCP('day1'); hideActor(A.mohan); hideActor(A.lin); placeAmbient('day1'); placePlayer({ x: P.x, z: P.z + 8, yaw: 0 }); showActor(A.master, 'academy', P.x - 4.5, P.z + 4, -.6, 'whisk'); resetTrail(); }, '第一日', '学堂草坪 · 习剑');
+  if (!D.shown) showActor(D, 'academy', P.x, P.z, 0, 'ready');
+  Object.assign(D, { boss: true, hp: 1e7, maxHp: 1e7, floorHp: 1, dead: false, fighting: false, onHit(kind) { if (ch1.cp !== 'day1') return; const d = Math.hypot(player.x - D.x, player.z - D.z);
+    if (kind === 's1' && ch1.flags.trainS1 !== undefined && ch1.flags.trainS1 < 5) { ch1.flags.trainS1++; $('objtxt').textContent = `斩马命中黑甲陪练 ${ch1.flags.trainS1}/5`; }
+    else if (kind === 's2' && ch1.flags.trainS2 !== undefined && ch1.flags.trainS2 < 5) { if (d >= 6) { ch1.flags.trainS2++; $('objtxt').textContent = `退至6米外，以飞剑命中 ${ch1.flags.trainS2}/5`; } else toast('太近了——退远些再出飞剑'); } } });
+  enemies.length = 0; enemies.push(D);
+  A.master.faceP = 1;
+  yield say('青玄真人', '剑修之道，先习其形。这具黑甲陪练，任你劈砍，不会还手。');
+  yield say('青玄真人', '先试斩马。斩马一剑，力沉势猛，可破敌韧性。');
+  ch1.flags.trainS1 = 0; ch1Hint('点击右下的<b>【斩马】</b>，劈向黑甲陪练', 'btn-s1');
+  setObj('斩马命中黑甲陪练 0/5', () => D, 'academy');
+  yield until(() => ch1.flags.trainS1 >= 5);
+  ch1HintOff(); setObj(null);
+  yield say('青玄真人', '善。再试飞剑——退至六步之外，以飞剑击之。');
+  ch1.flags.trainS2 = 0; ch1Hint('退到<b>6米</b>之外，点击<b>【飞剑】</b>远程命中', 'btn-s2');
+  setObj('退至6米外，以飞剑命中 0/5', () => D, 'academy');
+  yield until(() => ch1.flags.trainS2 >= 5);
+  ch1HintOff(); setObj(null); enemies.length = 0;
+  yield say('青玄真人', '形已初具。明日，与清风切磋一场。');
+};
+/* ---------- 第二日: 与林清风切磋 (win or lose both pass) ---------- */
+SEG.day2 = function* () {
+  const A = ch1.A, R = ACAD.ring, L = A.lin;
+  yield* fadeSwap(() => { setCP('day2'); placeAmbient('day2'); placePlayer({ x: R.x - 5, z: R.z, yaw: -Math.PI / 2 }); showActor(A.master, 'academy', R.x, -23.4, 0, 'whisk'); showActor(L, 'academy', R.x + 4.5, R.z, Math.PI / 2); L.pose = 'idle'; ch1.follow = false; resetTrail(); }, '第二日', '练武场 · 切磋');
+  yield say('青玄真人', '今日切磋，点到为止。');
+  yield say('林清风', '师弟，我可不会手下留情！');
+  player.minHpFrac = .08;
+  startFight(L, FOE_LIN, { ring: true, px: R.x - 5, pz: R.z, spar: true });
+  ch1Hint('切磋不论胜负：留意<b>预警</b>，用上昨日所习'); ch1Timer(6, () => ch1HintOff());
+  yield* fightIntro('切磋', '林清风 · Lv3');
+  yield until(() => ch1.fight && ((ch1.fight.won && gameT - ch1.fight.wonT > 1.2) || ch1.fight.lost || player.hp <= player.maxHp * .08 + 1));
+  const won = ch1.fight.won; ch1HintOff(); player.minHpFrac = 0;
+  endFight(); L.dead = false; L.hp = L.maxHp; L.pose = won ? 'kneel' : 'idle'; L.fighting = false; L.solid = false; player.dead = false; player.hp = player.maxHp; hudDirty = true; timeScale = 1;
+  yield wait(.8);
+  if (won) { yield say('林清风', '好剑法！是我输了，心服口服。'); L.pose = 'idle'; yield say('青玄真人', '胜而不骄，方为剑修。'); }
+  else { yield say('林清风', '承让。你根基尚浅，假以时日，必在我之上。'); yield say('青玄真人', '败亦是师。记住今日之痛。'); }
+  ch1.flags.sparWon = won;
+};
+/* ---------- 第三日 · 晨: free roam, 10 floating pages ---------- */
+SEG.day3 = function* () {
+  const A = ch1.A;
+  yield* fadeSwap(() => { setCP('day3'); hideActor(A.lin); placeAmbient('day3'); placePlayer({ x: 4, z: -1, yaw: Math.PI * .8 }); showActor(A.master, 'academy', 2.6, -6.4, .4, 'whisk'); resetTrail(); }, '第三日', '晨 · 学院');
+  A.master.faceP = 1;
+  yield say('青玄真人', '今日无课。院中各处散落着些旧书页，泛着微光——据传是仙魔一战时遗下的。');
+  yield say('青玄真人', '拾之可养气血。入夜之前，回弟子居所歇息。');
+  ch1Hint('拾取<b>漂浮书页</b>可提升气血上限（可选）；准备好后，前往西侧<b>弟子居所</b>歇息'); ch1Timer(8, () => { if (ch1.cp === 'day3') ch1HintOff(); });
+  const dorm = { x: -56, z: -52.5 }, near = () => { let b = null, bd = 1e9; ACAD.pages.forEach(([x, z], i) => { if (player.pages.includes(i)) return; const d = Math.hypot(player.x - x, player.z - z); if (d < bd) { bd = d; b = { x, z, height: 1.8 }; } }); return b || dorm; };
+  const txt = () => player.pages.length >= 10 ? '书页已集齐 · 回弟子居所歇息' : `收集漂浮书页 ${player.pages.length}/10 · 随时可回弟子居所歇息`;
+  setObj(txt(), near, 'academy'); let last = -1;
+  yield until(() => { if (player.pages.length !== last) { last = player.pages.length; $('objtxt').textContent = txt(); } return ch1.flags.rest && !ch1.reading; });
+  ch1HintOff(); setObj(null);
+};
+/* ---------- 第三日 · 夜: 墨寒 lurking by the library ---------- */
+SEG.night = function* () {
+  const A = ch1.A, M = A.mohan;
+  yield* fadeSwap(() => { setCP('night'); setNight(true); placeAmbient('night'); hideActor(A.master); placePlayer({ x: -56, z: -45.4, yaw: -Math.PI / 2 }); resetTrail(); }, '入夜', '第三日 · 夜');
+  showActor(M, 'academy', 15.4, -46, -Math.PI / 2, 'idle'); M.solid = false;
+  bark('你', '……睡不着。出去走走。');
+  setObj('夜色已深……图书馆旁似有人影', () => (M.shown ? { x: M.x, z: M.z } : null), 'academy');
+  yield until(() => Math.hypot(player.x - M.x, player.z - M.z) < 6);
+  setObj(null); faceActor(M, player.x, player.z, 1); M.faceP = 1;
+  yield say('你', '墨寒？深夜在此作甚？');
+  yield say('墨寒', '看什么？明日比武场上，有你好看的。');
+  M.faceP = 0; M.path = [[17, -36], [17, -24], [24, -26]]; M.speed = 2.4; M.walkAway = true; ch1.flags.metMo = true;
+  yield wait(1.2);
+  setObj('回弟子居所就寝', { x: -56, z: -52.5 }, 'academy');
+  yield until(() => ch1.flags.sleep);
+  setObj(null); hideActor(M); M.walkAway = false;
+};
 SEG.arena = function* () {
   const A = ch1.A;
   yield* fadeSwap(() => {
     setCP('arena'); A.mohan.path = null; showActor(A.mohan, 'academy', 14.6, -16, Math.PI / 2); showActor(A.master, 'academy', ACAD.ring.x, -23.4, 0, 'whisk'); showActor(A.heavy, 'academy', 38, -15.5, -Math.PI / 2); showActor(A.dart, 'academy', 38, -8.5, -Math.PI / 2);
-    placePlayer({ x: -24, z: -11, yaw: Math.PI / 2 }); if (!A.lin.shown) showActor(A.lin, 'academy', -27.5, -11.5, 1.2); placeActor(A.lin, -26.5, -9.5, Math.PI * .7); resetTrail();
-  }, '三日后', '学院大比 · 练武场');
+    setNight(false); placeAmbient('arena'); placePlayer({ x: -24, z: -11, yaw: Math.PI / 2 }); if (!A.lin.shown) showActor(A.lin, 'academy', -27.5, -11.5, 1.2); placeActor(A.lin, -26.5, -9.5, Math.PI * .7); resetTrail();
+  }, '大比之日', '学院大比 · 练武场');
   yield say('林清风', '大比要开始了！跟我来，练武场在学院东边。');
   setObj('跟随林清风前往练武场', () => A.lin, 'academy');
   A.lin.path = [[-30, -6], [-30, 0], [0, 0], [12, 0], [14.6, -8]]; A.lin.speed = 4.2; A.lin.leading = true;
@@ -3499,6 +3916,19 @@ SEG.ceremony = function* () {
   A.mohan.solid = false; A.mohan.path = [[R.x + 3, -2], [12, 0], [3, 0], [0, 8]]; A.mohan.speed = 1.5; A.mohan.pose = 'idle'; A.mohan.headTilt = .35; A.mohan.walkAway = true;
   yield wait(3.5);
   yield say('林清风', '别放在心上，他就是这个脾气。');
+};
+SEG.heart = function* () {
+  const A = ch1.A;
+  yield* fadeSwap(() => { setCP('heart'); hideActor(A.mohan); A.mohan.headTilt = 0; A.mohan.walkAway = false; hideActor(A.heavy); hideActor(A.dart); hideActor(A.master); ch1.follow = false; placePlayer({ x: -11.2, z: 24.4, yaw: 1.2 }); showActor(A.lin, 'academy', -13.2, 25.4, -2); A.lin.pose = 'idle'; resetTrail(); }, '黄昏', '荷塘 · 凉亭', 1.2);
+  A.lin.faceP = 1;
+  yield say('林清风', '今日一战，痛快。');
+  yield say('你', '师兄为何修仙道？');
+  yield say('林清风', '幼时家乡遭兽祸，一位仙修路过，一剑救下全村。那一剑，我记了十年。');
+  yield say('林清风', '魔修求力，仙修求心。力可夺人，心可护人——我想做护人的那个。');
+  yield say('你', '……我亦然。');
+  yield say('林清风', '好！往后你我便是同道。有难同当，有酒同饮。');
+  showActor(A.master, 'academy', -4.5, 22.5, -1.4, 'whisk'); A.master.path = [[-8.6, 23.6]]; A.master.speed = 2.6;
+  yield until(() => !A.master.path || !A.master.path.length); A.master.faceP = 1;
   yield say('青玄真人', '按照规矩，冠军可入图书馆禁阁。清风，你也随他同去吧。');
   yield say('青玄真人', '随为师来。');
   yield* fadeSwap(() => { hideActor(A.mohan); A.mohan.headTilt = 0; A.mohan.walkAway = false; hideActor(A.heavy); hideActor(A.dart); setCP('library'); placePlayer({ x: 0, z: -35, yaw: 0 }); showActor(A.master, 'academy', 3.8, -38.6, -Math.PI * .75, 'whisk'); showActor(A.lin, 'academy', -1.8, -33.8, Math.PI); resetTrail(); ch1.follow = true; }, '片刻之后', '图书馆 · 门前', 1.2);
@@ -3528,11 +3958,135 @@ SEG.hidden = function* () {
   setObj('隐身状态下，进入图书馆尽头的紫光之门', { x: ACAD.hidden.x, z: ACAD.hidden.z + .6 }, 'academy');
   yield until(() => ch1.flags.door);
   setObj(null);
-  yield* fadeSwap(() => { setCP('digong'); player.stealthT = 0; endStealth(true); document.body.classList.remove('stealth'); goWorld('digong', DG.spawn); A.lin.world = 'digong'; placeActor(A.lin, 1.9, 10.2, 0); }, '地宫', '紫光之门的另一侧');
+  yield* fadeSwap(() => { setCP('digong'); player.stealthT = 0; endStealth(true); document.body.classList.remove('stealth'); worlds.digong.setState({}); goWorld('digong', DG.spawn); A.lin.world = 'digong'; placeActor(A.lin, 1.9, DG.spawn.z + .8, 0); }, '地宫', '紫光之门的另一侧');
 };
+/* ---------- 地宫机关 (v4.3) helpers ---------- */
+function mkButton(x, z, h, r, opt) { // invisible "enemy" standing on a wall button so normal attacks / 飞剑 can hit it
+  return Object.assign({ kind: 'btn', boss: true, noNum: true, noPush: true, passThrough: true, name: '机关', lvTxt: '-', x, z, y: 0, yaw: 0, radius: r, r, height: h, hp: 1e9, maxHp: 1e9, floorHp: 1, armor: 1, mats: [], holder: new THREE.Group(), dead: false, update() { } }, opt);
+}
+function hideAppr() { for (const a of (ch1.apprPool || [])) { a.fighting = false; a.dead = true; a.holder.visible = false; } ch1.appr = []; }
+function spawnAppr(pts) {
+  const pool = ch1.apprPool = ch1.apprPool || []; ch1.appr = [];
+  pts.forEach(([x, z], i) => {
+    const a = pool[i] || (pool[i] = makeAppr());
+    Object.assign(a, { fighting: true, def: FOE_APPR, ai: true, dead: false, hp: FOE_APPR.hp, maxHp: FOE_APPR.hp, lvTxt: String(FOE_APPR.lv), act: null, cd: rand(.9, 2.2), stagger: 0, warnT: 0, invuln: false, airY: 0, spin: 0, passThrough: false, falling: false, fade: 1, slowT: 0, kbT: 0, floorHp: 0, tough: false, world: 'digong', yaw: faceYaw(x, z, player.x, player.z) });
+    a.holder.rotation.x = 0; a.holder.visible = true; a.model.mat.uniforms.op.value = 1; placeActor(a, x, z);
+    smoke(V3(x, 1, z), 0x9030ff); burst(V3(x, .8, z), 18, 0xb060ff, 5, .4, .6, -3);
+    ch1.appr.push(a); enemies.push(a);
+  });
+}
+function caveReset() { const W = worlds.cave; W.orbOn = false; W.orbI = 0; W.orb.visible = false; W.orb.position.set(CAVE.orbPath[0][0], 1.7, CAVE.orbPath[0][1] + 2); W.crystal.visible = true; W.crystal.scale.setScalar(1); W.crL.intensity = 5; W.circle.visible = false; }
+function startPlayerFall() { ch1.pfall = { t: 0 }; state = 'cut'; resetInputs('fall'); sfx('whoosh'); bark('林清风', '当心脚下！'); }
+function updatePlayerFall(dt) {
+  const p = ch1.pfall; p.t += dt; const f = $('fade');
+  if (!p.moved) { camDrop = Math.min(9, p.t * p.t * 16); if (p.t > .3 && !p.fd) { p.fd = 1; f.style.transition = 'opacity .4s'; f.style.opacity = 1; } }
+  if (p.t >= .85 && !p.moved) { p.moved = 1; camDrop = 0; placePlayer({ x: 0, z: DG.chasm.z1 + 1.6, yaw: 0 }); const d = Math.round(player.maxHp * .12); player.hp = Math.max(1, player.hp - d); player.lastHurt = gameT; hudDirty = true;
+    const L = ch1.A.lin; if (L.shown) placeActor(L, 1.7, DG.chasm.z1 + 2.8, 0); resetTrail(); toast(`坠入深渊……重回桥头（气血 -${d}）`); f.style.transition = 'opacity .5s'; f.style.opacity = 0; ch1.falls = (ch1.falls || 0) + 1; }
+  if (p.t >= 1.2) { ch1.pfall = null; if (state === 'cut') state = 'play'; }
+}
+function linAssist(a, dt) { // 林清风 slashes at an apprentice next to him during the bridge fight
+  a.atkCd = (a.atkCd ?? 1.5) - dt; if (a.swingT > 0) { a.swingT -= dt; if (a.swingT <= 0 && a.tgt && !a.tgt.dead) { a.pose = 'slashR'; a.poseK = 24; sfx('swish'); foeSlashFx(a, 0x6ff0e0, .3, .8); allyHit(a.tgt, 24 + player.lv * 2, 0); setTimeout(() => { if (a.pose === 'slashR') a.pose = 'idle'; }, 260); } return; }
+  if (a.atkCd > 0 || state !== 'play') return; let best = null, bd = 2.4;
+  for (const e of ch1.appr || []) { if (e.dead) continue; const d = Math.hypot(e.x - a.x, e.z - a.z); if (d < bd) { bd = d; best = e; } }
+  if (best) { a.tgt = best; a.atkCd = rand(1.2, 1.7); a.yaw = faceYaw(a.x, a.z, best.x, best.z); a.pose = 'windR'; a.poseK = 14; a.swingT = .22; }
+}
+function updateCaveOrb(dt) {
+  const W = world; if (!W.orbOn) return; const P = CAVE.orbPath, o = W.orb.position; W.orb.visible = true;
+  const tgt = ch1.flags.orbDone ? [CAVE.crystal.x, CAVE.crystal.z] : P[Math.min(W.orbI, P.length - 1)];
+  const dx = tgt[0] - o.x, dz = tgt[1] - o.z, d = Math.hypot(dx, dz), sp = ch1.flags.orbDone ? 2.2 : 3.6;
+  if (d > .02) { const m = Math.min(d, sp * dt); o.x += dx / d * m; o.z += dz / d * m; }
+  o.y = (ch1.flags.orbDone ? lerp(1.7, 1.9, 1 - Math.min(1, d / 5)) : 1.7) + Math.sin(gameT * 2.2) * .15;
+  const pd = Math.hypot(player.x - o.x, player.z - o.z);
+  if (ch1.flags.orbDone) { if (d < .4) { W.orbOn = false; W.orb.visible = false; burst(V3(o.x, o.y, o.z), 20, 0xd0a0ff, 4, .4, .5, 0); sfx('ding'); } return; }
+  if (d < .3) { if (W.orbI < P.length - 1) { const nx = P[W.orbI + 1]; if (pd < 4.8 || Math.hypot(player.x - nx[0], player.z - nx[1]) < 3) W.orbI++; } else if (pd < 5.5) ch1.flags.orbDone = true; }
+}
+function ch1Digong(dt, dtR) {
+  if (ch1.anim && ch1.anim(dtR) === true) ch1.anim = null;
+  const A = ch1.A;
+  if (world.name === 'academy') ch1Academy(dt);
+  if (world.name === 'digong') {
+    const W = world, C = DG.chasm, inCh = z => z > C.z0 - .2 && z < C.z1 + .2;
+    if (W.bridgeK >= 1) {
+      const L = A.lin; if (L.shown && L.world === 'digong' && inCh(L.z) && Math.abs(L.x) > 1.8) { L.x = clamp(L.x, -1.8, 1.8); syncActor(L); }
+      if (!ch1.pfall && state === 'play' && !player.dead && !player.riding && player.z > C.z0 && player.z < C.z1 && Math.abs(player.x) > C.hw + .15) startPlayerFall();
+    }
+    if (W.barOn) { // solid unless 隐身; never leave the player embedded when 隐身 ends mid-crossing
+      const B = W.barrierBox, st = player.stealthT > 0; B.off = st; if (ch1.cp === 'chamber' && player.z > B.z0 && SK.yinshen.t > 3) SK.yinshen.t = 3;
+      if (!st && Math.abs(player.x) < 5.3 && player.z > B.z0 - .45 && player.z < B.z1 + .45) { const mid = (B.z0 + B.z1) / 2; player.z = player.z < mid ? B.z0 - .5 : B.z1 + .5; ch1.barPush = (ch1.barPush || 0) + 1; }
+      const L = A.lin; if (!st && L.shown && Math.abs(L.x) < 5.3 && L.z > B.z0 - .45 && L.z < B.z1 + .45) { L.z = player.z < B.z0 ? B.z0 - .5 : B.z1 + .5; syncActor(L); }
+      if (!st && L.shown && player.z < B.z0 - .5 && L.z > B.z1 && Math.hypot(L.x - player.x, L.z - player.z) > 3.5 && state === 'play') { smoke(V3(L.x, 1, L.z), 0x6fe0d0); placeActor(L, clamp(player.x + 1.2, -8, 8), Math.min(player.z + .8, B.z0 - .6)); smoke(V3(L.x, 1, L.z), 0x6fe0d0); resetTrail(); }
+    }
+    if (ch1.flags.bridgeFight && A.lin.shown) linAssist(A.lin, dt);
+  }
+  if (ch1.pfall) updatePlayerFall(dtR);
+  if (world.name === 'cave') updateCaveOrb(dt);
+}
+/* ---------- 地宫 · 石门机关 ---------- */
 SEG.digong = function* () {
-  const A = ch1.A; setCP('digong');
+  const A = ch1.A, W = worlds.digong; setCP('digong'); ch1.follow = true;
   yield say('林清风', '这里……竟然是一座地宫。学院之下，怎会藏着这种地方？');
+  yield say('林清风', '前路被石墙封死了。墙心那枚圆钮……怕是机关。');
+  ch1Hint('用<b>普攻</b>攻击按钮试试', 'btn-atk');
+  setObj('用普攻攻击石墙中央的圆钮', { x: 0, z: DG.door1Z + .6, height: 3.4 }, 'digong');
+  enemies.length = 0; enemies.push(mkButton(0, DG.door1Z + .05, 4.7, 1.7, { onHit() { ch1.flags.btn1 = true; } }));
+  yield until(() => ch1.flags.btn1);
+  enemies.length = 0; ch1HintOff(); setObj(null); W.door1.btnM.emissiveIntensity = 2.4; shake = Math.max(shake, .3);
+  W.openDoor(W.door1);
+  yield wait(.9); bark('林清风', '石门开了！');
+  yield until(() => W.door1.open);
+  setCP('chasm');
+};
+/* ---------- 地宫 · 断崖 ---------- */
+SEG.chasm = function* () {
+  const W = worlds.digong; setCP('chasm'); ch1.follow = true;
+  setObj('穿过石门', DG.nearEdge, 'digong');
+  yield until(() => world.name === 'digong' && player.z < DG.chasm.z1 + 3.4);
+  setObj(null);
+  yield say('林清风', '好深的断崖……前面没路了。');
+  yield say('林清风', '看对面石壁——又是一枚圆钮！隔着深渊，剑锋可够不着。');
+  ch1Hint('用<b>飞剑</b>攻击按钮试试', 'btn-s2'); ch1.flags.needFly = true;
+  setObj('用飞剑击中对面石壁的圆钮', { x: 0, z: DG.door2Z + .3, height: 4.4 }, 'digong');
+  enemies.length = 0; enemies.push(mkButton(0, DG.door2Z + .3, 5.8, 2.3, { flyMagnet: true, onHit(kind) { if (kind === 's2') ch1.flags.btn2 = true; else if (!ch1.flags.btnMiss) { ch1.flags.btnMiss = 1; bark('林清风', '寻常剑招够不着——试试飞剑！'); } } }));
+  yield until(() => ch1.flags.btn2);
+  enemies.length = 0; ch1.flags.needFly = false; ch1HintOff(); setObj(null); W.door2.btnM.emissiveIntensity = 2.4; sfx('stone');
+  yield wait(.5); W.raiseBridge(); bark('林清风', '深渊里……升起了一座石桥！');
+  yield until(() => W.bridgeK >= 1);
+  setCP('bridge');
+};
+/* ---------- 地宫 · 石桥 (6 apprentice phantoms) ---------- */
+SEG.bridge = function* () {
+  const W = worlds.digong, C = DG.chasm, zm = (C.z0 + C.z1) / 2; setCP('bridge'); ch1.follow = true;
+  yield wait(.3);
+  shake = .3; sfx('roar');
+  spawnAppr([[-1.6, C.z1 - .6], [1.6, C.z1 - .6], [-1.6, zm], [1.6, zm], [-1.6, C.z0 + .6], [1.6, C.z0 + .6]]);
+  yield say('林清风', '桥上有东西——是魔修残念所化的虚影！');
+  ch1.flags.bridgeFight = true;
+  ch1Hint('用<b>斩马</b>的击退效果，将虚影推下悬崖！', 'btn-s1'); ch1Timer(7, () => { if (ch1.cp === 'bridge') ch1HintOff(); });
+  const left = () => ch1.appr.filter(a => !a.dead).length;
+  setObj('击败虚影 0/6', null, 'digong'); let shown = -1;
+  yield until(() => { const n = 6 - left(); if (n !== shown) { shown = n; $('objtxt').textContent = `击败虚影 ${n}/6`; } return n >= 6; });
+  ch1.flags.bridgeFight = false; ch1HintOff(); setObj(null);
+  yield wait(1.4); hideAppr(); enemies.length = 0;
+  bark('林清风', '虚影尽散！对面的石门……也动了。');
+  W.openDoor(W.door2); W.barOn = true; W.barrier.visible = true; W.barrierBox.off = false;
+  yield until(() => W.door2.open);
+  setCP('chamber');
+};
+/* ---------- 地宫 · 密室 ---------- */
+SEG.chamber = function* () {
+  const A = ch1.A; setCP('chamber'); ch1.follow = true;
+  const W = worlds.digong;
+  setObj('过桥，前往石门', { x: 0, z: DG.door2Z + 2.4 }, 'digong');
+  yield until(() => world.name === 'digong' && player.z < DG.door2Z + 3.6);
+  yield say('林清风', '门后有一道紫色屏障……灵力森然，硬闯不得。');
+  yield say('林清风', '“隐于无形者，方见无形之物”——或许隐身便能穿过去。');
+  ch1Hint('<b>隐身</b>才能穿过紫色屏障', 'st-yinshen');
+  setObj('隐身穿过紫色屏障，进入密室', DG.hallIn, 'digong');
+  yield until(() => world.name === 'digong' && player.z < DG.door2Z - 1.7);
+  ch1HintOff(); setObj(null);
+  { const L = A.lin; if (L.z > DG.door2Z - 1.6) { smoke(V3(L.x, 1, L.z), 0x6fe0d0); placeActor(L, clamp(player.x + 1.5, -8, 8), Math.min(player.z + .6, DG.door2Z - 2.2), 0); smoke(V3(L.x, 1, L.z), 0x6fe0d0); resetTrail(); } }
+  yield wait(.4);
+  yield say('林清风', '石门之后，竟藏着一间密室。');
   yield say('林清风', '你看祭台上——那本发着紫光的书。');
   setObj('查看祭台上的魔修圣书', { x: DG.book.x, z: DG.book.z }, 'digong');
   yield until(() => ch1.flags.tome);
@@ -3540,8 +4094,9 @@ SEG.digong = function* () {
   yield say(null, '天地第一剑，名曰\'太初\'。生于混沌未分之时，饮异兽之血，承天地之怒。持此剑者，一念可断山河，一剑可镇众生。然剑有灵，择主而栖。心正者得之，可护苍生；心魔者得之，必为剑所噬。仙尊封之于九幽之下，以七道剑印锁之。今印已松其三……欲得此剑，先集七印。');
   yield say('林清风', '太初……天地第一剑！七道剑印已松其三……这到底是怎么回事？');
 };
+/* ---------- 地宫 · 魔修虚影 (two phases → floor-shatter cutscene) ---------- */
 SEG.phantom = function* () {
-  const A = ch1.A, g = A.ghost; setCP('phantom');
+  const A = ch1.A, g = A.ghost, W = worlds.digong; setCP('phantom');
   shake = .4; sfx('roar'); smoke(V3(0, 1, -9.5), 0x9030ff); smoke(V3(0, 1.5, -9.5), 0x9030ff);
   showActor(g, 'digong', 0, -9.5, 0, 'float'); ghostCharMat.uniforms.op.value = 1; faceActor(g, player.x, player.z, 1);
   yield wait(.8);
@@ -3550,19 +4105,71 @@ SEG.phantom = function* () {
   ch1.follow = false; startFight(g, FOE_GHOST, { ally: true, px: 0, pz: -2, lose: '与林清风前后夹击，留意紫色预警！' });
   ch1Hint('<b>林清风</b>会与你并肩作战；他气血不足时会暂退调息', null); ch1Timer(5, () => ch1HintOff());
   yield* fightIntro('魔修虚影', 'Lv5 · 与林清风并肩作战');
-  yield until(() => ch1.fight && ch1.fight.won && gameT - ch1.fight.wonT > 2.2);
-  endFight(); hideActor(g); ch1.follow = true; resetTrail(); A.lin.pose = 'idle';
-  yield say('魔修虚影', '……七印……终将……归位……');
-  yield say('林清风', '它消散了……这里不宜久留，我们先回去禀报师傅！');
-  setCP('return');
+  yield until(() => ch1.fight && (ch1.fight.won || (!g.trans && g.hp <= g.floorHp + 1)));
+  // ---- cutscene: the phantom smashes the floor ----
+  g.ai = false; g.act = null; g.warnT = 0; g.invuln = true; g.stagger = 0; clearProj(); ch1HintOff();
+  endFight(); g.holder.visible = true; ch1.follow = false; const L = A.lin; L.path = null; L.pose = 'ready';
+  state = 'play'; timeScale = 1;
+  yield say('魔修虚影', '……七印终将归位！吾虽残念，亦要尔等陪葬！');
+  state = 'cut'; resetInputs('cut');
+  const gs = g.model.root.scale.x; let t = 0, slam = false; g.pose = 'sky'; g.poseK = 5; sfx('roar');
+  const px = player.x, pz = player.z, cx = (px + g.x) / 2, cz = (pz + g.z) / 2; const pr = Math.hypot(px - cx, pz - cz) + 4.5;
+  placeActor(L, clamp(px + 1.6, -8.5, 8.5), pz + .4, faceYaw(px + 1.6, pz + .4, g.x, g.z));
+  W.pit.position.set(cx, .035, cz); W.pit.scale.setScalar(.01); W.pit.visible = false;
+  ch1.anim = dt => {
+    t += dt;
+    if (t < 1.1) { g.airY = Math.sin(Math.min(1, t / 1.1) * Math.PI / 2) * 2.6; faceActor(g, px, pz, dt * 4); if (Math.random() < .9) emit(g.x + rand(-1, 1), rand(0, 4), g.z + rand(-1, 1), 0, 2, 0, 0xc070ff, .5, .6, 0); }
+    else if (!slam) { g.airY = Math.max(0, g.airY - dt * 22); if (g.airY <= 0) { slam = true; g.pose = 'slam'; g.poseK = 22; sfx('boom'); sfx('stone'); shake = 1.2; flashScreen('#e0b0ff', .5, .5); shockRing(V3(g.x, 0, g.z), 0xc070ff, .5, 12, .9); burst(V3(g.x, .4, g.z), 90, 0xb090c0, 10, .7, 1, -6, .8); W.pit.visible = true; t = 1.1; } }
+    if (slam) {
+      const k = Math.min(1, (t - 1.1) / .7); W.pit.scale.setScalar(.2 + pr * k); shake = Math.max(shake, .5);
+      if (Math.random() < .8) { const a = rand(0, 6.28), r = rand(0, pr * k); emit(cx + Math.cos(a) * r, .1, cz + Math.sin(a) * r, 0, rand(1, 3), 0, 0x8a7a9a, .5, .8, -9); }
+      if (t > 1.6) { const kk = t - 1.6; camDrop = Math.min(10, kk * kk * 9); L.airY = -Math.min(12, kk * kk * 11); g.airY = -kk * 2; ghostCharMat.uniforms.op.value = Math.max(0, 1 - kk); }
+      if (t > 2.6) return true;
+    }
+  };
+  yield wait(1.9); bark('林清风', '地面……要塌了——！');
+  yield until(() => !ch1.anim);
+  const f = $('fade'); f.style.transition = 'opacity .35s'; f.style.opacity = 1; yield wait(1.2);
+  hideActor(g); L.airY = 0; W.pit.visible = false; camDrop = 0; ghostCharMat.uniforms.op.value = 1;
+  setCP('cave');
+};
+/* ---------- 地底洞天: wake → follow the orb → 紫光晶石 → 传送阵 ---------- */
+SEG.cave = function* () {
+  const A = ch1.A, W = worlds.cave, L = A.lin, f = $('fade'); setCP('cave'); ch1.follow = true;
+  if (world.name !== 'cave') { setWorld('cave'); clearFx(); clearProj(); caveReset(); placePlayer(CAVE.spawn); resetTrail(); showActor(L, 'cave', 1.5, CAVE.spawn.z - 1.2, Math.PI); ch1.follow = true; }
+  state = 'cut'; resetInputs('wake'); f.style.transition = 'opacity 1.6s'; f.style.opacity = 1; camDrop = 1.25; player.pitch = .5;
+  { let t = 0; ch1.anim = dt => { t += dt; if (t > .6) { camDrop = 1.25 * Math.max(0, 1 - (t - .6) / 1.6); player.pitch = lerp(player.pitch, -.04, Math.min(1, dt * 1.5)); } return t > 2.4; }; }
+  yield wait(.5); f.style.opacity = 0; banner('地底洞天', '地宫之下', 2); yield wait(2.2); camDrop = 0; state = 'play';
+  yield say('林清风', '醒醒！……你没事吧？');
+  yield say('你', '……这是何处？');
+  yield say('林清风', '地宫之下，竟别有洞天。看——那团紫光，似在引路。');
+  W.orbOn = true; W.orbI = 0; W.orb.visible = true;
+  setObj('跟随紫光', () => W.orbOn ? { x: W.orb.position.x, z: W.orb.position.z } : null, 'cave');
+  yield until(() => ch1.flags.orbDone);
+  setObj('靠近紫光晶石', { x: CAVE.crystal.x, z: CAVE.crystal.z, height: 3.2 }, 'cave');
+  yield until(() => Math.hypot(player.x - CAVE.crystal.x, player.z - CAVE.crystal.z) < 6.5);
+  yield say('林清风', '好浓的灵气……此石非凡，或可为你所用。');
+  setObj('吸收紫光晶石', { x: CAVE.crystal.x, z: CAVE.crystal.z, height: 3.2 }, 'cave');
+  yield until(() => ch1.flags.absorb);
+  setObj(null); state = 'cut'; resetInputs('absorb'); sfx('roar');
+  { let k = 0; const cr = W.crystal; ch1.anim = dt => { k += dt / 2; cr.scale.setScalar(Math.max(.01, 1 - k * k)); W.crL.intensity = 5 * (1 - k) + Math.sin(gameT * 20) * k;
+      for (let i = 0; i < 4; i++) { const sx = cr.position.x + rand(-1, 1) * (1 - k), sy = cr.position.y + rand(-1, 1) * (1 - k), sz = cr.position.z + rand(-1, 1) * (1 - k), life = rand(.5, .8); emit(sx, sy, sz, (player.x - sx) / life, (camY - .5 - sy) / life, (player.z - sz) / life, i % 2 ? 0xc080ff : 0xf0d0ff, rand(.25, .45), life, 0); }
+      if (k >= 1) { cr.visible = false; W.crL.intensity = 0; return true; } }; }
+  yield until(() => !ch1.anim);
+  flashScreen('#c080ff', .45, .8); shockRing(V3(player.x, 0, player.z), 0xc080ff, .3, 5, .9); sfx('level'); player.hp = player.maxHp; hudDirty = true;
+  banner('紫光入体', '灵台清明 · 气血尽复', 1.8); state = 'play'; ch1.flags.absorbed = true;
+  yield wait(1.4);
+  W.circle.visible = true; sfx('ding'); shockRing(V3(CAVE.circle.x, 0, CAVE.circle.z), 0xc080ff, .3, 3, .6);
+  yield say('林清风', '晶石既散，地上竟现出一座传送阵……走！');
+  setObj('站上传送阵', { x: CAVE.circle.x, z: CAVE.circle.z }, 'cave');
+  yield until(() => ch1.flags.tp);
+  setObj(null); sfx('whoosh'); shockRing(V3(player.x, 0, player.z), 0xd0a0ff, .3, 3, .5);
+  yield* fadeSwap(() => { setCP('return'); goWorld('academy', { x: 0, z: -56.6, yaw: Math.PI }); L.world = 'academy'; showActor(L, 'academy', 1.6, -56.2, Math.PI); ch1.follow = true; showActor(A.master, 'academy', 3.8, -38.6, -Math.PI * .75, 'whisk'); }, '传送', '紫光一闪');
+  yield say('林清风', '是图书馆……紫光之门外！我们回来了。');
+  yield say('林清风', '此事非同小可，速去禀报师傅。');
 };
 SEG.return = function* () {
   const A = ch1.A; ch1.follow = true;
-  if (world.name === 'digong') {
-    setObj('返回地面', { x: 0, z: 12.6 }, 'digong');
-    yield until(() => ch1.flags.exit);
-    yield* fadeSwap(() => { goWorld('academy', { x: 0, z: -56.6, yaw: Math.PI }); A.lin.world = 'academy'; placeActor(A.lin, 1.6, -56.2, Math.PI); showActor(A.master, 'academy', 3.8, -38.6, -Math.PI * .75, 'whisk'); });
-  }
   setObj('走出图书馆，向师傅禀报', () => A.master, 'academy');
   yield until(() => Math.hypot(player.x - A.master.x, player.z - A.master.z) < 3.6);
   setObj(null); A.master.faceP = 1;
@@ -3575,13 +4182,23 @@ SEG.return = function* () {
   yield say('你', '弟子谨记。');
   A.master.pose = 'whisk'; player.rideOK = true; SK.ride.t = 0; hudDirty = true;
   showLearn('习得【御剑】', '底部中央 · 御剑飞行');
-  setCP('gate');
+  setCP('rings');
   yield wait(1.4);
   ch1Hint('点击屏幕下方中央的<b>【御剑】</b>，踩剑飞行试试', 'btn-ride');
   setObj('试一试御剑', null, 'academy');
   yield until(() => player.riding);
-  ch1HintOff(); yield wait(1.6);
-  yield say('青玄真人', '去吧。只是记住，御剑先御心，剑有灵，人亦有心。');
+  ch1HintOff(); yield wait(1.2);
+};
+SEG.rings = function* () {
+  const A = ch1.A, W = worlds.academy, N = ACAD.flyRings.length; setCP('rings'); ch1.follow = true; player.rideOK = true;
+  yield say('青玄真人', '御剑不难，难在收放自如。院中设下六道光环，你御剑一一穿过。');
+  ch1.flags.ringI = 0; W.flyRings.forEach(r => r.visible = true);
+  ch1Hint('<b>御剑</b>飞行，穿过金色光环；御剑时间耗尽可再次御剑', 'btn-ride'); ch1Timer(8, () => { if (ch1.cp === 'rings') ch1HintOff(); });
+  setObj(`御剑穿过光环 0/${N}`, () => { const r = ACAD.flyRings[Math.min(ch1.flags.ringI, N - 1)]; return { x: r[0], z: r[1], height: 3 }; }, 'academy');
+  yield until(() => ch1.flags.ringI >= N);
+  ch1HintOff(); setObj(null); W.flyRings.forEach(r => r.visible = false);
+  yield wait(.8);
+  yield say('青玄真人', '……去吧。只是记住，御剑先御心，剑有灵，人亦有心。');
 };
 SEG.gate = function* () {
   ch1.follow = true;
@@ -3598,6 +4215,7 @@ SEG.done = function* () {
 function* chapterEnd() {
   state = 'cut'; resetInputs('end'); if (player.riding) endRide();
   const f = $('fade'); f.style.transition = 'opacity 1.2s'; f.style.opacity = 1; yield wait(1.3);
+  yield* epilogue();
   setCP('done'); const ce = $('chend'); ce.style.display = 'flex'; yield wait(.2); $('chendtxt').style.opacity = 1; yield wait(1.2); $('chendsub').style.opacity = 1;
   ch1.ended = true; yield wait(4.2);
   if (!window.__noReload) toTitle();
@@ -3651,13 +4269,14 @@ function updateCh1(dt, dtR) {
   }
   // hidden door (visible only while 隐身)
   if (world.name === 'academy') { const hd = world.hiddenDoor, op2 = world.hiddenMat; const want = player.stealthT > 0 ? 1 : 0; op2.opacity = lerp(op2.opacity, want, Math.min(1, dt * 6)); hd.visible = op2.opacity > .02; if (hd.visible && Math.random() < .5) emit(ACAD.hidden.x + rand(-1.2, 1.2), rand(.2, 3.4), ACAD.hidden.z + .2, 0, rand(.1, .5), rand(.1, .4), 0xc070ff, .3, .9, 0); if (ch1.cp === 'hidden' && player.stealthT > 0 && Math.hypot(player.x - ACAD.hidden.x, player.z - ACAD.hidden.z) < 1.5) ch1.flags.door = true; if (ch1.cp === 'hidden' && inLib() && SK.yinshen.t > 3) SK.yinshen.t = 3; }
+  ch1Digong(dt, dtR);
   updateUse(); updateObj(dt); updateLabels();
   if (ch1.hl) { const el = $(ch1.hl), hl = $('hl'); if (el && state === 'play') { const r = el.getBoundingClientRect(), pad = 8; hl.style.display = 'block'; hl.style.left = (r.left - pad) + 'px'; hl.style.top = (r.top - pad) + 'px'; hl.style.width = (r.width + pad * 2) + 'px'; hl.style.height = (r.height + pad * 2) + 'px'; } else hl.style.display = 'none'; }
 }
 /* debug / test hooks */
-Object.assign(window.__G, { ch1, startCh1, resumeCh1, setupCP, dlgTap, SEG, ACAD, DG, worlds, endFight, levelUp, CP_ORDER, useNow() { if (curUse) curUse.fn(); return !!curUse; }, FOE_HEAVY, FOE_DART, FOE_MOHAN, FOE_GHOST, npcSolids });
+Object.assign(window.__G, { closePage, FOE_LIN, setNight, ch1, startCh1, resumeCh1, setupCP, dlgTap, SEG, ACAD, DG, worlds, endFight, levelUp, CP_ORDER, useNow() { if (curUse && curUse.label !== '交谈') { curUse.fn(); return true; } return false; }, FOE_HEAVY, FOE_DART, FOE_MOHAN, FOE_GHOST, FOE_APPR, ZM_KB, CAVE, npcSolids });
 Object.assign(window.__G, { tutForce() { completeStep(); }, skyTop() { return skyMat.uniforms.top.value.getHexString(); }, summon, demonPhantom, demonSky, startTutorial, phantomMat, get tutIdx() { return tut.i; } });
-Object.defineProperties(window.__G, { curUse: { get() { return curUse; } }, world: { get() { return world; } } });
+Object.defineProperties(window.__G, { appr: { get() { return ch1.appr || []; } }, curUse: { get() { return curUse; } }, world: { get() { return world; } } });
 </script>
 </body>
 </html>
