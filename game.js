@@ -775,7 +775,7 @@ const TUNE = {
   mult: { atk: 1, s1: 2.6, s2: 2.2, dahe: 12, daheSplash: 4, wanjian: .03, jianyu: .09, ride: .8, parry: 2.5, ambush: 2 },
   // toughness (韧性) damage per hit
   tough: { max: 200, atk: 8, s1: 60, s2: 18, dahe: 50, daheSplash: 20, wanjian: .8, jianyu: 1.5, ride: 12, parry: 45,
-    regenDelay: 4, regen: 15, breakT: 2.5, refillT: 3, minMult: .2, maxMult: .85, parryStagger: .9 },
+    breakT: 2.5, minMult: .2, maxMult: .85, parryStagger: .9 }, // v3b: no regen/refill; one bar per boss phase
 };
 const ALL_ST = ['dahe', 'wanjian', 'jianyu', 'yinshen', 'hudun'];
 const player = { x: 0, z: 7, yaw: 0, pitch: -.04, lv: 90, xp: 0, hp: 1980, maxHp: 1980, atk: 279, name: '李白', dead: false, riding: false, rideT: 0, lastHurt: -99, moveAmt: 0, bob: 0,
@@ -796,11 +796,19 @@ function eCenter(e) { return V3(e.x, e.y + e.height * .55, e.z); }
 function aimPos() { return (player.stealthT > 0 && decoy.active) ? decoy.pos.clone() : V3(player.x, H(player.x, player.z), player.z); }
 function playerNear(x, z, r) { return Math.hypot(player.x - x, player.z - z) < r; }
 /* ===== 韧性 toughness ===== */
-function initTough(e) { e.tough = true; e.T = TUNE.tough.max; e.Tmax = TUNE.tough.max; e.broken = false; e.refill = false; e.brkT = 0; e.lastHitT = -99; e.breaks = 0; }
+function initTough(e, max = TUNE.tough.max, phases = 1) { e.tough = true; e.Tmax = max; e.T = max; e.phase = 1; e.phases = phases; e.broken = false; e.brkT = 0; e.lastHitT = -99; e.breaks = 0; }
+const PHASE_CN = ['', '第一阶段', '第二阶段', '第三阶段'];
+// boss enters next phase: toughness restored to full exactly once
+function toughNextPhase(e) {
+  if (!e.tough || e.phase >= e.phases) return;
+  e.phase++; e.T = e.Tmax; e.broken = false; e.brkT = 0;
+  shockRing(V3(e.x, H(e.x, e.z), e.z), 0xffe080, .6, 4.5, .7); burst(eCenter(e), 40, 0xffe9a0, 6, .5, .7, -3);
+  toast(`${e.name}进入${PHASE_CN[e.phase]} · 韧性已恢复`);
+}
 function toughMult(e) { if (!e.tough) return 1; if (e.broken) return 1; const f = clamp(e.T / e.Tmax, 0, 1); return TUNE.tough.minMult + (TUNE.tough.maxMult - TUNE.tough.minMult) * (1 - f); }
 function cancelAct(e) { if (e.onInterrupt) e.onInterrupt(); else e.act = null; e.warnT = 0; }
 function breakBoss(e) {
-  e.broken = true; e.refill = false; e.T = 0; e.brkT = TUNE.tough.breakT; e.breaks++;
+  e.broken = true; e.T = 0; e.brkT = TUNE.tough.breakT; e.breaks++;
   cancelAct(e); e.stagger = Math.max(e.stagger || 0, TUNE.tough.breakT);
   const el = $('breakfx'); el.classList.remove('show'); void el.offsetWidth; el.classList.add('show');
   sfx('boom'); sfx('clang'); shake = Math.max(shake, .45); flashScreen('#ffd8a0', .4, .5);
@@ -809,9 +817,7 @@ function breakBoss(e) {
 }
 function updateTough(e, dt) {
   if (!e.tough || e.dead) return;
-  if (e.broken) { e.brkT -= dt; if (e.brkT <= 0) { e.broken = false; e.refill = true; } if (Math.random() < .5) emit(e.x + rand(-1, 1), e.y + e.height + rand(0, .6), e.z + rand(-1, 1), 0, 1.2, 0, 0xffd060, .35, .6, 0); }
-  else if (e.refill) { e.T += e.Tmax / TUNE.tough.refillT * dt; if (e.T >= e.Tmax) { e.T = e.Tmax; e.refill = false; } }
-  else if (gameT - e.lastHitT > TUNE.tough.regenDelay) e.T = Math.min(e.Tmax, e.T + TUNE.tough.regen * dt);
+  if (e.broken && e.brkT > 0) { e.brkT -= dt; if (Math.random() < .5) emit(e.x + rand(-1, 1), e.y + e.height + rand(0, .6), e.z + rand(-1, 1), 0, 1.2, 0, 0xffd060, .35, .6, 0); }
 }
 /* ===== displacement (knock-up / knock-back) — never applied to bosses ===== */
 function knockBack(e, fx, fz, dist, dur = .3) { if (e.boss || e.dead) return; const dx = e.x - fx, dz = e.z - fz, d = Math.hypot(dx, dz) || 1; e.kbV = V3(dx / d * dist / dur, 0, dz / d * dist / dur); e.kbT = dur; e.stagger = Math.max(e.stagger || 0, dur + .25); }
@@ -827,7 +833,7 @@ function hitEnemy(e, base, kind, td = 0) {
   d = Math.max(1, d);
   const before = e.hp; e.hp = Math.max(e.floorHp || 0, e.hp - d);
   e.flash = 1; e.onHit && e.onHit(kind, d);
-  if (e.tough) { e.lastHitT = gameT; if (!e.broken && !e.refill && td > 0) { e.T = Math.max(0, e.T - td); if (e.T <= 0 && e.hp > 0) breakBoss(e); } }
+  if (e.tough) { e.lastHitT = gameT; if (!e.broken && td > 0) { e.T = Math.max(0, e.T - td); if (e.T <= 0 && e.hp > 0) breakBoss(e); } }
   const np = V3(e.x, e.y + e.height * .85 + (e.airY || 0), e.z);
   if (amb) { showNum(np, '破隐一击 ' + d, 'amb'); sfx('clang'); flashScreen('#cff4ff', .3, .3); }
   else showNum(np, d, kind === 'ult' ? 'big' : (e.broken && kind !== 'tick') ? 'brkn' : crit ? 'crit' : (tm < .4 && kind !== 'tick') ? 'res' : kind === 'tick' ? 'tk' : 'n');
@@ -1064,7 +1070,7 @@ function fallingSword(x, z, r, dmg, e) {
 }
 
 /* ===== 狰 ===== */
-const ZHENG = { hp: 8000, claw: 70, charge: 130, pounce: 150, fire: 60 };
+const ZHENG = { hp: 16000, tough: 900, phase2: .4, claw: 60, charge: 110, pounce: 130, fire: 50 };
 function makeZheng() {
   const m = buildZheng();
   const holder = new THREE.Group(); holder.add(m.root); scene.add(holder);
@@ -1073,10 +1079,10 @@ function makeZheng() {
     model: m, holder, mats: m.mats, act: null, cd: 1.5, flash: 0, warnT: 0, dead: false, deadT: 0, moveAmt: 0, ph: 0, enraged: false, strafeDir: 1, stagger: 0, ai: false,
     an: { crouch: 0, pitch: 0, head: 0, jaw: 0, leap: 0, gallop: 0, rear: 0 },
     onInterrupt() { const an = this.an; an.leap = 0; an.gallop = 0; an.pitch = 0; this.act = null; this.cd = 1.0; },
-    onHit(kind) { if (!this.enraged && this.hp < this.maxHp * .35) { this.enraged = true; banner('狰 · 狂暴', '五尾燃起烈焰，攻势更猛了！', 2); sfx('roar'); } },
+    onHit(kind) { if (!this.enraged && this.hp > 0 && this.hp < this.maxHp * ZHENG.phase2) { this.enraged = true; banner('狰 · 狂暴', '第二阶段 · 韧性恢复，攻势更猛了！', 2.2); sfx('roar'); toughNextPhase(this); } },
     onDeath() { onZhengDeath(this); } };
   m.glow.material.uniforms.k.value = .0;
-  initTough(e);
+  initTough(e, ZHENG.tough, 2);
   e.update = dt => updateZheng(e, dt);
   return e;
 }
@@ -1583,6 +1589,7 @@ function setupLiBai() {
   setOutfit(0xeef1f6, 0x5fa6d8); $('avatar').textContent = '李'; hudDirty = true;
 }
 /* ===== tutorial ===== */
+const SHIXIONG_TOUGH = 300; // tutorial: single phase, one bar
 const SHIXIONG_DMGK = 2.75; // 师兄 hits scaled to 李白's v3 气血 (5450)
 const tut = { i: -1, cur: null, wait: 0, moved: 0, looked: 0, hits: 0, casts: 0, fails: 0, floorHp: 1 };
 const TUT = [
@@ -1590,7 +1597,7 @@ const TUT = [
   { id: 'move', t: '按住<b>左下摇杆</b>移动，向师兄靠近', hl: 'joy', check: () => tut.moved > 3 },
   { id: 'look', t: '在<b>屏幕右侧滑动</b>，转动视角', hl: 'look', check: () => tut.looked > .9 },
   { id: 'atk', t: '靠近师兄，点击<b>普攻</b>，命中 3 次', hl: 'btn-atk', on: (ty) => (ty === 'hit' && ++tut.hits >= 3) || (ty === 'cast' && ++tut.casts >= 8) },
-  { id: 's1', t: '<b>斩马</b>：横向大范围挥斩，<b>削减韧性最多</b>。首领血条下的金色条是<b>韧性</b>：韧性越高受伤越低，打空即「破防」', hl: 'btn-s1', on: (ty, id) => ty === 'cast' && id === 's1' },
+  { id: 's1', t: '<b>斩马</b>：横向大范围挥斩，<b>削减韧性最多</b>。首领血条下的金色条是<b>韧性</b>：韧性越高受伤越低且不会自动恢复，打空即「破防」，此后该阶段受全额伤害（进入下一阶段时韧性回满）', hl: 'btn-s1', on: (ty, id) => ty === 'cast' && id === 's1' },
   { id: 's2', t: '<b>飞剑</b>：剑脱手疾飞，穿透敌人后不到 1 秒便飞回手中', hl: 'btn-s2', on: (ty) => ty === 'catch' },
   { id: 'block', t: '师兄即将出招！看到<b>紫光与「!」</b>时按<b>格挡</b>——挡下近身攻击即触发<b>弹反</b>：反击、大幅削韧并震退对手', hl: 'btn-block', on: (ty) => ty === 'block', enter() { shixiong.forced = 'blink'; shixiong.cd = 1.5; SK.block.t = 0; }, exit() { shixiong.forced = null; shixiong.cd = 3; } },
   { id: 'wine', t: '你被剑气所伤！点击左侧<b>酒葫芦</b>饮酒，每口恢复 <b>15%</b> 气血', hl: 'wine', on: (ty) => ty === 'drink', enter() { player.hp = Math.round(player.maxHp * .52); hudDirty = true; shake = .4; $('vign').style.opacity = .8; setTimeout(() => $('vign').style.opacity = 0, 300); player.wine = Math.max(1, player.wine); } },
@@ -1603,7 +1610,7 @@ const TUT = [
 function startTutorial() {
   mode = 'tutorial'; state = 'play'; setWorld('cloud'); clearFx(); clearProj(); resetSkills(); setupLiBai(); placePlayer(world.spawn);
   enemies.length = 0; enemies.push(shixiong); zheng.holder.visible = false;
-  Object.assign(shixiong, { hp: 50000, maxHp: 50000, x: 0, z: -6.5, act: null, cd: 3, ai: true, visible: true, forced: null, dead: false, dmgK: SHIXIONG_DMGK, cutLift: 0, stagger: 0 }); initTough(shixiong);
+  Object.assign(shixiong, { hp: 50000, maxHp: 50000, x: 0, z: -6.5, act: null, cd: 3, ai: true, visible: true, forced: null, dead: false, dmgK: SHIXIONG_DMGK, cutLift: 0, stagger: 0 }); initTough(shixiong, SHIXIONG_TOUGH, 1);
   shixiong.holder.visible = true; shixiong.model.sword.bladeM.emissiveIntensity = 1.4;
   document.body.className = 'm-tut'; $('skip').style.display = 'block';
   tut.i = -1; tut.wait = 0; nextStep();
@@ -1726,7 +1733,7 @@ function startValley(opt = {}) {
   setOutfit(0x3c4a5e, 0x9aa8b8); $('avatar').textContent = '剑'; hudDirty = true;
   placePlayer(world.spawn);
   shixiong.holder.visible = false; enemies.length = 0; enemies.push(zheng);
-  initTough(zheng); parryCount = 0; rideRams = 0;
+  initTough(zheng, ZHENG.tough, 2); parryCount = 0; rideRams = 0;
   Object.assign(zheng, { hold: false, maxHp: ZHENG.hp, hp: ZHENG.hp, x: 0, z: -11, yaw: 0, dead: false, deadT: 0, act: null, ai: false, introDone: false, enraged: false, cd: 2, stagger: 0 });
   zheng.model.root.rotation.z = 0; zheng.model.root.position.y = 0; zheng.model.tails.forEach(t => t.fl.visible = true); zheng.holder.visible = true;
   Object.assign(zheng.an, { crouch: 0, pitch: 0, head: 0, jaw: 0, leap: 0, gallop: 0, rear: 0 });
@@ -1858,7 +1865,9 @@ function updateHUD() {
   const be = enemies[0];
   if (be) { const r = be.hp / be.maxHp; $('bossfill').style.width = (r * 100) + '%'; $('bosstxt').textContent = be.kind === 'zheng' ? `${Math.ceil(be.hp)}/${be.maxHp}` : `${Math.ceil(r * 100)}%`; const nm = `${be.name}<small>Lv${be.lvTxt}</small>`; if (nm !== hudBossName) { hudBossName = nm; $('bossname').innerHTML = nm; }
     const tb = $('tbar'); tb.style.display = be.tough ? 'block' : 'none';
-    if (be.tough) { const tr = be.broken ? Math.max(0, be.brkT / TUNE.tough.breakT) : be.T / be.Tmax; $('tfill').style.width = (tr * 100).toFixed(1) + '%'; const st = be.broken ? 'brk' : be.refill ? 'ref' : ''; if (tb.dataset.st !== st) { tb.dataset.st = st; tb.className = 'tbar ' + st; } const tx = be.broken ? '破防！' : be.refill ? '韧性恢复中' : `韧性 ${Math.ceil(be.T)}`; if ($('ttxt').textContent !== tx) $('ttxt').textContent = tx; } }
+    if (be.tough) { const tr = be.broken ? 0 : be.T / be.Tmax; $('tfill').style.width = (tr * 100).toFixed(1) + '%'; const st = be.broken ? (be.brkT > 0 ? 'brk stag' : 'brk') : ''; if (tb.dataset.st !== st) { tb.dataset.st = st; tb.className = 'tbar ' + st; }
+      const ph = be.phases > 1 ? ` · ${PHASE_CN[be.phase]}` : ''; const tx = be.broken ? `已破防${ph}` : `韧性${ph}  ${Math.ceil(be.T)}/${be.Tmax}`; if ($('ttxt').textContent !== tx) $('ttxt').textContent = tx;
+      const pp = $('tphase'); const pt = be.phases > 1 ? Array.from({ length: be.phases }, (_, i) => `<i class="${i < be.phase - 1 || (i === be.phase - 1 && be.broken) ? 'used' : i === be.phase - 1 ? 'cur' : ''}"></i>`).join('') : ''; if (pp.innerHTML !== pt) pp.innerHTML = pt; } }
   if (hudDirty) {
     hudDirty = false;
     $('pname').textContent = player.name; $('lvnum').textContent = player.lv;

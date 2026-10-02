@@ -50,15 +50,20 @@ html,body{width:100%;height:100%;overflow:hidden;background:#0b0a18;touch-action
 .m-valley .bbar i{background:linear-gradient(180deg,#ffb080,#d8301e)}
 .bbar span{position:absolute;inset:0;font-size:9px;line-height:9px;color:#fff;text-shadow:0 0 2px #000}
 /* v3 toughness bar */
-.tbar{display:none;position:relative;width:82%;margin:3px auto 0;height:10px;background:rgba(0,0,0,.6);border:1px solid rgba(255,230,150,.55);border-radius:4px;overflow:hidden}
+.tbar{display:none;position:relative;width:82%;margin:3px auto 0;height:13px;background:rgba(0,0,0,.6);border:1px solid rgba(255,230,150,.55);border-radius:4px;overflow:hidden}
 .tbar i{position:absolute;left:0;top:0;bottom:0;width:100%;background:linear-gradient(180deg,#fff0b0,#e0a020);transition:width .12s}
-.tbar span{position:absolute;inset:0;font-size:9px;line-height:9px;color:#fff;text-shadow:0 0 2px #000,0 0 2px #000;letter-spacing:1px}
-.tbar.brk{border-color:#ff8040;box-shadow:0 0 8px #ff6020;animation:tbk .3s infinite alternate}
-.tbar.brk i{background:linear-gradient(180deg,#ffb080,#ff3a10)}
-.tbar.ref i{background:linear-gradient(180deg,#d8f4ff,#5aaee0)}
+.tbar span{position:absolute;inset:0;font-size:10px;line-height:11px;font-weight:bold;color:#fff;text-shadow:0 0 2px #000,0 0 2px #000,0 0 3px #000,0 1px 1px #000;letter-spacing:1px}
+.tbar.brk{border-color:#ff6a30;background:rgba(90,10,0,.7)}
+.tbar.brk span{color:#ffd0a0}
+.tbar.stag{box-shadow:0 0 8px #ff6020;animation:tbk .3s infinite alternate}
+#trow{position:relative}
+#tphase{position:absolute;right:0;top:3px;display:flex;gap:3px}
+#tphase i{width:7px;height:7px;transform:rotate(45deg);border:1px solid #ffe08a;background:rgba(0,0,0,.5)}
+#tphase i.cur{background:#ffd040;box-shadow:0 0 4px #ffb020}
+#tphase i.used{background:#5a2010;border-color:#a06040}
 @keyframes tbk{to{border-color:#fff0a0}}
 /* guide */
-#guide{display:none;position:absolute;left:50%;top:52px;transform:translateX(-50%);max-width:440px;width:56%;background:linear-gradient(180deg,rgba(14,10,34,.86),rgba(14,10,34,.7));border:1px solid rgba(255,220,140,.5);border-radius:10px;padding:6px 12px 7px;text-align:center;box-shadow:0 0 14px rgba(0,0,0,.4)}
+#guide{display:none;position:absolute;left:50%;top:60px;transform:translateX(-50%);max-width:440px;width:56%;background:linear-gradient(180deg,rgba(14,10,34,.86),rgba(14,10,34,.7));border:1px solid rgba(255,220,140,.5);border-radius:10px;padding:6px 12px 7px;text-align:center;box-shadow:0 0 14px rgba(0,0,0,.4)}
 #gstep{font-size:10px;color:#d9b45a;letter-spacing:2px}
 #gtext{font-size:13px;line-height:19px;color:#f4f0ff;text-shadow:0 1px 2px #000}
 #gtext b{color:#ffe08a}
@@ -216,7 +221,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:#0b0a18;touch-action
 <div id="touch"></div>
 <div id="hud">
   <div id="tl"><div class="avatar" id="avatar">李</div><div><div id="lvl"><span id="pname">李白</span>Lv<b id="lvnum">90</b></div><div class="xpbar"><i id="xpfill"></i><span id="xptxt">0/45</span></div></div></div>
-  <div id="boss"><div id="bossname">剑魔 · 师兄</div><div class="bbar"><i id="bossfill"></i><span id="bosstxt"></span></div><div class="tbar" id="tbar"><i id="tfill"></i><span id="ttxt">韧性</span></div></div>
+  <div id="boss"><div id="bossname">剑魔 · 师兄</div><div class="bbar"><i id="bossfill"></i><span id="bosstxt"></span></div><div id="trow"><div class="tbar" id="tbar"><i id="tfill"></i><span id="ttxt">韧性</span></div><div id="tphase"></div></div></div>
   <div id="tr"><div id="hprow"><div class="hplabel">气血</div><div class="hpbar" id="hpbar"><em id="hpghost"></em><i id="hpfill"></i><div class="sh" id="shfill"></div><span id="hptxt">200/200</span></div></div>
     <div id="shield">◈ <span id="shtxt">护盾 100</span></div><button id="skip">跳过教程 ›</button></div>
   <div id="guide"><div id="gstep">教程</div><div id="gtext"></div><button id="gnext">继续</button></div>
@@ -254,7 +259,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:#0b0a18;touch-action
 <div id="start" class="ov">
   <h1>剑仙之道</h1>
   <div class="sub">云海问剑 · 一剑破山海</div>
-  <div class="help">左下摇杆：移动　|　右侧滑动：转动视角　|　摇杆上方：酒葫芦（饮酒回气血）<br>右下：普攻 / 斩马 / 飞剑 / 格挡（弹反）　|　左侧十字：五大神通　|　下方中间：御剑<br>首领拥有<b style="color:#ffd86a">韧性</b>：削空韧性即「破防」，斩马与弹反削韧最快</div>
+  <div class="help">左下摇杆：移动　|　右侧滑动：转动视角　|　摇杆上方：酒葫芦（饮酒回气血）<br>右下：普攻 / 斩马 / 飞剑 / 格挡（弹反）　|　左侧十字：五大神通　|　下方中间：御剑<br>首领每个阶段有一条<b style="color:#ffd86a">韧性</b>（不会自动恢复）：削空即「破防」，此后本阶段受全额伤害；斩马与弹反削韧最快</div>
   <div id="saveinfo"></div>
   <div><button id="go">开始游戏</button><button id="cont">继续游戏</button><button id="restart">重新开始</button></div>
   <div class="ver">v3</div>
