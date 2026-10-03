@@ -2102,7 +2102,7 @@ const zheng = makeZheng(); zheng.holder.visible = false;
 let valleyT = 0, fightStart = 0;
 function placePlayer(sp) { player.x = sp.x; player.z = sp.z; player.yaw = sp.yaw; player.pitch = -.04; camY = H(sp.x, sp.z) + 1.7; }
 function setupLiBai() {
-  player.name = '仙尊'; player.tutChar = true; player.pages = []; player.lv = 90; player.xp = 0; recalc(); player.hp = player.maxHp; player.wine = 2; player.wineMax = 2; player.unlocked = ALL_ST.slice(); player.rideOK = true; player.minHpFrac = .3; player.dead = false;
+  player.name = '仙尊'; player.tutChar = true; player.pages = []; player.items = []; player.jdTp = false; player.quests = []; player.lv = 90; player.xp = 0; recalc(); player.hp = player.maxHp; player.wine = 2; player.wineMax = 2; player.unlocked = ALL_ST.slice(); player.rideOK = true; player.minHpFrac = .3; player.dead = false;
   setOutfit(0xeef1f6, 0x5fa6d8); $('avatar').textContent = '仙'; hudDirty = true;
 }
 /* ===== tutorial ===== */
@@ -2267,16 +2267,16 @@ function saveGame() {
   if (player.tutChar || !activeSlot) return false;
   const st = readStore(); let d = st.slots.find(x => x.id === activeSlot);
   if (!d) { if (st.slots.length >= MAX_SLOTS) return false; d = { id: activeSlot }; st.slots.push(d); }
-  Object.assign(d, { v: 3, name: player.name, lv: player.lv, xp: player.xp, stage: mode === 'valley' ? 'valley' : 'ch1', ch: ch1.cp, rideOK: !!player.rideOK, unlocked: player.unlocked.slice(), pages: (player.pages || []).slice(), wine: player.wine, wineMax: player.wineMax, wins: player.wins || 0, time: Date.now() });
+  Object.assign(d, { v: 3, name: player.name, lv: player.lv, xp: player.xp, stage: mode === 'valley' ? 'valley' : 'ch1', ch: ch1.cp, rideOK: !!player.rideOK, unlocked: player.unlocked.slice(), pages: (player.pages || []).slice(), items: (player.items || []).slice(), jdTp: !!player.jdTp, quests: (player.quests || []).slice(), wine: player.wine, wineMax: player.wineMax, wins: player.wins || 0, time: Date.now() });
   st.last = activeSlot; return writeStore(st);
 }
 function loadSave(id) { const st = readStore(); return st.slots.find(d => d.id === (id || st.last)) || null; }
 function deleteSave(id) { const st = readStore(); st.slots = st.slots.filter(d => d.id !== id); if (st.last === id) st.last = null; writeStore(st); }
 function wipeSave() { try { localStorage.removeItem(SAVES_KEY); localStorage.removeItem(OLD_SAVE_KEY); } catch (e) { } }
-function applySave(d) { player.tutChar = false; activeSlot = d.id; player.name = d.name; player.lv = clamp(d.lv | 0, 1, 100); player.xp = Math.max(0, d.xp | 0); player.unlocked = Array.isArray(d.unlocked) ? d.unlocked.filter(x => ALL_ST.includes(x)) : []; player.pages = Array.isArray(d.pages) ? d.pages.filter(i => Number.isInteger(i) && i >= 0 && i < 10).filter((v, k, arr) => arr.indexOf(v) === k) : []; player.wineMax = Math.max(1, d.wineMax | 0 || 2); player.wine = clamp(d.wine ?? player.wineMax, 0, player.wineMax); player.wins = d.wins | 0; player.rideOK = !!d.rideOK; ch1.cp = d.ch || 'intro'; }
+function applySave(d) { player.tutChar = false; activeSlot = d.id; player.name = d.name; player.lv = clamp(d.lv | 0, 1, 100); player.xp = Math.max(0, d.xp | 0); player.unlocked = Array.isArray(d.unlocked) ? d.unlocked.filter(x => ALL_ST.includes(x)) : []; player.pages = Array.isArray(d.pages) ? d.pages.filter(i => Number.isInteger(i) && i >= 0 && i < 10).filter((v, k, arr) => arr.indexOf(v) === k) : []; player.items = Array.isArray(d.items) ? d.items.filter(x => typeof x === 'string').slice(0, 20) : []; player.jdTp = !!d.jdTp; player.quests = Array.isArray(d.quests) ? d.quests.filter(x => typeof x === 'string') : []; player.wineMax = Math.max(1, d.wineMax | 0 || 2); player.wine = clamp(d.wine ?? player.wineMax, 0, player.wineMax); player.wins = d.wins | 0; player.rideOK = !!d.rideOK; ch1.cp = d.ch || 'intro'; }
 function newCareer(name) {
   player.tutChar = false; activeSlot = 's' + Date.now().toString(36) + Math.floor(Math.random() * 1e4).toString(36);
-  player.name = name || '无名剑修'; player.lv = 1; player.xp = 0; player.unlocked = []; player.pages = []; player.wineMax = 2; player.wine = 2; player.wins = 0;
+  player.name = name || '无名剑修'; player.lv = 1; player.xp = 0; player.unlocked = []; player.pages = []; player.items = []; player.jdTp = false; player.quests = []; player.wineMax = 2; player.wine = 2; player.wins = 0;
   player.rideOK = false; ch1.cp = 'intro'; saveGame(); startCh1('intro');
 }
 const STAGE_CN = { valley: '第一章 · 学院' };
@@ -2515,7 +2515,7 @@ function update(dtR) {
     }
     if (player.dashT > 0) { player.dashT -= dt; player.x += player.dashV.x * dt; player.z += player.dashV.z * dt; if (Math.random() < .9) emit(player.x + rand(-1, 1), camY + rand(-1, .5), player.z + rand(-1, 1), -player.dashV.x * .3, 0, -player.dashV.z * .3, 0xbff4ff, .15, .25, 0); }
     const R = world.R, rr = Math.hypot(player.x, player.z); if (rr > R) { player.x *= R / rr; player.z *= R / rr; }
-    for (const c of world.cols || []) { const dx = player.x - c.x, dz = player.z - c.z, d = Math.hypot(dx, dz), mn = c.r + .45; if (d < mn && d > 1e-4) { player.x = c.x + dx / d * mn; player.z = c.z + dz / d * mn; } }
+    for (const c of world.cols || []) { if (c.off) continue; const dx = player.x - c.x, dz = player.z - c.z, d = Math.hypot(dx, dz), mn = c.r + .45; if (d < mn && d > 1e-4) { player.x = c.x + dx / d * mn; player.z = c.z + dz / d * mn; } }
     if (H(player.x, player.z) < -1.15) { player.x = ox; player.z = oz; }
     if (world.resolve) { const ddx = player.x - ox, ddz = player.z - oz, n = Math.max(1, Math.ceil(Math.hypot(ddx, ddz) / .25)); let x = ox, z = oz; for (let i = 0; i < n; i++) { const r = world.resolve(x + ddx / n, z + ddz / n, .45); x = r[0]; z = r[1]; } player.x = x; player.z = z; if (mode === 'ch1') ch1PlayerClamp(); }
     for (const m of liveEnemies()) { if (m.noPush) continue; const dx = player.x - m.x, dz = player.z - m.z, d = Math.hypot(dx, dz), mn = m.radius + .7; if (d < mn && d > 1e-3) { player.x = m.x + dx / d * mn; player.z = m.z + dz / d * mn; } }
@@ -2643,7 +2643,7 @@ onTap($('cfmyes'), () => { $('confirm').style.display = 'none'; const f = confir
 requestAnimationFrame(frame);
 // debug / test hooks
 window.__G = { renderer, camera, vCam, vRoot, rHand, lHand, player, enemies, shixiong, zheng, SK, tryCast, tut, VM, wj, zones, decoy, ult, fly, cut,
-  get state() { return state; }, get mode() { return mode; }, get camY() { return camY; }, set timeScale(v) { timeScale = v; },
+  get state() { return state; }, set state(v) { state = v; }, get mode() { return mode; }, get camY() { return camY; }, set timeScale(v) { timeScale = v; },
   step(n, dt = 1 / 60) { for (let i = 0; i < n; i++) { if (state === 'title') titleUpdate(dt); else if (state === 'play' || state === 'cut' || state === 'win' || state === 'dead' || state === 'talk') update(dt); } },
   start() { $('go').click(); }, next() { completeStep(); }, skip() { skipTutorial(); }, valley(n) { startValley(n || '测试剑修'); },
   resetCd() { for (const k in SK) SK[k].t = 0; }, TUNE, ZHENG, FLY, JY, jyAim, joy, IN, resetInputs, get atkHeld() { return atkHeld; }, get camPtr() { return camPtr; }, spawnMinion, saveGame, loadSave, wipeSave, newCareer, listSaves, deleteSave, enterSlot, showSlots, get activeSlot() { return activeSlot; }, op, playOpening, endOpening, startValley, hitEnemy, get parryCount() { return parryCount; }, get rideRams() { return rideRams; }, get jyTarget() { return jyTarget; }, tp(x, z, yaw) { player.x = x; player.z = z; if (yaw !== undefined) player.yaw = yaw; camY = H(x, z) + 1.7; },
@@ -2661,7 +2661,7 @@ function makeCollider(boxes, cols, bounds, dyn) {
         if (d2 > 1e-8) { const d = Math.sqrt(d2); x = cx + dx / d * r; z = cz + dz / d * r; }
         else { const pl = x - b.x0, pr = b.x1 - x, pd = z - b.z0, pu = b.z1 - z, m = Math.min(pl, pr, pd, pu); if (m === pl) x = b.x0 - r; else if (m === pr) x = b.x1 + r; else if (m === pd) z = b.z0 - r; else z = b.z1 + r; }
       }
-      for (const c of cols) { const dx = x - c.x, dz = z - c.z, d = Math.hypot(dx, dz), mn = c.r + r; if (d < mn) { if (d > 1e-4) { x = c.x + dx / d * mn; z = c.z + dz / d * mn; } else x = c.x + mn; } }
+      for (const c of cols) { if (c.off) continue; const dx = x - c.x, dz = z - c.z, d = Math.hypot(dx, dz), mn = c.r + r; if (d < mn) { if (d > 1e-4) { x = c.x + dx / d * mn; z = c.z + dz / d * mn; } else x = c.x + mn; } }
       if (dyn) for (const c of dyn) { if (!c.solid || c.world !== world.name) continue; const dx = x - c.x, dz = z - c.z, d = Math.hypot(dx, dz), mn = c.r + r; if (d < mn && d > 1e-4) { x = c.x + dx / d * mn; z = c.z + dz / d * mn; } }
       x = clamp(x, bounds.x0 + r, bounds.x1 - r); z = clamp(z, bounds.z0 + r, bounds.z1 - r);
     }
@@ -3001,15 +3001,16 @@ function buildDigongWorld() {
   for (const z of [-10, -3, 5]) for (const sx of [-1, 1]) brazier(sx * 8.6, z);
   for (const sx of [-1, 1]) { brazier(sx * 9.5, 47.5); brazier(sx * 9.5, 17); brazier(sx * 4.1, 55); }
   const bookGlow = mk(G.sph, auraMat(0xb050ff, 1.6, 1.4), g, DG.book.x, 1.3, DG.book.z, .5, .4, .5);
+  const tome = new THREE.Group(); tome.position.set(DG.book.x, 1.27, DG.book.z); tome.rotation.x = .35; g.add(tome); mk(G.box, new THREE.MeshLambertMaterial({ color: 0x4a1a6a, emissive: 0x6a20a0, emissiveIntensity: .6 }), tome, 0, 0, 0, .62, .12, .46); mk(G.box, new THREE.MeshBasicMaterial({ color: 0xe0c070 }), tome, 0, .065, 0, .4, .01, .3);
   const altarL = new THREE.PointLight(0xb060ff, 6, 14, 1.6); altarL.position.set(0, 2.5, -12); g.add(altarL);
   // floor-shatter visuals (boss end)
   const pit = new THREE.Mesh(discGeo, new THREE.MeshBasicMaterial({ color: 0x040208 })); pit.rotation.x = -Math.PI / 2; pit.position.set(0, .03, -6); pit.visible = false; g.add(pit);
   const W2 = {
-    name: 'digong', group: g, R: 1e5, boxes, cols, bounds, resolve: makeCollider(boxes, cols, bounds, npcSolids), spawn: DG.spawn, bookGlow, door1, door2, bridge, chasmBox, pit, bridgeK: 0, bridgeT: 0, barrier, barrierBox, barM, barOn: false,
+    name: 'digong', group: g, R: 1e5, boxes, cols, bounds, resolve: makeCollider(boxes, cols, bounds, npcSolids), spawn: DG.spawn, bookGlow, tome, door1, door2, bridge, chasmBox, pit, bridgeK: 0, bridgeT: 0, barrier, barrierBox, barM, barOn: false,
     H: () => 0, sky: [0x08040e, 0x140a20, 0x1e1028], sunDir: V3(0, 1, 0), sunCol: [.4, .2, .6], fog: [0x1a0e28, 14, 66],
     hemi: [0xc0a0f0, 0x5a4070, 2.6], sunL: [0xc0a0ff, .7], ground: 0x201828,
     setState(o) { for (const [d, v] of [[door1, o.d1], [door2, o.d2]]) { d.k = d.target = v ? 1 : 0; d.open = !!v; applyDoor(d); }
-      W2.bridgeK = W2.bridgeT = o.br ? 1 : 0; applyBridge(W2); W2.barOn = !!o.bar; barrier.visible = W2.barOn; barrierBox.off = !W2.barOn; pit.visible = false; pit.scale.setScalar(1); },
+      W2.bridgeK = W2.bridgeT = o.br ? 1 : 0; applyBridge(W2); W2.barOn = !!o.bar; barrier.visible = W2.barOn; barrierBox.off = !W2.barOn; pit.visible = false; pit.scale.setScalar(1); tome.visible = bookGlow.visible = o.tome !== false; },
     openDoor(d) { d.target = 1; d.crackT = 0; sfx('stone'); },
     raiseBridge() { W2.bridgeT = 1; bridge.visible = true; },
     update(dt) {
@@ -3028,44 +3029,150 @@ function buildDigongWorld() {
 }
 function applyDoor(d) { const e = d.k * d.k * (3 - 2 * d.k); for (const h of d.halves) { h.g.position.x = h.s * e * 5.3; h.disc.visible = h.ring.visible = h.halo.visible = h.glow.visible = d.k < .98; } d.box.off = d.k > .55; d.open = d.k >= 1; if (d.k >= 1) d.crack.material.opacity = 0; d.btnM.emissiveIntensity = d.target ? 2.2 : .7; }
 function applyBridge(w) { const e = 1 - Math.pow(1 - w.bridgeK, 3); w.bridge.position.y = lerp(-16, 0, e); w.bridge.visible = w.bridgeK > 0; w.chasmBox.off = w.bridgeK >= 1; }
-/* ===== 地底洞天 (cave below the 地宫): winding tunnel guided by a purple orb → 紫光晶石 → 传送阵 ===== */
-const CAVE = { rects: [[-5, 5, 22, 32], [-2, 2, 7, 22], [-2, 16, 4, 8], [12, 16, -12, 4], [-8, 16, -16, -12], [-16, 0, -34, -16]],
-  spawn: { x: 0, z: 28.5, yaw: 0 }, crystal: { x: -8, z: -27.5 }, circle: { x: -8, z: -20.5 },
-  orbPath: [[0, 24], [0, 13], [0, 6], [7, 6], [14, 6], [14, -2], [14, -10], [14, -14], [5, -14], [-4, -14], [-8, -18], [-8, -22.5]] };
-function buildCaveWorld() {
+/* ===== 七印镜殿 (v4.4): 地底甬道 (floor y=12) → 七印巨门 → 宽阔石阶 (down to y=0) → 椭圆大殿 · 七面古镜 · 殿心书架 ===== */
+const JD = {
+  rects: [[-5, 5, 112, 122], [-2, 2, 97, 112], [-2, 16, 94, 98], [12, 16, 78, 94], [-8, 16, 74, 78], [-16, 0, 56, 74], [-10, 10, 45, 56]],
+  spawn: { x: 0, z: 118.5, yaw: 0 },
+  orbPath: [[0, 114], [0, 103], [0, 96], [7, 96], [14, 96], [14, 88], [14, 80], [14, 76], [5, 76], [-4, 76], [-8, 70], [-8, 62], [-4, 57], [0, 52], [0, 49.5]],
+  top: 12, doorZ: 45, doorHW: 8, st: { z0: 22, z1: 44, hw: 8 },
+  E: { cz: -20, ax: 32, az: 46 }, shelf: { x: 0, z: -20 }, crystal: { x: 0, z: -15.6 }, circle: { x: 0, z: -8.5 }, tp: { x: 3.4, z: -7.4, yaw: Math.atan2(3.4, 1.1) },
+  lit: [1, 3, 5], hallZ: 21.5, door: { x: 0, z: 47.6 }, place: { x: 0, z: -17.6 },
+};
+JD.mirrors = Array.from({ length: 7 }, (_, k) => { const t = (2 * k + 1) * Math.PI / 7, s = .972, x = JD.E.ax * s * Math.sin(t), z = JD.E.cz + JD.E.az * s * Math.cos(t); return { x, z, yaw: Math.atan2(-x, JD.E.cz - z) }; });
+function jdH(x, z) { return z >= 44 ? 12 : (z > 22 && Math.abs(x) < 8 ? 12 * (z - 22) / 22 : 0); }
+function buildJingWorld() {
   const g = new THREE.Group(); g.visible = false; scene.add(g);
-  const X0 = -18, X1 = 18, Z0 = -36, Z1 = 34, walk = (x, z) => CAVE.rects.some(r => x > r[0] && x < r[1] && z > r[2] && z < r[3]);
-  const boxes = [], L = []; let sd = 11; const rr = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
+  const T = JD.top, E = JD.E, X0 = -18, X1 = 18, Z0 = 45, Z1 = 124, walk = (x, z) => JD.rects.some(r => x > r[0] && x < r[1] && z > r[2] && z < r[3]);
+  const boxes = [], cols = [], L = [], GL = []; let sd = 23; const rr = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
+  const box = (x0, x1, y0, y1, z0, z1, c, list = L) => list.push([G.box, c, M4((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2, x1 - x0, y1 - y0, z1 - z0)]);
+  // ---- tunnel (y=12): collision from the walkable rects, rock visuals on the border cells ----
   for (let z = Z0; z < Z1; z++) { let run = null; for (let x = X0; x <= X1; x++) { const solid = x < X1 && !walk(x + .5, z + .5); if (solid && run === null) run = x; if (!solid && run !== null) { boxes.push({ x0: run, x1: x, z0: z, z1: z + 1 }); run = null; } } }
-  // rock wall visuals: only cells bordering the walkable area (merged)
-  for (let z = Z0; z < Z1; z++) for (let x = X0; x < X1; x++) { if (walk(x + .5, z + .5)) continue; let edge = false; for (const [a, b] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, -1], [1, -1], [-1, 1]]) if (walk(x + .5 + a, z + .5 + b)) edge = true; if (!edge) continue; const h = 3.6 + rr() * 3.2, c = rr() < .5 ? 0x3a3242 : 0x2e2836; L.push([G.box, c, M4(x + .5, h / 2, z + .5, 1.05 + rr() * .3, h, 1.05 + rr() * .3, rr() * .6)]); if (rr() < .12) L.push([new THREE.ConeGeometry(.18, .7, 5), 0xb070ff, M4(x + .5 + (rr() - .5) * .6, .5 + rr() * 2.5, z + .5 + (rr() - .5) * .6, 1, 1, 1, rr() * 3, (rr() - .5) * 1.2, (rr() - .5) * 1.2)]); }
-  for (const r of CAVE.rects) { L.push([G.box, 0x241e2a, M4((r[0] + r[1]) / 2, -.2, (r[2] + r[3]) / 2, r[1] - r[0] + 1, .4, r[3] - r[2] + 1)]); L.push([G.box, 0x120e16, M4((r[0] + r[1]) / 2, 7, (r[2] + r[3]) / 2, r[1] - r[0] + 2, .4, r[3] - r[2] + 2)]); }
-  for (let i = 0; i < 40; i++) { const r = CAVE.rects[(rr() * CAVE.rects.length) | 0]; const x = r[0] + .8 + rr() * (r[1] - r[0] - 1.6), z = r[2] + .8 + rr() * (r[3] - r[2] - 1.6); L.push([new THREE.ConeGeometry(.12 + rr() * .15, .6 + rr(), 5), 0x4a3e56, M4(x, 6.8 - .4, z, 1, 1, 1, 0, Math.PI)]); }
+  for (let z = Z0; z < Z1; z++) for (let x = X0; x < X1; x++) { if (walk(x + .5, z + .5)) continue; let edge = false; for (const [a, b] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, -1], [1, -1], [-1, 1]]) if (walk(x + .5 + a, z + .5 + b)) edge = true; if (!edge) continue; const ante = z < 57, h = ante ? 17 + rr() * 2 : 3.6 + rr() * 3.2, c = rr() < .5 ? 0x4a4056 : 0x3c3448; L.push([G.box, c, M4(x + .5, T + h / 2, z + .5, 1.05 + rr() * .3, h, 1.05 + rr() * .3, rr() * .6)]); if (rr() < .14) GL.push([new THREE.ConeGeometry(.18, .7, 5), 0xb070ff, M4(x + .5 + (rr() - .5) * .6, T + .5 + rr() * 2.5, z + .5 + (rr() - .5) * .6, 1, 1, 1, rr() * 3, (rr() - .5) * 1.2, (rr() - .5) * 1.2)]); }
+  for (const r of JD.rects) { const ante = r[2] === 45; box(r[0] - .5, r[1] + .5, T - .4, T, r[2] - (ante ? 0 : .5), r[3] + .5, 0x2e2638); box(r[0] - 1, r[1] + 1, T + (ante ? 18 : 7), T + (ante ? 18.4 : 7.4), r[2] - (ante ? 0 : 1), r[3] + 1, 0x16121c); }
+  for (let i = 0; i < 46; i++) { const r = JD.rects[(rr() * 6) | 0]; const x = r[0] + .8 + rr() * (r[1] - r[0] - 1.6), z = r[2] + .8 + rr() * (r[3] - r[2] - 1.6); L.push([new THREE.ConeGeometry(.12 + rr() * .15, .6 + rr(), 5), 0x5a4e66, M4(x, T + 6.8 - .4, z, 1, 1, 1, 0, Math.PI)]); }
+  // ---- 七印巨门 facade (z 44..45) + doorway x -8..8, y 12..26 ----
+  const HW = JD.doorHW, DH = 14;
+  for (const s of [-1, 1]) { box(s < 0 ? -18 : HW, s < 0 ? -HW : 18, 0, T + 20, 44, 45, 0x4e4260); boxes.push({ x0: s < 0 ? -18 : HW, x1: s < 0 ? -HW : 18, z0: 44, z1: 45 }); box(s * (HW + .6) - .6, s * (HW + .6) + .6, T, T + DH + 1, 45, 45.5, 0x6a5878); }
+  box(-HW, HW, T + DH, T + 20, 44, 45, 0x4e4260); box(-HW - 1.2, HW + 1.2, T + DH, T + DH + 1.1, 45, 45.6, 0x6a5878);
+  box(-HW - 1.2, HW + 1.2, T - .1, T + .05, 45, 46.4, 0x5a4c6a); // threshold
+  // ---- wide stairs down (z 44 → 22, y 12 → 0) + corridor walls/ceiling ----
+  const NS = 22; for (let i = 0; i < NS; i++) { const zt = 44 - i, top = 12 * ((zt - .5) - 22) / 22; box(-JD.st.hw, JD.st.hw, -.2, top, zt - 1, zt, i % 2 ? 0x5a4e6c : 0x544866); box(-JD.st.hw, JD.st.hw, top - .02, top + .03, zt - 1.02, zt - .9, 0x8a6ab0, GL); }
+  box(-HW - 2, HW + 2, -.2, T, 43.99, 45.01, 0x544866);
+  for (const s of [-1, 1]) { const x0 = s < 0 ? -14 : 8, x1 = s < 0 ? -8 : 14; boxes.push({ x0, x1, z0: 22, z1: 45 }); box(x0, x1, 0, 31, 22, 45, 0x5a4e6c); for (let i = 0; i < 6; i++) { const zc = 24.6 + i * 3.6, hy = jdH(0, zc); box(s * 8 - .06, s * 8 + .06, hy + 2.2, hy + 3.1, zc - .6, zc + .6, 0xb070ff, GL); } }
+  box(-14, 14, 28, 29, 22, 45, 0x2a2236); box(-9, 9, 28, 31, 22.5, 26.5, 0x5a4e6c);
+  // ---- hall: ellipse wall (gap for the stairs), dome, floor ----
+  const gapT = Math.asin(JD.st.hw / (E.ax + .6)) + .01;
+  const brickTex = canvasTex(256, 256, (c, w, h) => { c.fillStyle = '#7a6c8e'; c.fillRect(0, 0, w, h); for (let y = 0; y < 8; y++) for (let x = 0; x < 4; x++) { const l = 96 + ((x * 7 + y * 13) % 5) * 7; c.fillStyle = `rgb(${l + 10},${l},${l + 26})`; c.fillRect(((x + (y % 2) * .5) % 4) * 64 + 2, y * 32 + 2, 60, 28); } }, [40, 6]);
+  const wall = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 31, 72, 1, true, gapT, Math.PI * 2 - gapT * 2), new THREE.MeshLambertMaterial({ map: brickTex, side: THREE.BackSide })); wall.scale.set(E.ax + .6, 1, E.az + .6); wall.position.set(0, 15.5, E.cz); g.add(wall);
+  const dome = new THREE.Mesh(new THREE.SphereGeometry(1, 40, 10, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshLambertMaterial({ color: 0x3e3054, side: THREE.BackSide })); dome.scale.set(E.ax + .7, 14, E.az + .7); dome.position.set(0, 30.9, E.cz); g.add(dome);
+  const tileTex = canvasTex(256, 256, (c, w, h) => { c.fillStyle = '#3a3048'; c.fillRect(0, 0, w, h); for (let y = 0; y < 4; y++) for (let x = 0; x < 4; x++) { const l = 70 + ((x * 3 + y * 5) % 4) * 8; c.fillStyle = `rgb(${l},${l - 6},${l + 18})`; c.fillRect(x * 64 + 2, y * 64 + 2, 60, 60); } }, [14, 20]);
+  const floor = new THREE.Mesh(new THREE.CircleGeometry(1, 72), new THREE.MeshLambertMaterial({ map: tileTex })); floor.rotation.x = -Math.PI / 2; floor.scale.set(E.ax + .7, E.az + .7, 1); floor.position.set(0, 0, E.cz); g.add(floor);
+  // giant rune disc
+  const runeTex = canvasTex(1024, 1024, (c, w, h) => { const cx = w / 2; c.fillStyle = '#2a2034'; c.fillRect(0, 0, w, h); c.strokeStyle = '#c8a0ff'; c.fillStyle = '#c8a0ff'; c.lineWidth = 10;
+    for (const r of [500, 470, 330, 300, 140]) { c.beginPath(); c.arc(cx, cx, r, 0, 6.283); c.stroke(); }
+    c.font = 'bold 54px serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; const gl = '乾坤震巽坎离艮兑天地玄黄宇宙洪荒日月盈昃辰宿列张'; for (let i = 0; i < 28; i++) { const a = i / 28 * 6.283; c.save(); c.translate(cx + Math.sin(a) * 400, cx - Math.cos(a) * 400); c.rotate(a); c.fillText(gl[i], 0, 0); c.restore(); }
+    c.lineWidth = 7; for (let i = 0; i < 7; i++) { const a = i / 7 * 6.283, x = cx + Math.sin(a) * 222, y = cx - Math.cos(a) * 222; c.beginPath(); c.arc(x, y, 58, 0, 6.283); c.stroke(); c.beginPath(); for (let k = 0; k < 5; k++) { const b = a + k * 2.513; c.lineTo(x + Math.sin(b) * 44, y - Math.cos(b) * 44); } c.closePath(); c.stroke(); }
+    c.beginPath(); for (let k = 0; k <= 7; k++) { const a = k * 3 / 7 * 6.283; c.lineTo(cx + Math.sin(a) * 300, cx - Math.cos(a) * 300); } c.stroke(); });
+  const disc = new THREE.Mesh(new THREE.CircleGeometry(14, 64), new THREE.MeshLambertMaterial({ map: runeTex })); disc.rotation.x = -Math.PI / 2; disc.position.set(JD.shelf.x, .03, JD.shelf.z); g.add(disc);
+  const discGlowM = new THREE.MeshBasicMaterial({ map: runeTex, color: 0xb070ff, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false });
+  const discGlow = new THREE.Mesh(new THREE.CircleGeometry(14, 64), discGlowM); discGlow.rotation.x = -Math.PI / 2; discGlow.position.set(JD.shelf.x, .06, JD.shelf.z); g.add(discGlow);
+  L.push([new THREE.TorusGeometry(14.2, .3, 4, 72), 0x8a7050, M4(JD.shelf.x, .05, JD.shelf.z, 1, 1, .5, 0, Math.PI / 2)]);
+  // central bookshelf-lectern
+  const S = JD.shelf; box(S.x - 1.9, S.x + 1.9, 0, .35, S.z - 1.3, S.z + 1.2, 0x4a3a2a); box(S.x - 1.6, S.x + 1.6, .35, 3.1, S.z - 1.15, S.z - .85, 0x5a3a24);
+  for (const s of [-1, 1]) box(S.x + s * 1.6 - .12, S.x + s * 1.6 + .12, .35, 3.3, S.z - 1.2, S.z - .3, 0x6a4428);
+  for (let k = 0; k < 3; k++) { box(S.x - 1.5, S.x + 1.5, .9 + k * .8, .98 + k * .8, S.z - 1.1, S.z - .45, 0x6a4428); for (let b = 0; b < 9; b++) { const hh = .35 + ((b * 7 + k * 3) % 4) * .06; box(S.x - 1.35 + b * .3, S.x - 1.12 + b * .3, .98 + k * .8, .98 + k * .8 + hh, S.z - 1.05, S.z - .55, [0x6a2a3a, 0x2a3a6a, 0x3a5a3a, 0x7a5a2a, 0x4a2a6a][(b + k) % 5]); } }
+  L.push([G.cyl, 0x5a3a24, M4(S.x, .75, S.z + .35, .14, .8, .14)]); L.push([G.box, 0x6a4428, M4(S.x, 1.2, S.z + .35, 1.1, .1, .8, 0, -.4)]);
+  boxes.push({ x0: S.x - 1.9, x1: S.x + 1.9, z0: S.z - 1.3, z1: S.z + 1.0 });
+  const tomeM = new THREE.MeshLambertMaterial({ color: 0x4a1a6a, emissive: 0x6a20a0, emissiveIntensity: .5 });
+  const shelfBook = new THREE.Group(); shelfBook.position.set(S.x, 1.32, S.z + .35); shelfBook.rotation.x = -.4; g.add(shelfBook); mk(G.box, tomeM, shelfBook, 0, 0, 0, .62, .12, .46); mk(G.box, new THREE.MeshBasicMaterial({ color: 0xe0c070 }), shelfBook, 0, .065, 0, .4, .01, .3);
+  const bookAura = mk(G.sph, auraMat(0xb050ff, 1.6, 1.4), shelfBook, 0, .1, 0, .7, .5, .7); shelfBook.visible = false;
+  // pillars (instanced): 16 around the hall
+  const pillarG = mergeColored([[G.box, 0x4a3e5a, M4(0, .5, 0, 2.7, 1, 2.7)], [new THREE.CylinderGeometry(1, 1, 1, 8), 0x6a5a80, M4(0, 15, 0, .95, 28, .95)], [G.box, 0x4a3e5a, M4(0, 29.3, 0, 2.5, 1.4, 2.5)], [G.box, 0x8a6ab0, M4(0, 3, 0, 2.02, .25, 2.02)]]);
+  const NP = 16, pim = new THREE.InstancedMesh(pillarG, new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true }), NP); const mm = new THREE.Matrix4();
+  for (let k = 0; k < NP; k++) { const t = (k + .5) / NP * Math.PI * 2, x = E.ax * .8 * Math.sin(t), z = E.cz + E.az * .8 * Math.cos(t); pim.setMatrixAt(k, mm.makeTranslation(x, 0, z)); cols.push({ x, z, r: 1.35 }); }
+  g.add(pim);
+  // seven mirrors
+  const mirrorDark = new THREE.MeshLambertMaterial({ color: 0x1a1426, emissive: 0x0a0612 });
+  const mirTex = canvasTex(64, 256, (c, w, h) => { const gr = c.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, '#f0d0ff'); gr.addColorStop(.5, '#a050ff'); gr.addColorStop(1, '#5a1aa0'); c.fillStyle = gr; c.fillRect(0, 0, w, h); c.fillStyle = 'rgba(255,255,255,.35)'; c.fillRect(8, 0, 6, h); });
+  const mirrorLit = new THREE.MeshBasicMaterial({ map: mirTex });
+  const glowTex = canvasTex(128, 128, (c, w, h) => { const gr = c.createRadialGradient(w / 2, h / 2, 4, w / 2, h / 2, w / 2); gr.addColorStop(0, 'rgba(220,170,255,1)'); gr.addColorStop(1, 'rgba(120,40,255,0)'); c.fillStyle = gr; c.fillRect(0, 0, w, h); });
+  const mirrors = JD.mirrors.map((m, k) => {
+    const q = new THREE.Matrix4().makeRotationY(m.yaw), at = (lx, ly, lz) => V3(lx, ly, lz).applyMatrix4(q).add(V3(m.x, 0, m.z));
+    const part = (lx, ly, lz, sx, sy, sz, c, list = L) => { const p = at(lx, ly, lz); list.push([G.box, c, M4(p.x, p.y, p.z, sx, sy, sz, m.yaw)]); };
+    part(0, .6, 0, 6, 1.2, 2, 0x3a3048); part(0, 7.2, -.2, 5.2, 12.4, .7, 0x2e2638); part(0, 13.6, -.1, 6, .9, 1, 0x8a7050); for (const s of [-1, 1]) part(s * 2.55, 7.2, .1, .35, 12, .5, 0x8a7050); part(0, 1.3, .1, 5.4, .3, .5, 0x8a7050);
+    part(0, 14.6, -.1, 1.6, 1.1, .6, 0xb090d0, GL);
+    const surf = new THREE.Mesh(new THREE.PlaneGeometry(4.6, 11.6), mirrorDark); const sp = at(0, 7.4, .2); surf.position.copy(sp); surf.rotation.y = m.yaw; g.add(surf);
+    const glow = new THREE.Mesh(new THREE.PlaneGeometry(9, 17), new THREE.MeshBasicMaterial({ map: glowTex, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false })); glow.position.copy(at(0, 7.4, .4)); glow.rotation.y = m.yaw; glow.visible = false; g.add(glow);
+    const dx = JD.shelf.x - m.x, dz = JD.shelf.z - m.z, dl = Math.hypot(dx, dz), len = dl - 14.6;
+    const ray = new THREE.Mesh(new THREE.PlaneGeometry(1.2, len), new THREE.MeshBasicMaterial({ color: 0xb070ff, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false })); ray.rotation.order = 'YXZ'; ray.rotation.set(-Math.PI / 2, Math.atan2(dx, dz), 0); ray.position.set(m.x + dx / dl * (len / 2 + .2), .05, m.z + dz / dl * (len / 2 + .2)); ray.visible = false; g.add(ray);
+    const cp = at(0, 0, -.2); cols.push({ x: cp.x, z: cp.z, r: 2.2 });
+    return { surf, glow, ray, k: 0, t: -1, lit: false };
+  });
+  // wall braziers between mirrors + light shafts
+  const fires = [];
+  for (let k = 1; k < 7; k++) { const t = k / 7 * Math.PI * 2, x = E.ax * .955 * Math.sin(t), z = E.cz + E.az * .955 * Math.cos(t); L.push([G.cyl, 0x2e2638, M4(x, .7, z, .55, 1.4, .55)]); GL.push([G.sphLo, 0xc070ff, M4(x, 1.75, z, .4, .55, .4)]); fires.push([x, z]); cols.push({ x, z, r: .7 }); }
+  const shaftG = []; for (const [x, z] of [[0, -20], [-14, -4], [14, -4], [-12, -40], [12, -40], [0, 8]]) shaftG.push([new THREE.CylinderGeometry(1.6, 3.2, 40, 10, 1, true), 0xffffff, M4(x, 20, z)]);
+  const shafts = new THREE.Mesh(mergeColored(shaftG), new THREE.MeshBasicMaterial({ color: 0x6a40a0, transparent: true, opacity: .16, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide })); g.add(shafts);
   g.add(new THREE.Mesh(mergeColored(L), new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true })));
-  const cols = [{ x: CAVE.crystal.x, z: CAVE.crystal.z, r: 1.3 }];
-  const crystal = new THREE.Group(); crystal.position.set(CAVE.crystal.x, 1.9, CAVE.crystal.z); g.add(crystal);
+  g.add(new THREE.Mesh(mergeColored(GL), new THREE.MeshBasicMaterial({ vertexColors: true })));
+  // ---- door leaves (slide into the facade), seven seals, crack, backlight ----
+  const leafM = new THREE.MeshLambertMaterial({ color: 0x54466a }), trimM = new THREE.MeshLambertMaterial({ color: 0x8a7050 });
+  const sealTex = (i) => canvasTex(128, 128, (c, w, h) => { c.strokeStyle = '#fff'; c.fillStyle = '#fff'; c.lineWidth = 6; c.beginPath(); c.arc(64, 64, 56, 0, 6.283); c.stroke(); c.lineWidth = 3; c.beginPath(); c.arc(64, 64, 44, 0, 6.283); c.stroke(); c.font = 'bold 52px serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('壹贰叁肆伍陆柒'[i], 64, 68); });
+  const seals = [], halves = [];
+  for (const s of [-1, 1]) { const hg = new THREE.Group(); g.add(hg); mk(G.box, leafM, hg, s * HW / 2, T + DH / 2, 44.5, HW + .02, DH, .8); for (let k = 0; k < 4; k++) mk(G.box, trimM, hg, s * HW / 2, T + 1 + k * 4, 44.92, HW - .6, .2, .1); mk(G.box, trimM, hg, s * (HW - .3), T + DH / 2, 44.92, .25, DH - .4, .1); halves.push({ g: hg, s }); }
+  const sealPos = [[-1, 3.2], [-1, 7], [-1, 10.8], [1, 3.2], [1, 7], [1, 10.8]];
+  sealPos.forEach(([s, y], i) => { const m = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 2.4), new THREE.MeshBasicMaterial({ map: sealTex(i), color: 0xb070ff, transparent: true, opacity: .3, blending: THREE.AdditiveBlending, depthWrite: false })); m.position.set(s * HW / 2, T + y, 44.97); halves[s < 0 ? 0 : 1].g.add(m); seals.push(m); });
+  { const m = new THREE.Mesh(new THREE.PlaneGeometry(4, 4), new THREE.MeshBasicMaterial({ map: sealTex(6), color: 0xb070ff, transparent: true, opacity: .3, blending: THREE.AdditiveBlending, depthWrite: false })); m.position.set(0, T + DH + 3, 45.04); g.add(m); seals.push(m); }
+  const crackM = new THREE.MeshBasicMaterial({ color: 0xe0b0ff, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false }); const crack = mk(G.box, crackM, g, 0, T + DH / 2, 44.95, .14, DH, .05);
+  const backM = new THREE.MeshBasicMaterial({ map: glowTex, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false }); const back = mk(new THREE.PlaneGeometry(1, 1), backM, g, 0, T + DH / 2, 43.8, 22, 18, 1);
+  const doorBox = { x0: -HW, x1: HW, z0: 44, z1: 45.3 }; boxes.push(doorBox);
+  const door = { k: 0, t: -1, open: false };
+  // ---- crystal / circle / orb (as before) ----
+  const crys = { x: JD.crystal.x, z: JD.crystal.z, r: 1.3, off: true }; cols.push(crys);
+  const crystal = new THREE.Group(); crystal.position.set(JD.crystal.x, 1.9, JD.crystal.z); crystal.visible = false; g.add(crystal);
   const crM = new THREE.MeshStandardMaterial({ color: 0x8a40e0, emissive: 0xa050ff, emissiveIntensity: 1.4, roughness: .15, metalness: .2, transparent: true, opacity: .92, flatShading: true });
   const core = new THREE.Mesh(new THREE.IcosahedronGeometry(1.15, 1), crM); crystal.add(core); const aura = mk(G.sph, auraMat(0xc070ff, 1.8, 1.4), crystal, 0, 0, 0, 1.7, 1.7, 1.7);
-  const crL = new THREE.PointLight(0xb060ff, 5, 16, 1.6); crL.position.set(CAVE.crystal.x, 2.4, CAVE.crystal.z); g.add(crL);
-  const orb = new THREE.Group(); g.add(orb); mk(G.sphLo, new THREE.MeshBasicMaterial({ color: 0xf0d0ff }), orb, 0, 0, 0, .16, .16, .16); mk(G.sph, auraMat(0xc070ff, 1.4, 1.6), orb, 0, 0, 0, .45, .45, .45);
-  const circle = new THREE.Group(); circle.position.set(CAVE.circle.x, .04, CAVE.circle.z); circle.visible = false; g.add(circle);
+  const crL = new THREE.PointLight(0xb060ff, 0, 22, 1.4); crL.position.set(JD.crystal.x, 3, JD.crystal.z); g.add(crL);
+  const orb = new THREE.Group(); orb.visible = false; g.add(orb); mk(G.sphLo, new THREE.MeshBasicMaterial({ color: 0xf0d0ff }), orb, 0, 0, 0, .16, .16, .16); mk(G.sph, auraMat(0xc070ff, 1.4, 1.6), orb, 0, 0, 0, .45, .45, .45);
+  const circle = new THREE.Group(); circle.position.set(JD.circle.x, .08, JD.circle.z); circle.visible = false; g.add(circle);
   const cm = addMat(0xc080ff, .85); const c1 = mk(ringGeo, cm, circle, 0, 0, 0, 1.7, 1.7, 1.7); c1.rotation.x = -Math.PI / 2; const c2 = mk(ringGeo, addMat(0x8a40ff, .6), circle, 0, .01, 0, 1.1, 1.1, 1.1); c2.rotation.x = -Math.PI / 2; const c3 = mk(discGeo, addMat(0x6a20c0, .25), circle, 0, .005, 0, 1.7, 1.7, 1.7); c3.rotation.x = -Math.PI / 2;
-  const bounds = { x0: X0 + .5, x1: X1 - .5, z0: Z0 + .5, z1: Z1 - .5 };
+  const bounds = { x0: -34, x1: 34, z0: -67, z1: 124 }; boxes.push({ x0: -40, x1: X0, z0: 44, z1: 130 }, { x0: X1, x1: 40, z0: 44, z1: 130 });
+  const base = makeCollider(boxes, cols, bounds, npcSolids);
+  const resolve = (x, z, r) => { for (let it = 0; it < 2; it++) { [x, z] = base(x, z, r); if (z < 44 && (z < 22 || Math.abs(x) > JD.st.hw)) { const u = x / (E.ax - r), v = (z - E.cz) / (E.az - r), s2 = u * u + v * v; if (s2 > 1) { const k = 1 / Math.sqrt(s2); x *= k; z = E.cz + (z - E.cz) * k; } } } return [x, z]; };
+  const ease = k => k * k * (3 - 2 * k);
   const W = {
-    name: 'cave', group: g, R: 1e5, boxes, cols, bounds, resolve: makeCollider(boxes, cols, bounds, npcSolids), spawn: CAVE.spawn, crystal, core, aura, crL, orb, circle, walk, orbI: 0, orbOn: false,
-    H: () => 0, sky: [0x040208, 0x0a0610, 0x100a16], sunDir: V3(0, 1, 0), sunCol: [.3, .2, .45], fog: [0x120c1a, 8, 36],
-    hemi: [0xc8b0f0, 0x4a3a60, 3.4], sunL: [0xa090d0, .5], ground: 0x18121e,
+    name: 'jingdian', group: g, R: 1e5, boxes, cols, bounds, resolve, spawn: JD.spawn, actorH: true, crystal, core, aura, crL, crys, orb, circle, orbI: 0, orbOn: false, door, doorBox, mirrors, discGlowM, shelfBook, seals,
+    H: jdH, sky: [0x06030c, 0x100820, 0x1a0e2a], sunDir: V3(0, 1, 0), sunCol: [.3, .2, .45], fog: [0x22163a, 26, 165],
+    hemi: [0xd8c0ff, 0x4a3a6a, 3.1], sunL: [0xb090ff, .6], ground: 0x1e1628,
+    setState(o) { door.k = o.open ? 1 : 0; door.t = -1; door.open = !!o.open; W.applyDoor(); crackM.opacity = 0; backM.opacity = 0; seals.forEach(m => m.material.opacity = o.open ? .9 : .3);
+      shelfBook.visible = !!o.placed; discGlowM.opacity = o.placed ? .75 : 0; mirrors.forEach((m, k) => { const on = !!o.placed && JD.lit.includes(k); m.lit = on; m.t = -1; m.k = on ? 1 : 0; W.applyMirror(m); });
+      const cv = !!o.placed && !o.absorbed; crystal.visible = cv; crystal.scale.setScalar(1); crys.off = !cv; crL.intensity = cv ? 5 : 0; circle.visible = !!o.absorbed; orb.visible = false; W.orbOn = false; W.orbI = 0; orb.position.set(JD.orbPath[0][0], T + 1.7, JD.orbPath[0][1] + 2); },
+    applyDoor() { const e = ease(door.k); for (const h of halves) h.g.position.x = h.s * e * (HW + .3); doorBox.off = door.k > .45; door.open = door.k >= 1; },
+    applyMirror(m) { m.surf.material = m.k > .02 ? mirrorLit : mirrorDark; m.glow.visible = m.ray.visible = m.k > .02; m.glow.material.opacity = .85 * m.k; m.ray.material.opacity = .5 * m.k; },
+    openDoor() { if (door.t < 0 && door.k < 1) { door.t = 0; sfx('stone'); } },
+    lightMirrors() { JD.lit.forEach((k, j) => { const m = mirrors[k]; m.lit = true; m.t = -j * .7; }); },
     update(dt) {
-      crystal.rotation.y += dt * .5; crystal.position.y = 1.9 + Math.sin(gameT * 1.3) * .12; if (crystal.visible && Math.random() < .5) emit(CAVE.crystal.x + rand(-1.5, 1.5), rand(.5, 3), CAVE.crystal.z + rand(-1.5, 1.5), 0, rand(.3, .8), 0, 0xc080ff, .3, 1.2, 0);
-      if (circle.visible) { c1.rotation.z += dt * .8; c2.rotation.z -= dt * 1.4; if (Math.random() < .6) { const a = rand(0, 6.28); emit(CAVE.circle.x + Math.cos(a) * 1.6, .1, CAVE.circle.z + Math.sin(a) * 1.6, 0, rand(1, 2.2), 0, 0xc080ff, .3, .9, 0); } }
+      crystal.rotation.y += dt * .5; if (crystal.visible) { crystal.position.y = Math.min(1.9, crystal.position.y + dt * 2) + Math.sin(gameT * 1.3) * .004; if (Math.random() < .5) emit(JD.crystal.x + rand(-1.5, 1.5), rand(.5, 3), JD.crystal.z + rand(-1.5, 1.5), 0, rand(.3, .8), 0, 0xc080ff, .3, 1.2, 0); }
+      if (circle.visible) { c1.rotation.z += dt * .8; c2.rotation.z -= dt * 1.4; if (Math.random() < .6) { const a = rand(0, 6.28); emit(JD.circle.x + Math.cos(a) * 1.6, .1, JD.circle.z + Math.sin(a) * 1.6, 0, rand(1, 2.2), 0, 0xc080ff, .3, .9, 0); } }
       if (orb.visible && Math.random() < .5) emit(orb.position.x + rand(-.1, .1), orb.position.y, orb.position.z + rand(-.1, .1), 0, rand(-.2, .2), 0, 0xd0a0ff, .18, .7, 0);
+      if (!door.open && door.t < 0) seals.forEach((m, i) => { m.material.opacity = .26 + .1 * Math.sin(gameT * 1.6 + i); });
+      if (door.t >= 0 && door.k < 1) { const t = door.t += dt;
+        seals.forEach((m, i) => { const on = t > .3 + i * .26; m.material.opacity = on ? Math.min(1, .3 + (t - .3 - i * .26) * 3) : .3; if (on && !m.userData.fx) { m.userData.fx = 1; sfx('ding'); const p = m.getWorldPosition(V3(0, 0, 0)); burst(p, 14, 0xd0a0ff, 3, .3, .5, 0); } });
+        if (t > 2.3) { crackM.opacity = Math.min(1, (t - 2.3) * 2) * (1 - door.k); shake = Math.max(shake, .08); if (!door.rum) { door.rum = 1; sfx('roar'); sfx('stone'); } }
+        if (t > 3.0) { door.k = Math.min(1, (t - 3.0) / 2.8); W.applyDoor(); backM.opacity = Math.sin(door.k * Math.PI) * .9; shake = Math.max(shake, .12 * (1 - door.k)); if (Math.random() < .8) { const s = Math.random() < .5 ? -1 : 1; emit(s * ease(door.k) * (HW + .3), T + rand(0, 1.2), 45.4, s * rand(.5, 1.5), rand(.3, 1.2), rand(.5, 1.5), 0x8a7a9a, .5, 1, -1.5); } if (Math.random() < .5) emit(rand(-1, 1) * HW * door.k, T + rand(1, DH), 44.2, 0, rand(-.2, .4), rand(1, 3), 0xc080ff, .3, 1.2, 0); }
+        if (door.k >= 1) { crackM.opacity = 0; backM.opacity = 0; door.t = -1; seals.forEach(m => { m.userData.fx = 0; }); } }
+      for (const m of mirrors) if (m.lit && m.k < 1) { m.t += dt; if (m.t >= 0) { if (m.k === 0) { sfx('level'); shockRing(V3(m.surf.position.x, .1, m.surf.position.z), 0xc080ff, .4, 6, .8); burst(m.surf.position.clone(), 50, 0xd0a0ff, 6, .5, .8, 0); } m.k = Math.min(1, m.t / .9); W.applyMirror(m); } }
+      for (const m of mirrors) if (m.lit && m.k >= 1) m.glow.material.opacity = .7 + Math.sin(gameT * 2 + m.surf.position.x) * .15;
+      if (shelfBook.visible) bookAura.scale.setScalar(.7 + Math.sin(gameT * 2.5) * .05);
+      for (const [x, z] of fires) if (Math.random() < .12) emit(x + rand(-.2, .2), 2, z + rand(-.2, .2), 0, rand(.8, 1.6), 0, 0xc070ff, .35, .7, 0);
+      if (Math.random() < .5) emit(rand(-25, 25), rand(0, 10), rand(-60, 18), rand(-.1, .1), rand(.05, .3), rand(-.1, .1), 0x9a50ff, .25, 3, 0);
     },
   };
   return W;
 }
 worlds.academy = buildAcademyWorld();
 worlds.digong = buildDigongWorld();
-worlds.cave = buildCaveWorld();
+worlds.jingdian = buildJingWorld();
 
 /* ================= v4 · 第一章 — characters (primitive-built, merged per limb: ~5 draw calls each) ================= */
 const CPOSE = {
@@ -3204,7 +3311,8 @@ function placeActor(a, x, z, yaw) { a.x = x; a.z = z; if (yaw !== undefined) a.y
 function syncActor(a) { // self-heal any non-finite transform so a bad value can never make an actor vanish permanently
   if (!isFinite(a.x) || !isFinite(a.z)) { a.x = a.lastX ?? 0; a.z = a.lastZ ?? 0; } else { a.lastX = a.x; a.lastZ = a.z; }
   if (!isFinite(a.yaw)) a.yaw = 0; if (!isFinite(a.airY)) a.airY = 0; if (!isFinite(a.holder.rotation.x)) a.holder.rotation.x = 0;
-  a.holder.position.set(a.x, (a.float ? .35 + Math.sin(gameT * 1.6) * .1 : 0) + (a.airY || 0), a.z); a.holder.rotation.y = a.yaw; }
+  a.holder.position.set(a.x, actorY(a) + (a.float ? .35 + Math.sin(gameT * 1.6) * .1 : 0) + (a.airY || 0), a.z); a.holder.rotation.y = a.yaw; }
+function actorY(a) { const w = worlds[a.world]; return w && w.actorH ? w.H(a.x, a.z) : 0; }
 function faceActor(a, x, z, k = 1) { a.yaw += angDiff(a.yaw, Math.atan2(x - a.x, z - a.z)) * Math.min(1, k); }
 /* move along a list of waypoints; returns true when done */
 function walkPath(a, dt) {
@@ -3407,10 +3515,13 @@ function allyHurt(d) { const al = ch1.ally; if (!al || al.retreat) return; al.hp
 function allyHit(e, d, td) { if (!e || e.dead || e.invuln) return; const tm = toughMult(e); const dmg = Math.max(1, Math.round(d * tm * rand(.9, 1.1))); e.hp = Math.max(e.floorHp || 0, e.hp - dmg); e.flash = 1; if (e.tough && !e.broken && !e.refill) { e.T = Math.max(0, e.T - td); if (e.T <= 0 && e.hp > 0) breakBoss(e); } showNum(V3(e.x, e.height * .8, e.z), dmg, 'ally'); burst(eCenter(e), 8, 0x8ff0e0, 5, .4, .35, -4); if (e.hp <= 0 && !e.dead) killEnemy(e); }
 /* ================= v4 · 第一章 学院 — story, dialogue, objectives, fights, saves ================= */
 const ch1 = { cp: 'intro', co: null, wait: null, fight: null, ally: null, follow: false, trail: [], A: null, flags: {}, timers: [], obj: null, camT: null, talking: false, uses: [], noRide: false, hl: null, lastSpeaker: null };
-const CP_ORDER = ['intro', 'lingen', 'school', 'day1', 'day2', 'day3', 'night', 'arena', 'duel1', 'duel2', 'duel3', 'ceremony', 'heart', 'library', 'hidden', 'digong', 'chasm', 'bridge', 'chamber', 'phantom', 'cave', 'return', 'rings', 'gate', 'done'];
-const CP_CN = { lingen: '测灵根', day1: '第一日 · 习剑', day2: '第二日 · 切磋', day3: '第三日 · 书页', night: '第三日 · 夜', heart: '同道', rings: '御剑试炼', intro: '初入学院', school: '前往学堂', arena: '学院大比', duel1: '大比 · 第一场', duel2: '大比 · 第二场', duel3: '大比 · 决赛', ceremony: '颁奖', library: '图书馆禁阁', hidden: '无形之门', digong: '地宫', chasm: '地宫 · 断崖', bridge: '地宫 · 石桥', chamber: '地宫 · 密室', phantom: '地宫 · 魔修虚影', cave: '地底洞天', return: '返回地面', gate: '下山', done: '已完成' };
-const CP_LV = { lingen: 1, day1: 1, day2: 1, day3: 1, night: 1, heart: 5, rings: 5, intro: 1, school: 1, arena: 1, duel1: 1, duel2: 2, duel3: 3, ceremony: 5, library: 5, hidden: 5, digong: 5, chasm: 5, bridge: 5, chamber: 5, phantom: 5, cave: 5, return: 5, gate: 5, done: 5 };
+const CP_ORDER = ['intro', 'lingen', 'school', 'day1', 'day2', 'day3', 'night', 'arena', 'duel1', 'duel2', 'duel3', 'ceremony', 'heart', 'library', 'hidden', 'digong', 'chasm', 'bridge', 'chamber', 'phantom', 'tunnel', 'door', 'hall', 'placed', 'return', 'rings', 'gate', 'done'];
+const CP_CN = { lingen: '测灵根', day1: '第一日 · 习剑', day2: '第二日 · 切磋', day3: '第三日 · 闲暇', night: '第三日 · 夜', heart: '同道', rings: '御剑试炼', intro: '初入学院', school: '前往学堂', arena: '学院大比', duel1: '大比 · 第一场', duel2: '大比 · 第二场', duel3: '大比 · 决赛', ceremony: '颁奖', library: '图书馆禁阁', hidden: '无形之门', digong: '地宫', chasm: '地宫 · 断崖', bridge: '地宫 · 石桥', chamber: '地宫 · 密室', phantom: '地宫 · 魔修虚影', tunnel: '地底甬道', door: '七印之门', hall: '七印镜殿', placed: '七印镜殿 · 归书', return: '返回地面', gate: '下山', done: '已完成' };
+const CP_LV = { lingen: 1, day1: 1, day2: 1, day3: 1, night: 1, heart: 5, rings: 5, intro: 1, school: 1, arena: 1, duel1: 1, duel2: 2, duel3: 3, ceremony: 5, library: 5, hidden: 5, digong: 5, chasm: 5, bridge: 5, chamber: 5, phantom: 5, tunnel: 5, door: 5, hall: 5, placed: 5, return: 5, gate: 5, done: 5 };
 function slotStageTxt(d) { if (d.stage !== 'ch1') return '第一章 · 学院'; return '第一章 · ' + (CP_CN[d.ch] || '学院'); }
+function hasItem(id) { return (player.items || []).includes(id); }
+function giveItem(id, silent) { if (!player.items) player.items = []; if (!player.items.includes(id)) player.items.push(id); }
+function takeItem(id, silent) { if (player.items) player.items = player.items.filter(x => x !== id); }
 function cpIdx(c) { return CP_ORDER.indexOf(c); }
 function setCP(c) { ch1.cp = c; saveGame(); }
 /* ---------- actors ---------- */
@@ -3480,7 +3591,7 @@ function objPos() { const o = ch1.obj; if (!o || !o.target) return null; const t
 function updateObj(dt) {
   const p = objPos(), ea = $('edgearr');
   if (!p || ch1.obj.world !== world.name || state !== 'play') { beacon.visible = false; ea.style.display = 'none'; $('objarr').style.visibility = p ? 'visible' : 'hidden'; $('objdist').textContent = ''; return; }
-  beacon.visible = true; beacon.position.set(p.x, 0, p.z); beacon.userData.cone.position.y = (p.h || 2.6) + .8 + Math.sin(gameT * 3) * .2; beacon.userData.ring.scale.setScalar(1 + Math.sin(gameT * 4) * .08);
+  beacon.visible = true; beacon.position.set(p.x, world.actorH ? world.H(p.x, p.z) : 0, p.z); beacon.userData.cone.position.y = (p.h || 2.6) + .8 + Math.sin(gameT * 3) * .2; beacon.userData.ring.scale.setScalar(1 + Math.sin(gameT * 4) * .08);
   const dx = p.x - player.x, dz = p.z - player.z, d = Math.hypot(dx, dz); beacon.visible = d > 1.6;
   const rel = angDiff(player.yaw, Math.atan2(-dx, -dz)); $('objarr').style.visibility = 'visible'; $('objarr').style.transform = `rotate(${(-90 - rel * 180 / Math.PI).toFixed(1)}deg)`;
   $('objdist').textContent = ` · ${Math.round(d)}米`;
@@ -3505,7 +3616,7 @@ function updateLabels() {
     const vis = a.shown && a.world === world.name && a.holder.visible && !(a.dead && a.id === 'ghost') && !ch1.talking;
     const d = Math.hypot(a.x - player.x, a.z - player.z);
     if (!vis || d > 32) { if (el.style.display !== 'none') el.style.display = 'none'; continue; }
-    const s = project(V3(a.x, a.height + .42 + (a.airY || 0) + (a.float ? .4 : 0), a.z));
+    const s = project(V3(a.x, actorY(a) + a.height + .42 + (a.airY || 0) + (a.float ? .4 : 0), a.z));
     if (!s) { el.style.display = 'none'; continue; }
     el.style.display = 'block'; el.classList.toggle('foe', a.fighting); el.style.transform = `translate(${s.x}px,${s.y}px) translate(-50%,-100%)`; el.style.opacity = d > 24 ? (32 - d) / 8 : 1;
   }
@@ -3523,7 +3634,7 @@ function updateFollower(a, dt) {
   const tr = ch1.trail, last = tr[tr.length - 1];
   if (!last || Math.hypot(last[0] - player.x, last[1] - player.z) > .6) { tr.push([player.x, player.z]); if (tr.length > 90) tr.shift(); }
   const dp = Math.hypot(player.x - a.x, player.z - a.z), riding = player.riding;
-  a.float = riding; a.rideSw.visible = riding && a.shown; if (riding) a.rideSw.position.set(a.x, .3, a.z), a.rideSw.rotation.set(Math.PI / 2, 0, -a.yaw, 'YXZ');
+  a.float = riding; a.rideSw.visible = riding && a.shown; if (riding) a.rideSw.position.set(a.x, .3 + actorY(a), a.z), a.rideSw.rotation.set(Math.PI / 2, 0, -a.yaw, 'YXZ');
   if (state !== 'play') { a.moveAmt += (0 - a.moveAmt) * Math.min(1, dt * 6); faceActor(a, player.x, player.z, dt * 3); return; }
   if (dp > (riding ? 30 : 20) || (a.stuckT || 0) > 2.2 || tr.length > 70) { followerTeleport(a); return; }
   if (dp < 2.4) { tr.length = 0; a.moveAmt += (0 - a.moveAmt) * Math.min(1, dt * 6); faceActor(a, player.x, player.z, dt * 3); a.stuckT = 0; return; }
@@ -3606,12 +3717,15 @@ function setupCP(cp) {
   if (player.lv < CP_LV[cp]) { player.lv = CP_LV[cp]; recalc(); }
   if (cpIdx(cp) > cpIdx('library') && !hasSt('yinshen')) player.unlocked.push('yinshen');
   if (cpIdx(cp) >= cpIdx('rings')) player.rideOK = true;
-  const dig = ['digong', 'chasm', 'bridge', 'chamber', 'phantom'].includes(cp);
+  if (cpIdx(cp) >= cpIdx('phantom') && cpIdx(cp) < cpIdx('placed')) giveItem('tome', true); else takeItem('tome', true);
+  if (cpIdx(cp) > cpIdx('placed')) player.jdTp = true;
+  ch1.jdVisit = false; ch1.questOK = false; quest.cur = null; ch1.questReq = null;
+  const dig = ['digong', 'chasm', 'bridge', 'chamber', 'phantom'].includes(cp), jd = ['tunnel', 'door', 'hall', 'placed'].includes(cp);
   hideAppr(); enemies.length = 0; ch1.pfall = null; ch1.anim = null; camDrop = 0; $('fade').style.opacity = 0;
-  setWorld(dig ? 'digong' : cp === 'cave' ? 'cave' : 'academy');
-  if (dig) worlds.digong.setState({ d1: cpIdx(cp) >= cpIdx('chasm'), br: cpIdx(cp) >= cpIdx('bridge'), d2: cpIdx(cp) >= cpIdx('chamber'), bar: cpIdx(cp) >= cpIdx('chamber') });
-  if (cp === 'cave') caveReset();
-  setNight(cp === 'night'); lingReset(); placeAmbient(cp);
+  setWorld(dig ? 'digong' : jd ? 'jingdian' : 'academy');
+  if (dig) worlds.digong.setState({ d1: cpIdx(cp) >= cpIdx('chasm'), br: cpIdx(cp) >= cpIdx('bridge'), d2: cpIdx(cp) >= cpIdx('chamber'), bar: cpIdx(cp) >= cpIdx('chamber'), tome: cpIdx(cp) <= cpIdx('chamber') });
+  if (jd) worlds.jingdian.setState({ open: cpIdx(cp) >= cpIdx('hall'), placed: cp === 'placed' });
+  setNight(cp === 'night'); lingReset(); placeAmbient(cp); worlds.academy.flyRings.forEach(r => r.visible = false);
   addUses();
   const lib = ACAD.lib, R = ACAD.ring;
   const arenaSet = (n) => { showActor(A.master, 'academy', R.x, -23.4, 0, 'whisk'); showActor(A.lin, 'academy', 14.6, -8, Math.PI / 2); A.lin.pose = 'idle'; showActor(A.mohan, 'academy', 14.6, -16, Math.PI / 2); if (n <= 1) showActor(A.heavy, 'academy', 38, -15.5, -Math.PI / 2); if (n <= 2) showActor(A.dart, 'academy', 38, -8.5, -Math.PI / 2); };
@@ -3633,7 +3747,10 @@ function setupCP(cp) {
     case 'digong': placePlayer(DG.spawn); showActor(A.lin, 'digong', 1.9, DG.spawn.z + .8, 0); ch1.follow = true; break;
     case 'chasm': case 'bridge': placePlayer({ x: 0, z: DG.chasm.z1 + 1.6, yaw: 0 }); showActor(A.lin, 'digong', 1.7, DG.chasm.z1 + 2.8, 0); ch1.follow = true; break;
     case 'chamber': placePlayer({ x: 0, z: DG.door2Z + 2.6, yaw: 0 }); showActor(A.lin, 'digong', 1.7, DG.door2Z + 3.4, 0); ch1.follow = true; break;
-    case 'cave': placePlayer(CAVE.spawn); showActor(A.lin, 'cave', 1.5, CAVE.spawn.z - 1.2, Math.PI); ch1.follow = true; break;
+    case 'tunnel': placePlayer(JD.spawn); showActor(A.lin, 'jingdian', 1.5, JD.spawn.z - 1.2, Math.PI); ch1.follow = true; break;
+    case 'door': placePlayer({ x: 0, z: 53, yaw: 0 }); showActor(A.lin, 'jingdian', 1.9, 54.4, 0); ch1.follow = true; break;
+    case 'hall': placePlayer({ x: 0, z: 20, yaw: 0 }); showActor(A.lin, 'jingdian', 2.2, 21.2, 0); ch1.follow = true; break;
+    case 'placed': placePlayer({ x: 0, z: -11.5, yaw: 0 }); showActor(A.lin, 'jingdian', 2.6, -11.2, -.4); ch1.follow = true; break;
     case 'phantom': placePlayer({ x: 0, z: -6, yaw: 0 }); showActor(A.lin, 'digong', 2.2, -5, -Math.PI * .8); ch1.follow = true; break;
     case 'return': placePlayer({ x: 0, z: -56.6, yaw: Math.PI }); showActor(A.master, 'academy', 3.8, -38.6, -Math.PI * .75, 'whisk'); showActor(A.lin, 'academy', 1.6, -56.2, Math.PI); ch1.follow = true; break;
   }
@@ -3644,12 +3761,16 @@ function addUses() {
   addUse({ world: 'academy', x: ACAD.hidden.x, z: ACAD.hidden.z + .9, r: 2.8, label: '进入', cond: () => ch1.cp === 'hidden' && player.stealthT > 0, fn: () => { ch1.flags.door = true; } });
   addUse({ world: 'digong', x: DG.book.x, z: DG.book.z, r: 2.6, label: '查看', cond: () => ch1.cp === 'chamber' && !ch1.flags.tome, fn: () => { ch1.flags.tome = true; } });
   addUse({ world: 'academy', x: ACAD.ling.x, z: ACAD.ling.z, r: 2.5, label: '触碰', cond: () => ch1.cp === 'lingen' && ch1.flags.atStone && !ch1.flags.ling, fn: () => { ch1.flags.ling = true; } });
-  addUse({ world: 'academy', x: -56, z: -52.5, r: 2.8, label: '歇息', cond: () => ch1.cp === 'day3' && !ch1.flags.rest, fn: () => { ch1.flags.rest = true; } });
+  addUse({ world: 'academy', x: -56, z: -52.5, r: 2.8, label: '歇息', cond: () => ch1.cp === 'day3' && !ch1.flags.rest && !quest.cur, fn: () => { ch1.flags.rest = true; } });
   addUse({ world: 'academy', x: -56, z: -52.5, r: 2.8, label: '就寝', cond: () => ch1.cp === 'night' && ch1.flags.metMo && !ch1.flags.sleep, fn: () => { ch1.flags.sleep = true; } });
   ACAD.pages.forEach(([x, z], i) => addUse({ world: 'academy', x, z, r: 2.1, label: '收集', cond: () => pagesOpen() && !player.riding && !player.pages.includes(i), fn: () => collectPage(i) }));
-  for (const [k, lines] of Object.entries(CHAT)) addUse({ world: 'academy', npc: k, get x() { return ch1.A[k].x; }, get z() { return ch1.A[k].z; }, r: 2.4, label: '交谈', cond: () => ch1.A[k].shown && ch1.A[k].world === 'academy' && !ch1.talking && !ch1.chatOff, fn: () => { const a = ch1.A[k]; a.ci = ((a.ci ?? -1) + 1) % lines.length; bark(a.name, lines[a.ci]); a.faceP = 1; setTimeout(() => { a.faceP = 0; }, 2500); } });
-  addUse({ world: 'cave', x: CAVE.crystal.x, z: CAVE.crystal.z, r: 3.4, label: '吸收', cond: () => ch1.cp === 'cave' && ch1.flags.orbDone && !ch1.flags.absorb, fn: () => { ch1.flags.absorb = true; } });
-  addUse({ world: 'cave', x: CAVE.circle.x, z: CAVE.circle.z, r: 1.9, label: '传送', cond: () => ch1.cp === 'cave' && ch1.flags.absorbed && !ch1.flags.tp, fn: () => { ch1.flags.tp = true; } });
+  for (const [k, lines] of Object.entries(CHAT)) addUse({ world: 'academy', npc: k, get x() { return ch1.A[k].x; }, get z() { return ch1.A[k].z; }, r: 2.4, label: '交谈', cond: () => ch1.A[k].shown && ch1.A[k].world === 'academy' && !ch1.talking && !ch1.chatOff, fn: () => { const a = ch1.A[k]; if (questChat(k)) return; a.ci = ((a.ci ?? -1) + 1) % lines.length; bark(a.name, lines[a.ci]); a.faceP = 1; setTimeout(() => { a.faceP = 0; }, 2500); } });
+  addUse({ world: 'digong', x: DG.book.x, z: DG.book.z, r: 2.6, label: '收集', cond: () => ch1.cp === 'chamber' && ch1.flags.tome && ch1.flags.canTake && !ch1.flags.took, fn: () => { ch1.flags.took = true; } });
+  addUse({ world: 'jingdian', x: JD.door.x, z: JD.door.z - .4, r: 4.6, label: '开启', cond: () => ch1.cp === 'door' && ch1.flags.doorReady && !ch1.flags.openDoor, fn: () => { ch1.flags.openDoor = true; } });
+  addUse({ world: 'jingdian', x: JD.place.x, z: JD.place.z, r: 3.4, label: '放置', cond: () => ch1.cp === 'hall' && hasItem('tome') && !ch1.flags.placeBook, fn: () => { ch1.flags.placeBook = true; } });
+  addUse({ world: 'jingdian', x: JD.crystal.x, z: JD.crystal.z, r: 3.6, label: '吸收', cond: () => ch1.cp === 'placed' && worlds.jingdian.crystal.visible && !ch1.flags.absorb, fn: () => { ch1.flags.absorb = true; } });
+  addUse({ world: 'jingdian', x: JD.circle.x, z: JD.circle.z, r: 1.9, label: '传送', cond: () => ch1.cp === 'placed' && ch1.flags.absorbed && !ch1.flags.tp, fn: () => { ch1.flags.tp = true; } });
+  addUse({ world: 'jingdian', x: JD.circle.x, z: JD.circle.z, r: 1.9, label: '传送', cond: () => ch1.jdVisit && worlds.jingdian.circle.visible, fn: () => jdReturn() });
 }
 /* ---------- the script ---------- */
 const SEG = {};
@@ -3700,7 +3821,7 @@ const pageEl = (() => { const d = document.createElement('div'); d.id = 'pagep';
 function collectPage(i) {
   if (player.pages.includes(i)) return; player.pages.push(i); recalc(); player.hp = Math.min(player.maxHp, player.hp + 10); hudDirty = true; saveGame();
   const pg = worlds.academy.pages[i]; burst(pg.position.clone(), 24, 0xffe0a0, 4, .4, .6, 0); sfx('level');
-  const [t, x] = PAGES[i].split('|'); pageEl.querySelector('b').textContent = t; pageEl.querySelector('p').textContent = x; pageEl.querySelector('#pagecnt').textContent = `${player.pages.length}/10 · 气血上限 +10`;
+  const [t, x] = PAGES[i].split('|'); pageEl.querySelector('b').textContent = t; pageEl.querySelector('p').textContent = x; pageEl.querySelector('#pagecnt').textContent = '气血上限 +10';
   pageEl.style.display = 'block'; ch1.reading = true; ch1.readPrev = state; if (state === 'play') state = 'cut'; resetInputs('page');
 }
 function closePage() { if (!ch1.reading) return; pageEl.style.display = 'none'; ch1.reading = false; if (state === 'cut') state = 'play'; sfx('swish'); }
@@ -3814,20 +3935,54 @@ SEG.day2 = function* () {
   else { yield say('林清风', '承让。你根基尚浅，假以时日，必在我之上。'); yield say('青玄真人', '败亦是师。记住今日之痛。'); }
   ch1.flags.sparWon = won;
 };
-/* ---------- 第三日 · 晨: free roam, 10 floating pages ---------- */
+/* ---------- 第三日 · 晨: free roam (书页 are optional collectibles; NPC side quests hook in here) ---------- */
+const DORM = { x: -56, z: -52.5 };
 SEG.day3 = function* () {
   const A = ch1.A;
   yield* fadeSwap(() => { setCP('day3'); hideActor(A.lin); placeAmbient('day3'); placePlayer({ x: 4, z: -1, yaw: Math.PI * .8 }); showActor(A.master, 'academy', 2.6, -6.4, .4, 'whisk'); resetTrail(); }, '第三日', '晨 · 学院');
   A.master.faceP = 1;
-  yield say('青玄真人', '今日无课。院中各处散落着些旧书页，泛着微光——据传是仙魔一战时遗下的。');
-  yield say('青玄真人', '拾之可养气血。入夜之前，回弟子居所歇息。');
-  ch1Hint('拾取<b>漂浮书页</b>可提升气血上限（可选）；准备好后，前往西侧<b>弟子居所</b>歇息'); ch1Timer(8, () => { if (ch1.cp === 'day3') ch1HintOff(); });
-  const dorm = { x: -56, z: -52.5 }, near = () => { let b = null, bd = 1e9; ACAD.pages.forEach(([x, z], i) => { if (player.pages.includes(i)) return; const d = Math.hypot(player.x - x, player.z - z); if (d < bd) { bd = d; b = { x, z, height: 1.8 }; } }); return b || dorm; };
-  const txt = () => player.pages.length >= 10 ? '书页已集齐 · 回弟子居所歇息' : `收集漂浮书页 ${player.pages.length}/10 · 随时可回弟子居所歇息`;
-  setObj(txt(), near, 'academy'); let last = -1;
-  yield until(() => { if (player.pages.length !== last) { last = player.pages.length; $('objtxt').textContent = txt(); } return ch1.flags.rest && !ch1.reading; });
-  ch1HintOff(); setObj(null);
+  yield say('青玄真人', '今日无课。院中药房、食堂、钟楼……你且随意走走，熟悉熟悉。');
+  yield say('青玄真人', '院里偶有旧书页随风飘落，若是遇见，不妨拾来一读。入夜之前，回弟子居所歇息。');
+  A.master.faceP = 0;
+  ch1Hint('今日<b>自由活动</b>：可四处走走、与院中众人交谈；准备好后前往西侧<b>弟子居所</b>歇息'); ch1Timer(8, () => { if (ch1.cp === 'day3') ch1HintOff(); });
+  const roam = () => setObj('在学院中闲逛，准备好后前往居所休息', DORM, 'academy');
+  roam(); ch1.questOK = true;
+  for (;;) {
+    yield until(() => (ch1.flags.rest && !ch1.reading) || ch1.questReq);
+    if (ch1.questReq) { const q = ch1.questReq; ch1.questReq = null; yield* runQuest(q); roam(); continue; }
+    break;
+  }
+  ch1.questOK = false; ch1HintOff(); setObj(null);
 };
+/* ---------- NPC side quests (hook) ----------
+ * Push quest definitions into NPC_QUESTS. A quest is offered via the giver's 「交谈」 while its checkpoint allows quests (day3 roam).
+ * { id: 'herb1', giver: 'pharm', cps: ['day3'], title: '采药',
+ *   offer: [['药师', '……'], ['你', '……']],
+ *   steps: [ { text: '去钟楼下采凝气草', reach: { x: -32, z: 14, r: 3 } },          // walk to a spot
+ *            { text: '把药草交给药师', talk: 'pharm', done: [['药师', '多谢。']] },  // talk to an NPC (any CHAT key)
+ *            { text: '……', cond: () => someFlag } ],                               // arbitrary condition
+ *   outro: [['药师', '……']], reward() { ... } }
+ * Completed quest ids are saved in player.quests. */
+const NPC_QUESTS = [];
+const quest = { cur: null, step: 0, talked: null };
+function questFor(k) { if (!ch1.questOK || quest.cur) return null; return NPC_QUESTS.find(q => q.giver === k && (!q.cps || q.cps.includes(ch1.cp)) && !(player.quests || []).includes(q.id)) || null; }
+function questChat(k) {
+  const q = quest.cur; if (q) { const s = q.steps[quest.step]; if (s && s.talk === k) { quest.talked = k; return true; } return false; }
+  const nq = questFor(k); if (nq) { ch1.questReq = nq; return true; } return false;
+}
+function* runQuest(q) {
+  quest.cur = q; quest.step = 0;
+  for (const [w, l] of q.offer || []) yield say(w, l);
+  for (let i = 0; i < q.steps.length; i++) {
+    const s = q.steps[i]; quest.step = i; quest.talked = null; const wn = s.world || 'academy';
+    setObj(`【${q.title}】${s.text}`, s.target || s.reach || (s.talk ? () => ch1.A[s.talk] : null), wn);
+    yield until(() => s.reach ? (world.name === wn && Math.hypot(player.x - s.reach.x, player.z - s.reach.z) < (s.reach.r || 2.5)) : s.talk ? quest.talked === s.talk : s.cond ? !!s.cond() : true);
+    for (const [w, l] of s.done || []) yield say(w, l);
+  }
+  for (const [w, l] of q.outro || []) yield say(w, l);
+  if (q.reward) q.reward();
+  player.quests = [...(player.quests || []), q.id]; quest.cur = null; saveGame(); toast(`完成：${q.title}`); sfx('level');
+}
 /* ---------- 第三日 · 夜: 墨寒 lurking by the library ---------- */
 SEG.night = function* () {
   const A = ch1.A, M = A.mohan;
@@ -3975,7 +4130,6 @@ function spawnAppr(pts) {
     ch1.appr.push(a); enemies.push(a);
   });
 }
-function caveReset() { const W = worlds.cave; W.orbOn = false; W.orbI = 0; W.orb.visible = false; W.orb.position.set(CAVE.orbPath[0][0], 1.7, CAVE.orbPath[0][1] + 2); W.crystal.visible = true; W.crystal.scale.setScalar(1); W.crL.intensity = 5; W.circle.visible = false; }
 function startPlayerFall() { ch1.pfall = { t: 0 }; state = 'cut'; resetInputs('fall'); sfx('whoosh'); bark('林清风', '当心脚下！'); }
 function updatePlayerFall(dt) {
   const p = ch1.pfall; p.t += dt; const f = $('fade');
@@ -3989,16 +4143,6 @@ function linAssist(a, dt) { // 林清风 slashes at an apprentice next to him du
   if (a.atkCd > 0 || state !== 'play') return; let best = null, bd = 2.4;
   for (const e of ch1.appr || []) { if (e.dead) continue; const d = Math.hypot(e.x - a.x, e.z - a.z); if (d < bd) { bd = d; best = e; } }
   if (best) { a.tgt = best; a.atkCd = rand(1.2, 1.7); a.yaw = faceYaw(a.x, a.z, best.x, best.z); a.pose = 'windR'; a.poseK = 14; a.swingT = .22; }
-}
-function updateCaveOrb(dt) {
-  const W = world; if (!W.orbOn) return; const P = CAVE.orbPath, o = W.orb.position; W.orb.visible = true;
-  const tgt = ch1.flags.orbDone ? [CAVE.crystal.x, CAVE.crystal.z] : P[Math.min(W.orbI, P.length - 1)];
-  const dx = tgt[0] - o.x, dz = tgt[1] - o.z, d = Math.hypot(dx, dz), sp = ch1.flags.orbDone ? 2.2 : 3.6;
-  if (d > .02) { const m = Math.min(d, sp * dt); o.x += dx / d * m; o.z += dz / d * m; }
-  o.y = (ch1.flags.orbDone ? lerp(1.7, 1.9, 1 - Math.min(1, d / 5)) : 1.7) + Math.sin(gameT * 2.2) * .15;
-  const pd = Math.hypot(player.x - o.x, player.z - o.z);
-  if (ch1.flags.orbDone) { if (d < .4) { W.orbOn = false; W.orb.visible = false; burst(V3(o.x, o.y, o.z), 20, 0xd0a0ff, 4, .4, .5, 0); sfx('ding'); } return; }
-  if (d < .3) { if (W.orbI < P.length - 1) { const nx = P[W.orbI + 1]; if (pd < 4.8 || Math.hypot(player.x - nx[0], player.z - nx[1]) < 3) W.orbI++; } else if (pd < 5.5) ch1.flags.orbDone = true; }
 }
 function ch1Digong(dt, dtR) {
   if (ch1.anim && ch1.anim(dtR) === true) ch1.anim = null;
@@ -4019,7 +4163,7 @@ function ch1Digong(dt, dtR) {
     if (ch1.flags.bridgeFight && A.lin.shown) linAssist(A.lin, dt);
   }
   if (ch1.pfall) updatePlayerFall(dtR);
-  if (world.name === 'cave') updateCaveOrb(dt);
+  if (world.name === 'jingdian') updateJdOrb(dt);
 }
 /* ---------- 地宫 · 石门机关 ---------- */
 SEG.digong = function* () {
@@ -4093,6 +4237,13 @@ SEG.chamber = function* () {
   setObj(null);
   yield say(null, '天地第一剑，名曰\'太初\'。生于混沌未分之时，饮异兽之血，承天地之怒。持此剑者，一念可断山河，一剑可镇众生。然剑有灵，择主而栖。心正者得之，可护苍生；心魔者得之，必为剑所噬。仙尊封之于九幽之下，以七道剑印锁之。今印已松其三……欲得此剑，先集七印。');
   yield say('林清风', '太初……天地第一剑！七道剑印已松其三……这到底是怎么回事？');
+  ch1.flags.canTake = true; ch1Hint('点击<b>收集</b>，将圣书带走');
+  setObj('收集祭台上的魔修圣书', { x: DG.book.x, z: DG.book.z }, 'digong');
+  yield until(() => ch1.flags.took);
+  ch1HintOff(); setObj(null);
+  { const W = worlds.digong, p = W.tome.getWorldPosition(V3(0, 0, 0)); burst(p, 30, 0xc080ff, 4, .4, .6, 0); W.tome.visible = W.bookGlow.visible = false; giveItem('tome'); saveGame(); showLearn('获得【魔修圣书】', '已收入行囊'); }
+  yield wait(1.3);
+  yield say('林清风', '你要带走它？……也好，留在此处，迟早落入魔修之手。');
 };
 /* ---------- 地宫 · 魔修虚影 (two phases → floor-shatter cutscene) ---------- */
 SEG.phantom = function* () {
@@ -4131,47 +4282,109 @@ SEG.phantom = function* () {
   yield until(() => !ch1.anim);
   const f = $('fade'); f.style.transition = 'opacity .35s'; f.style.opacity = 1; yield wait(1.2);
   hideActor(g); L.airY = 0; W.pit.visible = false; camDrop = 0; ghostCharMat.uniforms.op.value = 1;
-  setCP('cave');
+  setCP('tunnel');
 };
-/* ---------- 地底洞天: wake → follow the orb → 紫光晶石 → 传送阵 ---------- */
-SEG.cave = function* () {
-  const A = ch1.A, W = worlds.cave, L = A.lin, f = $('fade'); setCP('cave'); ch1.follow = true;
-  if (world.name !== 'cave') { setWorld('cave'); clearFx(); clearProj(); caveReset(); placePlayer(CAVE.spawn); resetTrail(); showActor(L, 'cave', 1.5, CAVE.spawn.z - 1.2, Math.PI); ch1.follow = true; }
-  state = 'cut'; resetInputs('wake'); f.style.transition = 'opacity 1.6s'; f.style.opacity = 1; camDrop = 1.25; player.pitch = .5;
-  { let t = 0; ch1.anim = dt => { t += dt; if (t > .6) { camDrop = 1.25 * Math.max(0, 1 - (t - .6) / 1.6); player.pitch = lerp(player.pitch, -.04, Math.min(1, dt * 1.5)); } return t > 2.4; }; }
-  yield wait(.5); f.style.opacity = 0; banner('地底洞天', '地宫之下', 2); yield wait(2.2); camDrop = 0; state = 'play';
+/* ---------- 地底甬道: wake → follow the orb to the 七印巨门 ---------- */
+function updateJdOrb(dt) {
+  const W = world; if (!W.orbOn) return; const P = JD.orbPath, o = W.orb.position; W.orb.visible = true;
+  if (ch1.flags.orbSeal) { const tx = 0, ty = JD.top + 17, tz = 45.3, dx = tx - o.x, dy = ty - o.y, dz = tz - o.z, d = Math.hypot(dx, dy, dz); if (d > .05) { const m = Math.min(d, 4 * dt); o.x += dx / d * m; o.y += dy / d * m; o.z += dz / d * m; } else { W.orbOn = false; W.orb.visible = false; burst(V3(o.x, o.y, o.z), 30, 0xd0a0ff, 4, .4, .6, 0); sfx('ding'); W.seals[6].material.opacity = .8; } return; }
+  const tgt = P[Math.min(W.orbI, P.length - 1)];
+  const dx = tgt[0] - o.x, dz = tgt[1] - o.z, d = Math.hypot(dx, dz);
+  if (d > .02) { const m = Math.min(d, 3.6 * dt); o.x += dx / d * m; o.z += dz / d * m; }
+  o.y = jdH(o.x, o.z) + 1.7 + Math.sin(gameT * 2.2) * .15;
+  const pd = Math.hypot(player.x - o.x, player.z - o.z);
+  if (d < .3) { if (W.orbI < P.length - 1) { const nx = P[W.orbI + 1]; if (pd < 4.8 || Math.hypot(player.x - nx[0], player.z - nx[1]) < 3) W.orbI++; } else if (pd < 6) ch1.flags.orbDone = true; }
+}
+function wakeUp(title, sub2) {
+  const f = $('fade'); state = 'cut'; resetInputs('wake'); f.style.transition = 'opacity 1.6s'; f.style.opacity = 1; camDrop = 1.25; player.pitch = .5;
+  let t = 0; ch1.anim = dt => { t += dt; if (t > .6) { camDrop = 1.25 * Math.max(0, 1 - (t - .6) / 1.6); player.pitch = lerp(player.pitch, -.04, Math.min(1, dt * 1.5)); } return t > 2.4; };
+  return function* () { yield wait(.5); f.style.opacity = 0; banner(title, sub2, 2); yield wait(2.2); camDrop = 0; state = 'play'; };
+}
+SEG.tunnel = function* () {
+  const A = ch1.A, W = worlds.jingdian, L = A.lin; setCP('tunnel'); ch1.follow = true;
+  if (world.name !== 'jingdian') { setWorld('jingdian'); clearFx(); clearProj(); W.setState({}); placePlayer(JD.spawn); resetTrail(); showActor(L, 'jingdian', 1.5, JD.spawn.z - 1.2, Math.PI); ch1.follow = true; }
+  yield* wakeUp('地底甬道', '地宫之下')();
   yield say('林清风', '醒醒！……你没事吧？');
-  yield say('你', '……这是何处？');
-  yield say('林清风', '地宫之下，竟别有洞天。看——那团紫光，似在引路。');
+  yield say('你', '……这是何处？圣书……还在。');
+  yield say('林清风', '地宫之下，竟还有一条甬道。看——那团紫光，似在引路。');
   W.orbOn = true; W.orbI = 0; W.orb.visible = true;
-  setObj('跟随紫光', () => W.orbOn ? { x: W.orb.position.x, z: W.orb.position.z } : null, 'cave');
+  setObj('跟随紫光', () => W.orbOn ? { x: W.orb.position.x, z: W.orb.position.z } : null, 'jingdian');
   yield until(() => ch1.flags.orbDone);
-  setObj('靠近紫光晶石', { x: CAVE.crystal.x, z: CAVE.crystal.z, height: 3.2 }, 'cave');
-  yield until(() => Math.hypot(player.x - CAVE.crystal.x, player.z - CAVE.crystal.z) < 6.5);
-  yield say('林清风', '好浓的灵气……此石非凡，或可为你所用。');
-  setObj('吸收紫光晶石', { x: CAVE.crystal.x, z: CAVE.crystal.z, height: 3.2 }, 'cave');
+  setCP('door');
+};
+/* ---------- 七印巨门 ---------- */
+SEG.door = function* () {
+  const W = worlds.jingdian; setCP('door'); ch1.follow = true;
+  setObj('前往甬道尽头', { x: 0, z: 50 }, 'jingdian');
+  yield until(() => world.name === 'jingdian' && player.z < 54);
+  setObj(null); if (W.orbOn || W.orb.visible) { W.orbOn = true; ch1.flags.orbSeal = true; }
+  yield say('林清风', '好大的一扇门……门上刻着七道印记。');
+  yield say('林清风', '七道印……与圣书所言“七道剑印”，莫非有关？');
+  ch1.flags.doorReady = true; ch1Hint('走近巨门，点击<b>开启</b>'); ch1Timer(7, () => { if (ch1.cp === 'door') ch1HintOff(); });
+  setObj('开启七印巨门', { x: 0, z: 46.2, height: 6 }, 'jingdian');
+  yield until(() => ch1.flags.openDoor);
+  ch1HintOff(); setObj(null); state = 'cut'; resetInputs('door'); if (player.riding) endRide();
+  { const sx = player.x, sz = player.z, tz = Math.max(48.6, Math.min(sz, 51)); let t = 0; ch1.anim = dt => { t += dt; const k = Math.min(1, t / 1.2); player.x = lerp(sx, 0, k); player.z = lerp(sz, tz, k); player.yaw += angDiff(player.yaw, 0) * Math.min(1, dt * 4); player.pitch = lerp(player.pitch, .32, Math.min(1, dt * 2)); return t > 1.3; }; }
+  W.openDoor();
+  yield wait(2.2); bark('林清风', '印记……一道一道亮了！');
+  yield until(() => W.door.open);
+  player.pitch = .05; state = 'play';
+  yield say('林清风', '门后……是一道往下的石阶。好宽！');
+  setObj('沿石阶而下', { x: 0, z: 20 }, 'jingdian');
+  yield until(() => world.name === 'jingdian' && player.z < JD.hallZ);
+  setObj(null);
+  setCP('hall');
+};
+/* ---------- 七印镜殿: place the 圣书 → 3 of 7 mirrors light ---------- */
+SEG.hall = function* () {
+  const A = ch1.A, W = worlds.jingdian, L = A.lin; setCP('hall'); ch1.follow = true;
+  banner('七印镜殿', '地宫最深处', 2.8); sfx('ding');
+  yield wait(1.4);
+  yield say('林清风', '好大的殿……四周立着七面古镜，却都黯淡无光。');
+  yield say('林清风', '殿心那座书架空着一格，倒像在等什么。');
+  ch1Hint('走到殿心书架前，点击<b>放置</b>'); ch1Timer(7, () => { if (ch1.cp === 'hall') ch1HintOff(); });
+  setObj('将魔修圣书放上殿心书架', { x: JD.place.x, z: JD.place.z }, 'jingdian');
+  yield until(() => ch1.flags.placeBook);
+  ch1HintOff(); setObj(null); state = 'cut'; resetInputs('place'); if (player.riding) endRide();
+  takeItem('tome'); W.shelfBook.visible = true; burst(W.shelfBook.position.clone(), 40, 0xd0a0ff, 4, .4, .7, 0); sfx('level'); saveGame();
+  if (Math.hypot(L.x - JD.crystal.x, L.z - JD.crystal.z) < 3.2 || Math.hypot(L.x - JD.circle.x, L.z - JD.circle.z) < 2.4 || Math.abs(L.x) < 1.5) { smoke(V3(L.x, 1, L.z), 0x6fe0d0); placeActor(L, 3.2, -11.6, -.5); smoke(V3(L.x, 1, L.z), 0x6fe0d0); resetTrail(); }
+  { const sx = player.x, sz = player.z; let t = 0; ch1.anim = dt => { t += dt; const k = Math.min(1, t / 1.1); const e = k * k * (3 - 2 * k); player.x = lerp(sx, 0, e); player.z = lerp(sz, -11.5, e); player.yaw += angDiff(player.yaw, 0) * Math.min(1, dt * 4); player.pitch = lerp(player.pitch, .06, Math.min(1, dt * 3)); W.discGlowM.opacity = Math.min(.75, t * .45); if (Math.random() < .7) { const a = rand(0, 6.28), r = rand(2, 13.5); emit(JD.shelf.x + Math.cos(a) * r, .15, JD.shelf.z + Math.sin(a) * r, 0, rand(.4, 1.2), 0, 0xc080ff, .3, .9, 0); } return t > 1.9; }; }
+  yield until(() => !ch1.anim);
+  shake = .4; sfx('roar'); shockRing(V3(JD.shelf.x, .1, JD.shelf.z), 0xc080ff, .5, 14, 1.1); W.lightMirrors();
+  yield wait(2.9);
+  state = 'play';
+  yield say('林清风', '镜子……亮了三面！');
+  yield say('林清风', '“今印已松其三”……七面古镜，七道剑印。亮起的这三面，莫非就是已经松动的三印？');
+  setCP('placed');
+};
+SEG.placed = function* () {
+  const A = ch1.A, W = worlds.jingdian, L = A.lin; setCP('placed'); ch1.follow = true;
+  if (!W.crystal.visible) { W.crystal.visible = true; W.crystal.scale.setScalar(1); W.crystal.position.y = -1.6; W.crys.off = false; W.crL.intensity = 5; sfx('stone'); shake = .25; shockRing(V3(JD.crystal.x, .1, JD.crystal.z), 0xc080ff, .3, 4, .7); burst(V3(JD.crystal.x, .3, JD.crystal.z), 50, 0xb090c0, 6, .6, .8, -4); yield wait(1.4); }
+  yield say('林清风', '书架前……升起了一块紫光晶石。灵气好浓，或可为你所用。');
+  setObj('吸收紫光晶石', { x: JD.crystal.x, z: JD.crystal.z, height: 3.2 }, 'jingdian');
   yield until(() => ch1.flags.absorb);
   setObj(null); state = 'cut'; resetInputs('absorb'); sfx('roar');
   { let k = 0; const cr = W.crystal; ch1.anim = dt => { k += dt / 2; cr.scale.setScalar(Math.max(.01, 1 - k * k)); W.crL.intensity = 5 * (1 - k) + Math.sin(gameT * 20) * k;
       for (let i = 0; i < 4; i++) { const sx = cr.position.x + rand(-1, 1) * (1 - k), sy = cr.position.y + rand(-1, 1) * (1 - k), sz = cr.position.z + rand(-1, 1) * (1 - k), life = rand(.5, .8); emit(sx, sy, sz, (player.x - sx) / life, (camY - .5 - sy) / life, (player.z - sz) / life, i % 2 ? 0xc080ff : 0xf0d0ff, rand(.25, .45), life, 0); }
-      if (k >= 1) { cr.visible = false; W.crL.intensity = 0; return true; } }; }
+      if (k >= 1) { cr.visible = false; W.crys.off = true; W.crL.intensity = 0; return true; } }; }
   yield until(() => !ch1.anim);
   flashScreen('#c080ff', .45, .8); shockRing(V3(player.x, 0, player.z), 0xc080ff, .3, 5, .9); sfx('level'); player.hp = player.maxHp; hudDirty = true;
   banner('紫光入体', '灵台清明 · 气血尽复', 1.8); state = 'play'; ch1.flags.absorbed = true;
   yield wait(1.4);
-  W.circle.visible = true; sfx('ding'); shockRing(V3(CAVE.circle.x, 0, CAVE.circle.z), 0xc080ff, .3, 3, .6);
+  W.circle.visible = true; sfx('ding'); shockRing(V3(JD.circle.x, 0, JD.circle.z), 0xc080ff, .3, 3, .6);
   yield say('林清风', '晶石既散，地上竟现出一座传送阵……走！');
-  setObj('站上传送阵', { x: CAVE.circle.x, z: CAVE.circle.z }, 'cave');
+  setObj('站上传送阵', { x: JD.circle.x, z: JD.circle.z }, 'jingdian');
   yield until(() => ch1.flags.tp);
   setObj(null); sfx('whoosh'); shockRing(V3(player.x, 0, player.z), 0xd0a0ff, .3, 3, .5);
-  yield* fadeSwap(() => { setCP('return'); goWorld('academy', { x: 0, z: -56.6, yaw: Math.PI }); L.world = 'academy'; showActor(L, 'academy', 1.6, -56.2, Math.PI); ch1.follow = true; showActor(A.master, 'academy', 3.8, -38.6, -Math.PI * .75, 'whisk'); }, '传送', '紫光一闪');
+  yield* fadeSwap(() => { player.jdTp = true; setCP('return'); goWorld('academy', { x: 0, z: -56.6, yaw: Math.PI }); L.world = 'academy'; showActor(L, 'academy', 1.6, -56.2, Math.PI); ch1.follow = true; showActor(A.master, 'academy', 3.8, -38.6, -Math.PI * .75, 'whisk'); }, '传送', '紫光一闪');
+  toast('地图 · 七印镜殿传送点已解锁');
   yield say('林清风', '是图书馆……紫光之门外！我们回来了。');
   yield say('林清风', '此事非同小可，速去禀报师傅。');
 };
 SEG.return = function* () {
   const A = ch1.A; ch1.follow = true;
   setObj('走出图书馆，向师傅禀报', () => A.master, 'academy');
-  yield until(() => Math.hypot(player.x - A.master.x, player.z - A.master.z) < 3.6);
+  yield until(() => world.name === 'academy' && Math.hypot(player.x - A.master.x, player.z - A.master.z) < 3.6);
   setObj(null); A.master.faceP = 1;
   yield say('你', '师傅，弟子有些事……必须亲自去做。');
   yield wait(1.2);
@@ -4209,7 +4422,7 @@ SEG.gate = function* () {
 };
 SEG.done = function* () {
   setObj('第一章已完成 · 第二章敬请期待', { x: 0, z: 39 }, 'academy');
-  yield until(() => player.z > 37.2 && Math.abs(player.x) < 5.5 && gameT > 4);
+  yield until(() => world.name === 'academy' && player.z > 37.2 && Math.abs(player.x) < 5.5 && gameT > 4);
   yield* chapterEnd();
 };
 function* chapterEnd() {
@@ -4237,7 +4450,7 @@ function startCh1(cp) {
   runCo(chScript(cp));
 }
 function resumeCh1(d) {
-  let cp = d.stage === 'ch1' && CP_ORDER.includes(d.ch) ? d.ch : 'intro';
+  const ch = d.ch === 'cave' ? 'tunnel' : d.ch; let cp = d.stage === 'ch1' && CP_ORDER.includes(ch) ? ch : 'intro';
   if (d.stage !== 'ch1') { player.lv = 1; player.unlocked = []; player.rideOK = false; }
   startCh1(cp);
 }
@@ -4264,7 +4477,7 @@ function updateCh1(dt, dtR) {
   // camera toward speaker during dialogue
   if (state === 'talk') {
     const t = ch1.camT || ch1.lastSpeaker;
-    if (t && t.shown && t.world === world.name) { const dx = t.x - player.x, dz = t.z - player.z, hy = t.height * .92 - (camY), hd = Math.hypot(dx, dz); if (hd > .5) { player.yaw += angDiff(player.yaw, Math.atan2(-dx, -dz)) * Math.min(1, dt * 3.5); player.pitch = lerp(player.pitch, clamp(Math.atan2(hy, hd), -.5, .4), Math.min(1, dt * 3)); } }
+    if (t && t.shown && t.world === world.name) { const dx = t.x - player.x, dz = t.z - player.z, hy = actorY(t) + t.height * .92 - (camY), hd = Math.hypot(dx, dz); if (hd > .5) { player.yaw += angDiff(player.yaw, Math.atan2(-dx, -dz)) * Math.min(1, dt * 3.5); player.pitch = lerp(player.pitch, clamp(Math.atan2(hy, hd), -.5, .4), Math.min(1, dt * 3)); } }
     camera.fov = lerp(camera.fov, 60, Math.min(1, dt * 3)); camera.updateProjectionMatrix();
   }
   // hidden door (visible only while 隐身)
@@ -4274,9 +4487,138 @@ function updateCh1(dt, dtR) {
   if (ch1.hl) { const el = $(ch1.hl), hl = $('hl'); if (el && state === 'play') { const r = el.getBoundingClientRect(), pad = 8; hl.style.display = 'block'; hl.style.left = (r.left - pad) + 'px'; hl.style.top = (r.top - pad) + 'px'; hl.style.width = (r.width + pad * 2) + 'px'; hl.style.height = (r.height + pad * 2) + 'px'; } else hl.style.display = 'none'; }
 }
 /* debug / test hooks */
-Object.assign(window.__G, { closePage, FOE_LIN, setNight, ch1, startCh1, resumeCh1, setupCP, dlgTap, SEG, ACAD, DG, worlds, endFight, levelUp, CP_ORDER, useNow() { if (curUse && curUse.label !== '交谈') { curUse.fn(); return true; } return false; }, FOE_HEAVY, FOE_DART, FOE_MOHAN, FOE_GHOST, FOE_APPR, ZM_KB, CAVE, npcSolids });
+Object.assign(window.__G, { closePage, FOE_LIN, setNight, ch1, startCh1, resumeCh1, setupCP, dlgTap, SEG, ACAD, DG, worlds, endFight, levelUp, CP_ORDER, useNow() { if (curUse && curUse.label !== '交谈') { curUse.fn(); return true; } return false; }, FOE_HEAVY, FOE_DART, FOE_MOHAN, FOE_GHOST, FOE_APPR, ZM_KB, JD, jdH, npcSolids, NPC_QUESTS, quest, hasItem, giveItem, takeItem });
 Object.assign(window.__G, { tutForce() { completeStep(); }, skyTop() { return skyMat.uniforms.top.value.getHexString(); }, summon, demonPhantom, demonSky, startTutorial, phantomMat, get tutIdx() { return tut.i; } });
 Object.defineProperties(window.__G, { appr: { get() { return ch1.appr || []; } }, curUse: { get() { return curUse; } }, world: { get() { return world; } } });
+/* ================= v4.4 · 地图 (学院 / 地宫 two layers) + map teleports ================= */
+const MAP = { open: false, tab: 'academy', hit: null };
+const MAP_LOCK = ['intro', 'arena', 'duel1', 'duel2', 'duel3', 'ceremony', 'heart']; // story-locked checkpoints: no map teleport at all
+const MAP_GATE = { x: 0, z: 34, yaw: 0 }; // inside the 山门 (kept short of the 下山 trigger at z>36.5)
+(function buildMapUI() {
+  const st = document.createElement('style');
+  st.textContent = `#mapbtn{display:none;pointer-events:auto;margin-top:5px;font-size:13px;letter-spacing:2px;padding:5px 14px;border-radius:14px;background:rgba(20,14,30,.62);border:1px solid rgba(255,220,150,.6);color:#ffe6b0;font-family:var(--kai);min-width:62px;min-height:30px;-webkit-tap-highlight-color:transparent}
+.m-ch1 #mapbtn{display:block}.m-ch1.talking #mapbtn{opacity:.35}
+body.mapopen #hud,body.mapopen #labels,body.mapopen #btn-use{visibility:hidden}
+#mapp{position:fixed;inset:0;z-index:80;display:none;background:rgba(8,5,14,.94);color:#eadff8;font-family:var(--kai);touch-action:none;box-sizing:border-box;padding:10px calc(12px + var(--sr)) 10px calc(12px + var(--sl))}
+#mapp .wrap{display:flex;gap:12px;height:100%}
+#mapcv{flex:1 1 auto;min-width:0;height:100%;background:#17111f;border:1px solid rgba(255,220,150,.35);border-radius:8px;touch-action:none}
+#mapside{flex:0 0 200px;display:flex;flex-direction:column;gap:7px;min-height:0}
+#mapside .tabs{display:flex;gap:6px}
+#mapside button{font-family:inherit;-webkit-tap-highlight-color:transparent}
+#mapside .tab{flex:1;padding:8px 0;font-size:15px;border-radius:8px;border:1px solid rgba(255,220,150,.4);background:rgba(255,255,255,.05);color:#e8dcc8}
+#mapside .tab.on{background:rgba(255,200,110,.25);color:#fff1c8;border-color:#ffd77a}
+#mapinfo{font-size:13px;line-height:1.55;color:#d8cce8;flex:1 1 auto;overflow:auto;min-height:0}
+#mapinfo b{color:#ffe6b0;font-weight:normal}
+#maptp{padding:9px 0;font-size:15px;border-radius:10px;border:1px solid #c890ff;background:rgba(150,80,255,.28);color:#f4e8ff}
+#maptp:disabled{opacity:.5;border-color:#776;background:rgba(255,255,255,.05);color:#bbb}
+#mapwhy{font-size:12px;color:#ffb8a8;min-height:15px;line-height:1.3}
+#mapclose{padding:8px 0;font-size:15px;border-radius:10px;border:1px solid rgba(255,255,255,.4);background:rgba(255,255,255,.08);color:#fff}`;
+  document.head.appendChild(st);
+  const b = document.createElement('button'); b.id = 'mapbtn'; b.textContent = '地图'; $('tr').appendChild(b);
+  const p = document.createElement('div'); p.id = 'mapp';
+  p.innerHTML = '<div class="wrap"><canvas id="mapcv"></canvas><div id="mapside"><div class="tabs"><button class="tab" data-t="academy">学院</button><button class="tab" data-t="digong">地宫</button></div><div id="mapinfo"></div><div id="mapwhy"></div><button id="maptp">传送</button><button id="mapclose">关闭地图</button></div></div>';
+  document.body.appendChild(p);
+  for (const ev of ['pointerdown', 'touchstart', 'mousedown']) { b.addEventListener(ev, e => e.stopPropagation(), { passive: true }); p.addEventListener(ev, e => e.stopPropagation(), { passive: true }); }
+  onTap(b, () => openMap());
+  onTap($('mapclose'), () => closeMap());
+  p.querySelectorAll('.tab').forEach(t => onTap(t, () => { MAP.tab = t.dataset.t; drawMap(); }));
+  onTap($('maptp'), () => mapTeleport(MAP.tab === 'academy' ? 'gate' : 'hall'));
+  $('mapcv').addEventListener('pointerup', e => { const h = MAP.hit; if (!h) return; const r = e.target.getBoundingClientRect(); if (Math.hypot(e.clientX - r.left - h.x, e.clientY - r.top - h.y) < 30) mapTeleport('hall'); });
+  addEventListener('keydown', e => { if (e.code === 'KeyM') { if (MAP.open) closeMap(); else openMap(); } else if (e.code === 'Escape' && MAP.open) closeMap(); });
+  addEventListener('resize', () => { if (MAP.open) drawMap(); });
+})();
+function openMap() {
+  if (mode !== 'ch1' || MAP.open) return false;
+  if (state !== 'play') { if (state === 'talk' || state === 'cut') toast('剧情进行中'); return false; }
+  MAP.open = true; state = 'map'; resetInputs('map'); MAP.tab = world.name === 'academy' ? 'academy' : 'digong';
+  $('mapp').style.display = 'block'; document.body.classList.add('mapopen'); sfx('swish'); drawMap(); return true;
+}
+function closeMap() { if (!MAP.open) return; MAP.open = false; $('mapp').style.display = 'none'; document.body.classList.remove('mapopen'); if (state === 'map') state = 'play'; resetInputs('mapclose'); }
+function mapTpReason(kind) {
+  if (mode !== 'ch1') return '仅在第一章可用';
+  if (world.name !== 'academy') return '地宫之中无法使用地图传送，只能借助传送阵';
+  if (ch1.fight) return '战斗中无法传送';
+  if (state !== 'play' && state !== 'map') return '剧情进行中，此刻无法传送';
+  if (ch1.talking || ch1.anim || ch1.pfall || ch1.reading || ch1.ended || ch1.noMapTp || !ch1.obj || MAP_LOCK.includes(ch1.cp)) return '剧情进行中，此刻无法传送';
+  if (kind === 'hall' && !player.jdTp) return '尚未解锁：需先经七印镜殿的传送阵返回地面';
+  return null;
+}
+function mapTeleport(kind) {
+  const why = mapTpReason(kind); if (why) { $('mapwhy').textContent = why; sfx('stone'); return false; }
+  closeMap();
+  if (kind === 'gate') tpFade(() => { goWorld('academy', MAP_GATE); }, ['天剑学院', '山门']);
+  else tpFade(() => { ch1.jdVisit = true; goWorld('jingdian', JD.tp); worlds.jingdian.setState({ open: 1, placed: 1, absorbed: 1 }); }, ['七印镜殿', '传送阵旁']);
+  ch1.mapTps = (ch1.mapTps || 0) + 1; return true;
+}
+function jdReturn() { tpFade(() => { ch1.jdVisit = false; goWorld('academy', { x: 0, z: -56.6, yaw: Math.PI }); }, ['图书馆', '紫光之门外']); }
+function tpFade(fn, title) {
+  state = 'cut'; resetInputs('tp'); if (player.riding) endRide(); const f = $('fade'); f.style.transition = 'opacity .45s'; f.style.opacity = 1; sfx('whoosh');
+  ch1Timer(.5, () => { fn(); clearFx(); if (title) banner(title[0], title[1], 2); ch1Timer(.2, () => { f.style.transition = 'opacity .7s'; f.style.opacity = 0; if (state === 'cut') state = ch1.talking ? 'talk' : 'play'; }); });
+}
+function drawMap() {
+  const cv = $('mapcv'), dpr = Math.min(2, devicePixelRatio || 1), W = cv.clientWidth, H = cv.clientHeight; if (!W || !H) return;
+  cv.width = W * dpr; cv.height = H * dpr; const c = cv.getContext('2d'); c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, W, H);
+  document.querySelectorAll('#mapside .tab').forEach(t => t.classList.toggle('on', t.dataset.t === MAP.tab));
+  MAP.hit = null; const where = { academy: '天剑学院', digong: '地宫', jingdian: world.name === 'jingdian' && player.z > 44 ? '地底甬道' : '七印镜殿' }[world.name] || '—';
+  const lab = (t, x, y, col = '#f4e6c8', sz = 12) => { c.font = `${sz}px ${getComputedStyle(document.body).getPropertyValue('--kai') || 'serif'}`; c.textAlign = 'center'; c.textBaseline = 'middle'; c.lineWidth = 3; c.strokeStyle = 'rgba(0,0,0,.75)'; c.strokeText(t, x, y); c.fillStyle = col; c.fillText(t, x, y); };
+  const arrow = (x, y, yaw, col) => { c.save(); c.translate(x, y); c.rotate(-yaw); c.beginPath(); c.moveTo(0, -9); c.lineTo(6, 6); c.lineTo(0, 3); c.lineTo(-6, 6); c.closePath(); c.fillStyle = col; c.strokeStyle = '#000'; c.lineWidth = 1.5; c.fill(); c.stroke(); c.restore(); };
+  let tpName = '', why = '';
+  if (MAP.tab === 'academy') {
+    const B = worlds.academy.bounds, x0 = B.x0 - 2, x1 = B.x1 + 2, z0 = B.z0 - 2, z1 = B.z1 + 6, s = Math.min((W - 20) / (x1 - x0), (H - 20) / (z1 - z0)), ox = W / 2 - (x0 + x1) / 2 * s, oz = H / 2 - (z0 + z1) / 2 * s;
+    const P = (x, z) => [ox + x * s, oz + z * s], R = (r, col, fill) => { const [a, b] = P(r[0], r[2]); c.fillStyle = fill; c.fillRect(a, b, (r[1] - r[0]) * s, (r[3] - r[2]) * s); c.strokeStyle = col; c.lineWidth = 1.5; c.strokeRect(a, b, (r[1] - r[0]) * s, (r[3] - r[2]) * s); };
+    const Ci = (x, z, r, fill, stroke) => { const [a, b] = P(x, z); c.beginPath(); c.arc(a, b, r * s, 0, 6.283); if (fill) { c.fillStyle = fill; c.fill(); } if (stroke) { c.strokeStyle = stroke; c.lineWidth = 1.5; c.stroke(); } };
+    R([B.x0 - 1.2, B.x1 + 1.2, B.z0 - 1.2, B.z1 + 1.2], '#a89878', '#2a3326');
+    { const [a, b] = P(B.x0, 16), [, b2] = P(0, 20); c.fillStyle = '#2f5f74'; c.fillRect(a, b, (B.x1 - B.x0) * s, b2 - b); }
+    for (const p of ACAD.ponds) Ci(p.x, p.z, p.r, '#356f80');
+    c.fillStyle = '#5a5648'; { const [a, b] = P(-3, -42), [a2, b2] = P(3, 42); c.fillRect(a, b, a2 - a, b2 - b); const [e, f] = P(-60, -3), [e2, f2] = P(60, 3); c.fillRect(e, f, e2 - e, f2 - f); }
+    Ci(ACAD.square.x, ACAD.square.z, ACAD.square.r, '#6a6656', '#bfb38a'); Ci(ACAD.ling.x, ACAD.ling.z, 1.2, '#a8c8ff');
+    Ci(ACAD.ring.x, ACAD.ring.z, ACAD.ring.r, '#5a4636', '#d0a060');
+    for (const k of ['school', 'lib', 'pharm', 'dining', 'dorm']) { const r = ACAD[k]; R([r.x0, r.x1, r.z0, r.z1], '#d8c8a0', '#4a4038'); }
+    R([-16.5, -10.5, 27, 33], '#c8b080', '#5a4a3a'); Ci(ACAD.bell.x, ACAD.bell.z, 3, '#6a4a3a', '#e0b070');
+    { const [a, b] = P(-7, B.z1 + .6), [a2] = P(7, 0); c.fillStyle = '#a03a2a'; c.fillRect(a, b - 3, a2 - a, 6); }
+    const L = [['大门 · 牌匾', 0, B.z1 + 4.2], ['大广场', ACAD.square.x, ACAD.square.z + 5.5], ['测灵石', 0, ACAD.ling.z - 2.2], ['钟楼', ACAD.bell.x, ACAD.bell.z + 5], ['学堂', -30, -38], ['图书馆', 0, -51], ['练武场', ACAD.ring.x, ACAD.ring.z], ['药房', 55, -36], ['食堂', -56, -34], ['居所', -56, -54], ['凉亭', -13.5, 30], ['溪流', 46, 18]];
+    for (const [t, x, z] of L) { const [a, b] = P(x, z); lab(t, a, b, t === '溪流' ? '#9fd0e0' : '#f4e6c8', t === '大门 · 牌匾' ? 12 : 13); }
+    if (world.name === 'academy') { const [a, b] = P(player.x, player.z); arrow(a, b, player.yaw, '#5fe8ff'); }
+    tpName = '传送学院 · 山门'; why = mapTpReason('gate');
+  } else {
+    const seen = cpIdx(ch1.cp) >= cpIdx('digong'), deep = cpIdx(ch1.cp) >= cpIdx('tunnel') || player.jdTp;
+    const half = W / 2;
+    // left: 地宫 (x -12..12, z -16..59)
+    { const x0 = -13, x1 = 13, z0 = -18, z1 = 60, s = Math.min((half - 24) / (x1 - x0), (H - 40) / (z1 - z0)), ox = half / 2, oz = 22 + (H - 40) / 2 - (z0 + z1) / 2 * s;
+      const P = (x, z) => [ox + x * s, oz + z * s], R = (x0, x1, z0, z1, fill, col) => { const [a, b] = P(x0, z0); c.fillStyle = fill; c.fillRect(a, b, (x1 - x0) * s, (z1 - z0) * s); if (col) { c.strokeStyle = col; c.lineWidth = 1.2; c.strokeRect(a, b, (x1 - x0) * s, (z1 - z0) * s); } };
+      lab('地宫', half / 2, 12, '#e0c8ff', 14);
+      if (!seen) lab('（尚未探明）', half / 2, H / 2, '#8a7a9a', 13);
+      else {
+        R(-4.5, 4.5, 51, 58.6, '#3a3048', '#9a88b8'); R(-12, 12, 15, 51, '#3a3048', '#9a88b8'); R(-12, 12, 19, 45, '#0c0814'); if (cpIdx(ch1.cp) >= cpIdx('bridge')) R(-2.25, 2.25, 19, 45, '#6a5a80'); R(-10, 10, -16, 14, '#3a3048', '#9a88b8');
+        R(-5, 5, 50.6, 51.4, '#c0a070'); R(-5, 5, 14.6, 15.4, '#c0a070'); R(-5, 5, 13.6, 14, '#b060ff'); const [ba, bb] = P(0, -12.6); c.fillStyle = '#c080ff'; c.beginPath(); c.arc(ba, bb, 3, 0, 6.283); c.fill();
+        for (const [t, x, z] of [['入口', 0, 56], ['石门', 7.8, 51], ['断崖 · 石桥', 0, 32], ['紫色屏障', 0, 11.6], ['圣书密室', 0, -4]]) { const [a, b] = P(x, z); lab(t, a, b); }
+        if (world.name === 'digong') { const [a, b] = P(player.x, player.z); arrow(a, b, player.yaw, '#5fe8ff'); }
+      } }
+    // right: 地底甬道 + 七印镜殿 (x -34..34, z -67..124)
+    { const x0 = -36, x1 = 36, z0 = -68, z1 = 124, s = Math.min((half - 24) / (x1 - x0), (H - 40) / (z1 - z0)), ox = half + half / 2, oz = 22 + (H - 40) / 2 - (z0 + z1) / 2 * s;
+      const P = (x, z) => [ox + x * s, oz + z * s];
+      c.strokeStyle = 'rgba(255,255,255,.12)'; c.beginPath(); c.moveTo(half, 26); c.lineTo(half, H - 10); c.stroke();
+      lab('七印镜殿', ox, 12, '#e0c8ff', 14);
+      if (!deep) lab('（尚未探明）', ox, H / 2, '#8a7a9a', 13);
+      else {
+        c.fillStyle = '#3a3048'; for (const r of JD.rects) { const [a, b] = P(r[0], r[2]); c.fillRect(a, b, (r[1] - r[0]) * s, (r[3] - r[2]) * s); }
+        { const [a, b] = P(-8, 22); c.fillStyle = '#4a4060'; c.fillRect(a, b, 16 * s, 22 * s); c.strokeStyle = 'rgba(200,170,255,.4)'; c.lineWidth = 1; for (let z = 23; z < 44; z += 3) { const [p1, q1] = P(-8, z), [p2] = P(8, z); c.beginPath(); c.moveTo(p1, q1); c.lineTo(p2, q1); c.stroke(); } }
+        { const [a, b] = P(-8, 44.4); c.fillStyle = '#c0a070'; c.fillRect(a, b - 1.5, 16 * s, 3); }
+        const [ex, ez] = P(0, JD.E.cz); c.beginPath(); c.ellipse(ex, ez, JD.E.ax * s, JD.E.az * s, 0, 0, 6.283); c.fillStyle = '#2e2440'; c.fill(); c.strokeStyle = '#b090e0'; c.lineWidth = 1.5; c.stroke();
+        c.beginPath(); c.arc(ex, ez, 14 * s, 0, 6.283); c.strokeStyle = '#8a70c0'; c.stroke();
+        const placed = cpIdx(ch1.cp) >= cpIdx('placed') || player.jdTp;
+        JD.mirrors.forEach((m, k) => { const [a, b] = P(m.x, m.z), on = placed && JD.lit.includes(k); c.beginPath(); c.arc(a, b, on ? 4 : 3, 0, 6.283); c.fillStyle = on ? '#d090ff' : '#4a4058'; c.fill(); c.strokeStyle = on ? '#fff' : '#8a7a9a'; c.lineWidth = 1; c.stroke(); });
+        for (const [t, x, z] of [['地底甬道', 6, 104], ['七印之门', 15, 45], ['石阶', 0, 33], ['书架', 0, -26]]) { const [a, b] = P(x, z); lab(t, a, b, '#f4e6c8', 11); }
+        if (player.jdTp) { const [a, b] = P(JD.circle.x, JD.circle.z); const pulse = 7 + Math.sin(performance.now() / 200) * 1.5; c.beginPath(); c.arc(a, b, pulse, 0, 6.283); c.strokeStyle = '#e0b0ff'; c.lineWidth = 2.5; c.stroke(); c.beginPath(); c.arc(a, b, 3, 0, 6.283); c.fillStyle = '#e0b0ff'; c.fill(); lab('传送点', a, b + 15, '#f0d0ff', 12); MAP.hit = { x: a, y: b }; }
+        if (world.name === 'jingdian') { const [a, b] = P(player.x, player.z); arrow(a, b, player.yaw, '#5fe8ff'); }
+      } }
+    tpName = '传送 · 七印镜殿'; why = mapTpReason('hall');
+  }
+  const pg = (player.pages || []).length, q = quest.cur;
+  $('mapinfo').innerHTML = `所在：<b>${where}</b><br>书页：<b>${pg}/10</b>（每页气血上限 +10）` + (q ? `<br>进行中：<b>${q.title}</b>` : '') + (MAP.tab === 'digong' ? `<br><span style="color:#b8a8c8">地宫之中只能借助传送阵往来。</span>` : '');
+  const btn = $('maptp'); btn.textContent = tpName; btn.disabled = !!why; $('mapwhy').textContent = why || '';
+}
+Object.assign(window.__G, { openMap, closeMap, mapTeleport, mapTpReason, jdReturn, MAP, drawMap });
 </script>
 </body>
 </html>
