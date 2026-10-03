@@ -770,7 +770,7 @@ function buildZheng() {
 /* ---------------- player ---------------- */
 /* ===== v3 tuning (all numbers in one place) ===== */
 const TUNE = {
-  hp0: 1000, hpLv: 50, atk0: 50, atkLv: 5, wineFrac: .15, shieldFrac: .2, stealthDur: 3, ambushWin: 2,
+  hp0: 1000, hpLv: 50, atk0: 50, atkLv: 5, wineFrac: .15, shieldFrac: .2, stealthDur: 3, ambushWin: 2, rideSpeed: 15, wjDur: 5, jyDur: 10,
   // damage multipliers of player.atk
   mult: { atk: 1, s1: 2.6, s2: 2.2, dahe: 12, daheSplash: 4, wanjian: .03, jianyu: .09, ride: .8, parry: 2.5, ambush: 2 },
   // toughness (韧性) damage per hit
@@ -783,7 +783,7 @@ const player = { x: 0, z: 7, yaw: 0, pitch: -.04, lv: 90, xp: 0, hp: 1980, maxHp
 const hasSt = id => player.unlocked.includes(id);
 let rideTilt = 0, camY = 1.7, gameT = 0, state = 'title', mode = 'tutorial', shake = 0, yawVel = 0, hudDirty = true, camRoll = 0, camDrop = 0, fovKick = 0, timeScale = 1;
 const needXp = l => Math.round(30 * Math.pow(l, 1.5) + 40);
-function recalc() { const L = player.lv - 1; player.maxHp = TUNE.hp0 + TUNE.hpLv * L + 10 * ((player.pages && player.pages.length) || 0) + (player.hpBonus || 0); if (player.eq && player.eq.gourd && typeof ITEMS !== 'undefined' && ITEMS[player.eq.gourd]) { player.wineMax = ITEMS[player.eq.gourd].drinks; if (player.wine > player.wineMax) player.wine = player.wineMax; } player.atk = Math.round(TUNE.atk0 + TUNE.atkLv * L); player.shieldMax = Math.round(player.maxHp * TUNE.shieldFrac); }
+function recalc() { const L = player.lv - 1; player.maxHp = TUNE.hp0 + TUNE.hpLv * L + 10 * ((player.pages && player.pages.length) || 0) + (player.hpBonus || 0); if (player.eq && player.eq.gourd && typeof ITEMS !== 'undefined' && ITEMS[player.eq.gourd]) { player.wineMax = ITEMS[player.eq.gourd].drinks; if (player.wine > player.wineMax) player.wine = player.wineMax; } player.atk = Math.round(TUNE.atk0 + TUNE.atkLv * L); if (typeof applyShentong === 'function') applyShentong(); player.atk += weaponAtk(); player.shieldMax = Math.round(player.maxHp * TUNE.shieldFrac); }
 const fwd = () => V3(-Math.sin(player.yaw), 0, -Math.cos(player.yaw));
 const rightV = () => V3(Math.cos(player.yaw), 0, -Math.sin(player.yaw));
 const ppos = () => V3(player.x, camY - .6, player.z);
@@ -961,7 +961,7 @@ function makeShixiong() {
   const aura1 = mk(G.sph, auraMat(0xa040ff, 2.0, .9), m.body, 0, 1.05, 0, .55, 1.15, .5);
   const aura2 = mk(G.sph, auraMat(0x6010c0, 1.4, .5), m.body, 0, 1.1, 0, .75, 1.35, .7);
   const mist = mk(discGeo, new THREE.MeshBasicMaterial({ color: 0x2a0a40, transparent: true, opacity: .45, depthWrite: false }), holder, 0, .02, 0, 1.2, 1.2, 1.2); mist.rotation.x = -Math.PI / 2;
-  const e = { kind: 'shixiong', boss: true, name: '魔神', lvTxt: '???', x: 0, z: -6.5, y: .3, yaw: 0, radius: .8, height: 2.5, hp: 100000, maxHp: 100000, floorHp: 0, armor: 1,
+  const e = { kind: 'shixiong', boss: true, name: '魔神', lvTxt: '???', realm: '魔剑仙', x: 0, z: -6.5, y: .3, yaw: 0, radius: .8, height: 2.5, hp: 100000, maxHp: 100000, floorHp: 0, armor: 1,
     model: m, holder, mats: m.mats, pose: clonePose(IPOSE.idle), tgt: IPOSE.idle, poseK: 8, act: null, cd: 2.5, ai: true, flash: 0, warnT: 0, home: V3(0, 0, -6.5), strafe: 0, last: '', dead: false, dmgK: 1, forced: null, visible: true,
     onInterrupt() { this.act = null; this.visible = true; if (timeScale < 1) timeScale = 1; tutBlockCue(false); setPose(this, 'idle', 6); this.cd = Math.max(this.cd, this.forced ? 1.6 : 2.2); this.model.sword.bladeM.emissiveIntensity = 1.4; } };
   initTough(e, 300);
@@ -1427,6 +1427,7 @@ function tryCast(id) {
   if (!canAct()) return false;
   const s = SK[id];
   if (s.st && !hasSt(id)) { toast('神通尚未领悟'); jyTarget = null; return false; }
+  if (s.st && typeof inLoadout === 'function' && !inLoadout(id)) { toast('此神通未装入神通栏'); jyTarget = null; return false; }
   if (id === 'ride' && !player.rideOK) { toast('御剑之术尚未习得'); return false; }
   if (id === 'ride' && !player.riding && typeof ch1 !== 'undefined' && mode === 'ch1' && ch1.noRide) { toast('此处不可御剑'); return false; }
   if (id === 'ride' && (VM.act === 'ridein' || VM.act === 'rideout')) return false;
@@ -1584,7 +1585,7 @@ function updateWanjian(dt) {
       q.position.copy(st); q.quaternion.setFromUnitVectors(V3(0, 0, -1), dir);
       wj.live.push({ q, dir, tg, life: 1.4, sp: rand(30, 40) });
     }
-    if (wj.t >= 5) { wj.active = false; SK.wanjian.t = SK.wanjian.cd; }
+    if (wj.t >= TUNE.wjDur) { wj.active = false; SK.wanjian.t = SK.wanjian.cd; }
   }
   for (let i = wj.live.length - 1; i >= 0; i--) {
     const b = wj.live[i]; b.life -= dt; b.q.position.addScaledVector(b.dir, b.sp * dt);
@@ -1639,7 +1640,7 @@ function createZone(x, z) {
   const disc = mk(new THREE.PlaneGeometry(2 * R, 2 * R), new THREE.MeshBasicMaterial({ map: runeTex, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, color: 0x9fe8ff }), g); disc.rotation.x = -Math.PI / 2;
   const fill = mk(discGeo, addMat(0x3fa8ff, .0), g, 0, .01, 0, R, R, R); fill.rotation.x = -Math.PI / 2;
   const wall = mk(new THREE.CylinderGeometry(R, R, 6, 48, 1, true), new THREE.ShaderMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, uniforms: { op: { value: 0 } }, vertexShader: 'varying float vY; void main(){ vY=uv.y; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.); }', fragmentShader: 'uniform float op; varying float vY; void main(){ float a=(1.-vY)*(1.-vY)*op*.35; gl_FragColor=vec4(vec3(.5,.85,1.)*a,a); }' }), g, 0, 3, 0);
-  zones.push({ g, disc, fill, wall, x, z, y, r: R, t: 0, dur: 10, tick: 0, acc: 0 });
+  zones.push({ g, disc, fill, wall, x, z, y, r: R, t: 0, dur: TUNE.jyDur, tick: 0, acc: 0 });
   shockRing(V3(x, y, z), 0x9fe8ff, .5, R, .6);
 }
 const rainLive = [];
@@ -1923,7 +1924,7 @@ function escHtml(s) { return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;',
 function showSlots() {
   const st = readStore(), list = listSaves(); if (!list.length) { $('slots').style.display = 'none'; refreshTitle(); return; }
   $('slotcnt').textContent = `${list.length}/${MAX_SLOTS}`;
-  $('slotlist').innerHTML = list.map(d => `<div class="slot${d.id === st.last ? ' last' : ''}" data-id="${escHtml(d.id)}"><div class="sav">剑</div><div class="sinfo"><b>${escHtml(d.name)}</b><span class="slv">Lv${d.lv | 0}</span>${d.id === st.last ? '<em>上次游玩</em>' : ''}<div class="smeta">${slotStageTxt(d)} · 最近游玩 ${fmtTime(d.time)}</div></div><button class="gbtn sgo" data-act="go">进入</button><button class="gbtn alt sdel" data-act="del">删除</button></div>`).join('');
+  $('slotlist').innerHTML = list.map(d => `<div class="slot${d.id === st.last ? ' last' : ''}" data-id="${escHtml(d.id)}"><div class="sav">剑</div><div class="sinfo"><b>${escHtml(d.name)}</b><span class="slv">${realmOf(d.lv | 0)}</span>${d.id === st.last ? '<em>上次游玩</em>' : ''}<div class="smeta">${slotStageTxt(d)} · 最近游玩 ${fmtTime(d.time)}</div></div><button class="gbtn sgo" data-act="go">进入</button><button class="gbtn alt sdel" data-act="del">删除</button></div>`).join('');
   resetInputs('slots'); $('slots').style.display = 'flex';
 }
 function enterSlot(id) { const d = loadSave(id); if (!d) { showSlots(); return; } const st = readStore(); st.last = id; writeStore(st); $('slots').style.display = 'none'; initAudio(); $('start').style.display = 'none'; goFull(); applySave(d); resumeCh1(d); }
@@ -1966,7 +1967,7 @@ function showVictory() {
   state = 'win'; $('banner').style.opacity = 0; bannerT = 0; const secs = Math.round(gameT - fightStart);
   const lv0 = player.lv; player.wins = (player.wins || 0) + 1; gainXp(320); saveGame();
   $('wintxt').textContent = `${player.name} 斩杀了山海异兽 · 狰`;
-  $('winstats').innerHTML = `用时 <b>${Math.floor(secs / 60)}分${String(secs % 60).padStart(2, '0')}秒</b>　剩余气血 <b>${Math.ceil(player.hp)}</b>　经验 <b>+320</b>` + (player.lv > lv0 ? `<br>等级提升至 <b>Lv${player.lv}</b> · 气血上限 <b>${player.maxHp}</b>` : '');
+  $('winstats').innerHTML = `用时 <b>${Math.floor(secs / 60)}分${String(secs % 60).padStart(2, '0')}秒</b>　剩余气血 <b>${Math.ceil(player.hp)}</b>　经验 <b>+320</b>` + (player.lv > lv0 ? `<br>境界提升至 <b>${realmOf(player.lv)}</b> · 气血上限 <b>${player.maxHp}</b>` : '');
   resetInputs('win'); $('win').style.display = 'flex'; sfx('win'); document.body.classList.add('won');
 }
 function gainXp(x) { player.xp += x; let up = false; while (player.lv < 100 && player.xp >= needXp(player.lv)) { player.xp -= needXp(player.lv); player.lv++; up = true; recalc(); player.hp = player.maxHp; } hudDirty = true; if (up && mode === 'valley') saveGame(); }
@@ -2086,7 +2087,7 @@ function layout() {
   const jcx = 22 * u + 60 * u;
   place(btnEls.wine, jcx - 2 * u, Hh - 10 * u - 120 * u - 34 * u, 58 * u);
   const cx = 212 * u, cy = Hh - 200 * u, arm = 57 * u, s = 46 * u;
-  place(btnEls.dahe, cx, cy, 58 * u); place(btnEls.wanjian, cx, cy - arm, s); place(btnEls.hudun, cx, cy + arm, s); place(btnEls.jianyu, cx - arm, cy, s); place(btnEls.yinshen, cx + arm, cy, s);
+  if (typeof LO_SLOTS !== 'undefined' && LO_SLOTS) layoutCross(cx, cy, arm, s, u, place); else { place(btnEls.dahe, cx, cy, 58 * u); place(btnEls.wanjian, cx, cy - arm, s); place(btnEls.hudun, cx, cy + arm, s); place(btnEls.jianyu, cx - arm, cy, s); place(btnEls.yinshen, cx + arm, cy, s); }
   const cr = $('crossbg'); place(cr, cx, cy, 2 * arm + s + 18 * u);
   const lb = $('crosslbl'); lb.style.left = (cx - arm - s / 2 - 6 * u) + 'px'; lb.style.top = (cy - arm - s / 2 + 2 * u) + 'px';
   positionHighlight();
@@ -2107,13 +2108,13 @@ function updateHUD() {
   for (const id of ALL_ST) btnEls[id].classList.toggle('lk1', player.unlocked.length > 0 && !hasSt(id));
   if (player.stealthT > 0) $('stealthtxt').textContent = `隐身中 ${player.stealthT.toFixed(1)}s · 现身首击伤害翻倍`;
   const be = enemies[0];
-  if (be) { const r = be.hp / be.maxHp; $('bossfill').style.width = (r * 100) + '%'; $('bosstxt').textContent = (be.kind === 'zheng' || be.showNum) ? `${Math.ceil(be.hp)}/${be.maxHp}` : `${Math.ceil(r * 100)}%`; const nm = `${be.name}<small>Lv${be.lvTxt}</small>`; if (nm !== hudBossName) { hudBossName = nm; $('bossname').innerHTML = nm; }
+  if (be) { const r = be.hp / be.maxHp; $('bossfill').style.width = (r * 100) + '%'; $('bosstxt').textContent = (be.kind === 'zheng' || be.showNum) ? `${Math.ceil(be.hp)}/${be.maxHp}` : `${Math.ceil(r * 100)}%`; const rl = realmLabel(be), nm = rl ? `${be.name}<small>·${rl}</small>` : be.name; if (nm !== hudBossName) { hudBossName = nm; $('bossname').innerHTML = nm; }
     const tb = $('tbar'); tb.style.display = be.tough ? 'block' : 'none';
     if (be.tough) { const tr = be.broken ? Math.max(0, be.brkT / be.brkDur) : be.T / be.Tmax; $('tfill').style.width = (tr * 100).toFixed(1) + '%'; const st = be.broken ? 'brk' : be.refill ? 'ref' : ''; if (tb.dataset.st !== st) { tb.dataset.st = st; tb.className = 'tbar ' + st; }
       const tx = be.broken ? `破防 · 硬直 ${Math.max(0, be.brkT).toFixed(1)}s` : be.refill ? `韧性恢复中 ${Math.floor(be.T)}/${be.Tmax}` : `韧性 ${Math.ceil(be.T)}/${be.Tmax}`; if ($('ttxt').textContent !== tx) $('ttxt').textContent = tx; } }
   if (hudDirty) {
     hudDirty = false;
-    $('pname').textContent = player.name; $('lvnum').textContent = player.lv;
+    $('pname').textContent = player.name; $('lvnum').textContent = playerRealm(); if (typeof refreshCross === 'function') refreshCross();
     const need = needXp(player.lv); $('xpfill').style.width = (player.lv >= 100 ? 100 : player.xp / need * 100) + '%'; $('xptxt').textContent = player.lv >= 100 ? '已满级' : `${player.xp}/${need}`;
     const r = clamp(player.hp / player.maxHp, 0, 1);
     $('hpfill').style.width = (r * 100) + '%'; $('hpghost').style.width = (r * 100) + '%';
@@ -2148,7 +2149,7 @@ function update(dtR) {
     if (mag > .08) {
       const f = fwd(), r = rightV();
       const dir = f.multiplyScalar(-jy).add(r.multiplyScalar(jx)); if (dir.lengthSq() > 1) dir.normalize();
-      const sp = (player.riding ? 15 : (jy > .3 ? 4.2 : 6.2)) * (wj.active ? .55 : 1);
+      const sp = (player.riding ? TUNE.rideSpeed : (jy > .3 ? 4.2 : 6.2)) * (wj.active ? .55 : 1);
       player.x += dir.x * sp * dt; player.z += dir.z * sp * dt; moving = true;
     }
     if (player.dashT > 0) { player.dashT -= dt; player.x += player.dashV.x * dt; player.z += player.dashV.z * dt; if (Math.random() < .9) emit(player.x + rand(-1, 1), camY + rand(-1, .5), player.z + rand(-1, 1), -player.dashV.x * .3, 0, -player.dashV.z * .3, 0xbff4ff, .15, .25, 0); }
@@ -2226,7 +2227,7 @@ function refreshTitle() {
   const list = listSaves(), last = loadSave(), has = list.length > 0;
   $('go').style.display = has ? 'none' : 'inline-block'; $('cont').style.display = has ? 'inline-block' : 'none'; $('newsave').style.display = has ? 'inline-block' : 'none';
   $('saveinfo').style.display = has ? 'block' : 'none';
-  if (has) $('saveinfo').textContent = `共 ${list.length} 个存档` + (last ? ` · 上次：剑修「${last.name}」 Lv${last.lv}` : '');
+  if (has) $('saveinfo').textContent = `共 ${list.length} 个存档` + (last ? ` · 上次：剑修「${last.name}」 ${realmOf(last.lv)}` : '');
 }
 refreshTitle();
 function startNewSave() { JUMP.pending = false; if (listSaves().filter(d => d.id !== JUMP_SLOT).length >= MAX_SLOTS) { toastTitle(`存档已满（最多 ${MAX_SLOTS} 个），请先删除一个存档`); return; } activeSlot = null; initAudio(); $('start').style.display = 'none'; $('slots').style.display = 'none'; goFull(); playOpening(); }
@@ -2275,7 +2276,7 @@ onTap($('cont'), showSlots);   // 继续游戏 → save list (last-used first, m
 onTap($('slotback'), closeSlots);
 onTap($('slotlist'), e => { const row = e.target.closest && e.target.closest('.slot'); if (!row) return; const btn = e.target.closest('button'), id = row.dataset.id, d = loadSave(id); if (!d) return;
   if (!btn || btn.dataset.act === 'go') enterSlot(id);   // tapping anywhere on the row (except 删除) enters that save
-  else showConfirm('删除存档', `确定删除剑修「${d.name}」（Lv${d.lv}）的存档吗？此操作无法撤销。`, () => { deleteSave(id); refreshTitle(); if (listSaves().length) showSlots(); else $('slots').style.display = 'none'; }); });
+  else showConfirm('删除存档', `确定删除剑修「${d.name}」（${realmOf(d.lv)}）的存档吗？此操作无法撤销。`, () => { deleteSave(id); refreshTitle(); if (listSaves().length) showSlots(); else $('slots').style.display = 'none'; }); });
 onTap($('cfmno'), () => { $('confirm').style.display = 'none'; confirmYes = null; });
 onTap($('cfmyes'), () => { $('confirm').style.display = 'none'; const f = confirmYes; confirmYes = null; f && f(); });
 requestAnimationFrame(frame);
@@ -3012,7 +3013,7 @@ function foeUpdate(e, dt) {
 }
 /* ---- 重剑弟子: slow, huge telegraphed hits, long recovery windows ---- */
 const FOE_HEAVY = {
-  hp: 3400, tough: 170, lv: 1, idlePose: 'ready', speed: 2.3,
+  hp: 3400, tough: 170, lv: 2, idlePose: 'ready', speed: 2.3,
   cd: e => rand(1.3, 2.0) * (e.hp < e.maxHp * .4 ? .8 : 1),
   think(e, dt, tg, d, dx, dz) { faceActor(e, tg.x, tg.z, dt * 3); if (d > 2.6) moveFoe(e, dx, dz, FOE_HEAVY.speed, dt); },
   pick(e, d) { if (d < 3.3) return Math.random() < .58 ? 'smash' : 'sweep'; if (d > 6 && Math.random() < .55) return 'charge'; return d < 5 ? 'smash' : null; },
@@ -3084,7 +3085,7 @@ const FOE_MOHAN = {
 };
 /* ---- 魔修虚影: floating phantom; may target 林清风 ---- */
 const FOE_GHOST = {
-  hp: 7600, tough: 260, lv: 5, idlePose: 'float', speed: 3.0, deadPose: 'sky',
+  hp: 7600, tough: 260, lv: 6, idlePose: 'float', speed: 3.0, deadPose: 'sky',
   cd: e => rand(1.0, 1.6) * (e.cdMul || 1),
   reset(e) { // phase 1 baseline (also used on restart); fight ends via cutscene at 10% hp
     if (e.baseS === undefined) { e.baseS = e.model.root.scale.x; e.baseR = e.radius; e.baseH = e.height; }
@@ -3147,7 +3148,7 @@ function apprFall(e) {
 }
 /* ---- 林清风 (第二日切磋): a gentler 墨寒 moveset, no blink / burst, reduced damage ---- */
 const FOE_LIN = Object.assign({}, FOE_MOHAN, {
-  hp: 2600, tough: 150, lv: 3, speed: 3.2,
+  hp: 2600, tough: 150, lv: 4, speed: 3.2,
   cd: e => rand(1.3, 2.0),
   reset(e) { e.dmgMul = .62; e.floorHp = 0; },
   pick(e, d) { const r = Math.random(); if (d < 3.2) return r < .75 ? 'combo' : 'dash'; return r < .6 ? 'wave' : 'dash'; },
@@ -3161,7 +3162,7 @@ const ch1 = { cp: 'intro', co: null, wait: null, fight: null, ally: null, follow
 const CP_ORDER = ['intro', 'lingen', 'school', 'day1', 'day2', 'day3', 'night', 'arena', 'duel1', 'duel2', 'duel3', 'ceremony', 'heart', 'library', 'hidden', 'digong', 'chasm', 'bridge', 'chamber', 'phantom', 'tunnel', 'door', 'hall', 'placed', 'return', 'rings', 'gate', 'done'];
 CP_ORDER.splice(CP_ORDER.indexOf('school') + 1, 0, 'shield');
 const CP_CN = { lingen: '测灵根', day1: '第一日 · 习剑', day2: '第二日 · 切磋', day3: '第三日 · 闲暇', night: '第三日 · 夜', heart: '同道', rings: '御剑试炼', intro: '初入学院', school: '前往学堂', shield: '学堂 · 护盾课', arena: '学院大比', duel1: '大比 · 第一场', duel2: '大比 · 第二场', duel3: '大比 · 决赛', ceremony: '颁奖', library: '图书馆禁阁', hidden: '无形之门', digong: '地宫', chasm: '地宫 · 断崖', bridge: '地宫 · 石桥', chamber: '地宫 · 密室', phantom: '地宫 · 魔修虚影', tunnel: '地底甬道', door: '七印之门', hall: '七印镜殿', placed: '七印镜殿 · 归书', return: '返回地面', gate: '下山', done: '已完成' };
-const CP_LV = { lingen: 1, day1: 1, day2: 1, day3: 1, night: 1, heart: 5, rings: 5, intro: 1, school: 1, shield: 1, arena: 1, duel1: 1, duel2: 2, duel3: 3, ceremony: 5, library: 5, hidden: 5, digong: 5, chasm: 5, bridge: 5, chamber: 5, phantom: 5, tunnel: 5, door: 5, hall: 5, placed: 5, return: 5, gate: 5, done: 5 };
+const CP_LV = { lingen: 1, day1: 1, day2: 1, day3: 1, night: 1, heart: 5, rings: 7, intro: 1, school: 1, shield: 1, arena: 1, duel1: 1, duel2: 2, duel3: 3, ceremony: 5, library: 5, hidden: 5, digong: 5, chasm: 5, bridge: 5, chamber: 5, phantom: 5, tunnel: 5, door: 5, hall: 5, placed: 5, return: 7, gate: 7, done: 7 };
 function slotStageTxt(d) { if (d.stage !== 'ch1') return '第一章 · 学院'; return '第一章 · ' + (CP_CN[d.ch] || '学院'); }
 function hasItem(id) { return (player.items || []).includes(id); }
 function giveItem(id, silent) { if (!player.items) player.items = []; if (!player.items.includes(id)) player.items.push(id); }
@@ -3181,6 +3182,7 @@ function ensureActors() {
   // 墨寒 dark mist disc
   const mist = mk(discGeo, new THREE.MeshBasicMaterial({ color: 0x2a0a40, transparent: true, opacity: .4, depthWrite: false }), A.mohan.holder, 0, .03, 0, .9, .9, 1); mist.rotation.x = -Math.PI / 2;
   for (const k in A) { const a = A[k], el = document.createElement('div'); el.className = 'npcname' + (k === 'lin' ? ' ally' : ''); el.innerHTML = `${a.name}${a.title ? `<small>${a.title}</small>` : ''}`; el.style.display = 'none'; labelsEl.appendChild(el); a.label = el; }
+  refreshNameLabels();
   for (const k of ['master', 'mohan', 'heavy', 'dart', 'dummy', 'd1', 'd2', 'd3', 'pharm', 'cook', 'guard1', 'guard2', 'stone']) { A[k].solid = true; A[k].r = A[k].radius; npcSolids.push(A[k]); }
   return A;
 }
@@ -3340,7 +3342,7 @@ function restartFight() {
 function ch1Timer(t, fn) { ch1.timers.push({ t, fn }); }
 function levelUp(n) {
   const lv0 = player.lv; player.lv += n; player.xp = 0; recalc(); player.hp = player.maxHp; hudDirty = true;
-  const el = $('lvup'); el.querySelector('b').textContent = `Lv${lv0} → Lv${player.lv}`; el.querySelector('span').textContent = `等级提升！气血上限 ${player.maxHp} · 攻击 ${player.atk}`; el.classList.remove('show'); void el.offsetWidth; el.classList.add('show');
+  const el = $('lvup'); el.classList.remove('brk'); el.querySelector('b').textContent = `境界提升·${realmOf(player.lv)}`; el.querySelector('span').textContent = `气血上限 ${player.maxHp} · 攻击 ${player.atk}` + (lv0 < 5 && player.lv >= 5 ? ` · 神通点 ${stTotal()}（背包 · 神通）` : player.lv >= 5 ? ` · 神通点 +${player.lv - Math.max(lv0, 4)}` : ''); el.classList.remove('show'); void el.offsetWidth; el.classList.add('show');
   sfx('level'); shockRing(V3(player.x, 0, player.z), 0xffd36a, .4, 4, .9); shockRing(V3(player.x, 0, player.z), 0xffffff, .2, 2.5, .6);
   for (let i = 0; i < 50; i++) { const a = rand(0, 6.28), r = rand(.4, 1.4); emit(player.x + Math.cos(a) * r, rand(0, .4), player.z + Math.sin(a) * r, 0, rand(2, 4.5), 0, i % 3 ? 0xffd36a : 0xfff6d0, rand(.3, .55), rand(.8, 1.5), 0); }
   flashScreen('#fff2c0', .35, .6);
@@ -3577,7 +3579,7 @@ SEG.shield = function* () {
   yield say('青玄真人', '神通者，以灵力化万象：或攻或守，或隐或遁，各随其性。');
   yield say('青玄真人', '今日先授你护盾。灵力凝于周身，外力难侵。');
   yield say('青玄真人', '盾之厚薄，约当你气血二成。盾破之前，刀剑难伤。');
-  if (!hasSt('hudun')) player.unlocked.push('hudun'); SK.hudun.t = 0; hudDirty = true; saveGame();
+  if (!hasSt('hudun')) player.unlocked.push('hudun'); ensureLoadout('hudun'); SK.hudun.t = 0; hudDirty = true; saveGame();
   showLearn('领悟神通【护盾】', '左侧神通十字 · 下'); yield wait(1.4);
   M.pose = 'point'; yield say('青玄真人', '为师以光弹试你。凝盾，接下三弹。'); M.pose = 'whisk';
   ch1Hint('点击左侧神通十字下方的<b>【护盾】</b>，再以护盾接下光弹', 'st-hudun');
@@ -3632,7 +3634,7 @@ SEG.day2 = function* () {
   player.minHpFrac = .08;
   startFight(L, FOE_LIN, { ring: true, px: R.x - 5, pz: R.z, spar: true });
   ch1Hint('切磋不论胜负：留意<b>预警</b>，用上昨日所习'); ch1Timer(6, () => ch1HintOff());
-  yield* fightIntro('切磋', '林清风 · Lv3');
+  yield* fightIntro('切磋', `林清风·${realmOf(FOE_LIN.lv)}`);
   yield until(() => ch1.fight && ((ch1.fight.won && gameT - ch1.fight.wonT > 1.2) || ch1.fight.lost || player.hp <= player.maxHp * .08 + 1));
   const won = ch1.fight.won; ch1HintOff(); player.minHpFrac = 0;
   endFight(); L.dead = false; L.hp = L.maxHp; L.pose = won ? 'kneel' : 'idle'; L.fighting = false; L.solid = false; player.dead = false; player.hp = player.maxHp; hudDirty = true; timeScale = 1;
@@ -3759,7 +3761,7 @@ function* duel(n) {
   ch1Timer(6, () => ch1HintOff());
   startFight(foe, def, { ring: true, px: R.x - 5, pz: R.z, lose: ['重剑势大力沉，看准预警再闪避！', '拉近距离，用飞剑与斩马压制她！', '墨寒招式凌厉，格挡弹反是破局之道！'][n - 1] });
   if (n === 2) foe.orbit.visible = true;
-  yield* fightIntro(['第一场', '第二场', '决赛'][n - 1], `${foe.name} · Lv${def.lv}`);
+  yield* fightIntro(['第一场', '第二场', '决赛'][n - 1], `${foe.name}·${realmOf(def.lv)}`);
   yield until(() => ch1.fight && ch1.fight.won && gameT - ch1.fight.wonT > 1.4);
   ch1HintOff();
   endFight(); foe.pose = n === 3 ? 'stagger' : 'kneel';
@@ -3817,7 +3819,7 @@ SEG.library = function* () {
   yield until(() => ch1.flags.book);
   setObj(null);
   yield say(null, '《无影身法》\n身随心隐，形随意散。敌之所见，唯余残影。\n——隐于无形者，方见无形之物。');
-  if (!hasSt('yinshen')) player.unlocked.push('yinshen'); hudDirty = true; SK.yinshen.t = 0;
+  if (!hasSt('yinshen')) player.unlocked.push('yinshen'); ensureLoadout('yinshen'); hudDirty = true; SK.yinshen.t = 0;
   showLearn('习得【隐身】', '神通十字 · 右');
   setCP('hidden');
   yield wait(1.6);
@@ -3976,7 +3978,7 @@ SEG.phantom = function* () {
   yield say('林清风', '小心！我来助你！');
   ch1.follow = false; startFight(g, FOE_GHOST, { ally: true, px: 0, pz: -2, lose: '与林清风前后夹击，留意紫色预警！' });
   ch1Hint('<b>林清风</b>会与你并肩作战；他气血不足时会暂退调息', null); ch1Timer(5, () => ch1HintOff());
-  yield* fightIntro('魔修虚影', 'Lv5 · 与林清风并肩作战');
+  yield* fightIntro('魔修虚影', `${realmOf(FOE_GHOST.lv)} · 与林清风并肩作战`);
   yield until(() => ch1.fight && (ch1.fight.won || (!g.trans && g.hp <= g.floorHp + 1)));
   // ---- cutscene: the phantom smashes the floor ----
   g.ai = false; g.act = null; g.warnT = 0; g.invuln = true; g.stagger = 0; clearProj(); ch1HintOff();
@@ -4089,8 +4091,8 @@ SEG.placed = function* () {
       for (let i = 0; i < 4; i++) { const sx = cr.position.x + rand(-1, 1) * (1 - k), sy = cr.position.y + rand(-1, 1) * (1 - k), sz = cr.position.z + rand(-1, 1) * (1 - k), life = rand(.5, .8); emit(sx, sy, sz, (player.x - sx) / life, (camY - .5 - sy) / life, (player.z - sz) / life, i % 2 ? 0xc080ff : 0xf0d0ff, rand(.25, .45), life, 0); }
       if (k >= 1) { cr.visible = false; W.crys.off = true; W.crL.intensity = 0; return true; } }; }
   yield until(() => !ch1.anim);
-  flashScreen('#c080ff', .45, .8); shockRing(V3(player.x, 0, player.z), 0xc080ff, .3, 5, .9); sfx('level'); player.hp = player.maxHp; hudDirty = true;
-  banner('紫光入体', '灵台清明 · 气血尽复', 1.8); state = 'play'; ch1.flags.absorbed = true; giveItem('crystal'); saveGame();
+  realmBreak(2);
+  state = 'play'; ch1.flags.absorbed = true; giveItem('crystal'); saveGame();
   yield wait(1.4);
   W.circle.visible = true; sfx('ding'); shockRing(V3(JD.circle.x, 0, JD.circle.z), 0xc080ff, .3, 3, .6);
   yield say('林清风', '晶石既散，地上竟现出一座传送阵……走！');
@@ -4355,14 +4357,14 @@ var ITEMS = {
   herb_chi: { cat: 'special', name: '赤阳花', desc: '钟楼背阴处所采，花色如火。' },
   herb_qing: { cat: 'special', name: '青心兰', desc: '图书馆后墙石缝所采，幽香清冷。' },
 };
-const BAG_TABS = [['gourd', '葫芦'], ['wine', '酒'], ['pill', '丹药'], ['curio', '古玩'], ['special', '特殊']];
+const BAG_TABS = [['weapon', '武器'], ['shentong', '神通'], ['gourd', '葫芦'], ['wine', '酒'], ['pill', '丹药'], ['curio', '古玩'], ['special', '特殊']];
 const JUMP_SLOT = 'jumptest';
 const JUMP = { pending: false };
 function invReset(tut) {
-  player.inv = tut ? {} : { cutao: 1, zhuo: 1 }; player.eq = tut ? {} : { gourd: 'cutao', wine: 'zhuo', curio: null }; player.qs = [null, null, null, null];
+  player.inv = tut ? {} : { cutao: 1, zhuo: 1 }; player.eq = tut ? {} : { gourd: 'cutao', wine: 'zhuo', curio: null, weapon: 'qingfeng' }; player.weapons = ['qingfeng']; player.stRanks = {}; player.loadout = tut ? null : defaultLoadout(); player.qs = [null, null, null, null];
   player.hpBonus = 0; player.jadeChoice = null; player.jadeTo = null; player.qcur = null; player.amuletUsed = false;
 }
-function invSaveData() { return { inv: { ...(player.inv || {}) }, eq: { ...(player.eq || {}) }, qs: (player.qs || []).slice(0, 4), hpBonus: player.hpBonus | 0, jadeChoice: player.jadeChoice || null, jadeTo: player.jadeTo || null, qcur: quest.cur ? { id: quest.cur.id, step: quest.step } : (player.qcur || null) }; }
+function invSaveData() { return { loadout: player.loadout ? { ...player.loadout } : null, stRanks: { ...(player.stRanks || {}) }, weapons: (player.weapons || ['qingfeng']).slice(), inv: { ...(player.inv || {}) }, eq: { ...(player.eq || {}) }, qs: (player.qs || []).slice(0, 4), hpBonus: player.hpBonus | 0, jadeChoice: player.jadeChoice || null, jadeTo: player.jadeTo || null, qcur: quest.cur ? { id: quest.cur.id, step: quest.step } : (player.qcur || null) }; }
 function invLoad(d) {
   invReset(); const inv = d.inv && typeof d.inv === 'object' ? d.inv : null;
   if (inv) { player.inv = {}; for (const k in inv) if (ITEMS[k] && (inv[k] | 0) > 0) player.inv[k] = Math.min(99, inv[k] | 0); }
@@ -4371,6 +4373,10 @@ function invLoad(d) {
   player.qs = [0, 1, 2, 3].map(i => { const v = Array.isArray(d.qs) ? d.qs[i] : null; return v && ITEMS[v] && ITEMS[v].cat === 'pill' ? v : null; });
   player.hpBonus = Math.max(0, Math.min(5000, d.hpBonus | 0)); player.jadeChoice = d.jadeChoice === 'mohan' || d.jadeChoice === 'master' ? d.jadeChoice : null; player.jadeTo = d.jadeTo === 'mohan' || d.jadeTo === 'master' ? d.jadeTo : null;
   player.qcur = d.qcur && typeof d.qcur.id === 'string' ? { id: d.qcur.id, step: d.qcur.step | 0 } : null;
+  player.weapons = Array.isArray(d.weapons) ? d.weapons.filter(w => WEAPONS[w]) : []; if (!player.weapons.includes('qingfeng')) player.weapons.unshift('qingfeng');
+  player.eq.weapon = eq.weapon && player.weapons.includes(eq.weapon) ? eq.weapon : 'qingfeng';
+  player.stRanks = {}; if (d.stRanks && typeof d.stRanks === 'object') for (const k in d.stRanks) player.stRanks[k] = d.stRanks[k] | 0; stValidate();
+  player.loadout = d.loadout && typeof d.loadout === 'object' ? { ...d.loadout } : defaultLoadout(); loadoutValidate(); refreshCross();
   recalc(); player.wine = Math.min(player.wine, player.wineMax); refreshQS();
 }
 const invN = id => (player.inv && player.inv[id]) | 0;
@@ -4413,7 +4419,10 @@ function ensureState(cp) {
   if (i > cpIdx('shield') && !hasSt('hudun')) player.unlocked.push('hudun');
   if (i > cpIdx('placed')) giveItem('crystal'); else takeItem('crystal');
   if (cp !== 'day3') { for (const h of ['herb_yue', 'herb_chi', 'herb_qing', 'jade']) takeItem(h); player.qcur = null; player.jadeTo = null; }
-  recalc();
+  if (i >= 0 && i <= cpIdx('placed') && player.lv > 5) player.lv = 5; // 紫光晶石 not yet absorbed (re-absorbing breaks through again)
+  if (i > cpIdx('placed') && player.lv < 7) player.lv = 7;
+  loadoutValidate(); if (cp === 'shield') ensureLoadout('hudun'); if (i >= cpIdx('hidden') && i <= cpIdx('chamber')) ensureLoadout('yinshen');
+  stValidate(); recalc(); refreshCross(); if (typeof refreshNameLabels === 'function') refreshNameLabels();
 }
 /* ---------------- academy decor: 刘醉's camp, 灵草, 湖中玉 ---------------- */
 const HERBS = { herb_yue: { x: 19.4, z: 30.6, col: 0xe8f0ff, glow: 0xb8d8ff }, herb_chi: { x: -28.7, z: 11.4, col: 0xff5a3a, glow: 0xffa060 }, herb_qing: { x: 6, z: -61.9, col: 0x6ae0c0, glow: 0x80ffe0 } };
@@ -4611,14 +4620,14 @@ body.panelopen #hud,body.panelopen #labels,body.panelopen #btn-use{visibility:hi
   const jp = document.createElement('div'); jp.id = 'jumpp'; jp.className = 'v45p'; jp.style.zIndex = 90;
   jp.innerHTML = '<div class="hd"><b>剧情跳转 · 第一章</b><small>选一节点，以「跳转测试」专用存档开局（会覆盖上一次的跳转存档，不影响其他存档）</small><button class="close" id="jumpclose">返回</button></div><div id="jumplist"></div>';
   document.body.appendChild(jp); stop(jp);
-  $('jumplist').innerHTML = JUMP_NODES.map((n, i) => `<button data-i="${i}">${n[0]}<i>${n[1] ? (CP_CN[n[1]] || '') + ' · Lv' + (CP_LV[n[1]] || 1) : '开场旁白 → 仙尊教程'}</i></button>`).join('');
+  $('jumplist').innerHTML = JUMP_NODES.map((n, i) => `<button data-i="${i}">${n[0]}<i>${n[1] ? (CP_CN[n[1]] || '') + ' · ' + realmOf(CP_LV[n[1]] || 1) : '开场旁白 → 仙尊教程'}</i></button>`).join('');
   onTap(jb, () => { resetInputs('jump'); jp.style.display = 'block'; });
   onTap($('jumpclose'), () => { jp.style.display = 'none'; });
   onTap($('jumplist'), e => { const b = e.target.closest && e.target.closest('button'); if (!b) return; const n = JUMP_NODES[+b.dataset.i]; jp.style.display = 'none'; if (!n[1]) jumpOpening(); else jumpStart(n[1], n[2]); });
   addEventListener('keydown', e => { if (e.code === 'KeyB' && state === 'play') openPanel('bag'); else if (e.code === 'KeyL' && state === 'play') openPanel('qlog'); else if (e.code === 'Escape' && PANEL.open) closePanel(); });
   addEventListener('resize', layoutBag); addEventListener('orientationchange', () => setTimeout(layoutBag, 220));
 })();
-const BAG = { tab: 'gourd', sel: null };
+const BAG = { tab: 'weapon', sel: null };
 const PANEL = { open: null };
 function openPanel(which) {
   if (mode !== 'ch1' || PANEL.open || (typeof MAP !== 'undefined' && MAP.open)) return false;
@@ -4634,6 +4643,9 @@ function bagItems(cat) {
 }
 function drawBag() {
   document.querySelectorAll('#bagp .tab').forEach(t => t.classList.toggle('on', t.dataset.t === BAG.tab));
+  $('bagact').classList.remove('sm');
+  if (BAG.tab === 'weapon') return drawWeapons();
+  if (BAG.tab === 'shentong') return drawShentong();
   const ids = bagItems(BAG.tab), eq = player.eq || {};
   if (!BAG.sel || !ids.includes(BAG.sel)) BAG.sel = ids[0] || null;
   const isEq = id => eq.gourd === id || eq.wine === id || eq.curio === id;
@@ -4648,6 +4660,34 @@ function drawBag() {
     const why = canUsePill(id); btn('服用', () => { usePill(id); }, !!why); if (why) $('bagmsg').textContent = why;
     for (let i = 0; i < 4; i++) { const cur = player.qs[i]; btn(cur === id ? `快捷${i + 1} ✓` : `设快捷${i + 1}`, () => { player.qs[i] = cur === id ? null : id; refreshQS(); saveGame(); }); }
   }
+}
+function bagBtn(label, fn, dis) { const act = $('bagact'), b = document.createElement('button'); b.textContent = label; b.disabled = !!dis; act.appendChild(b); onTap(b, () => { if (!b.disabled) { fn(); drawBag(); } }); return b; }
+function drawWeapons() {
+  const ids = (player.weapons || ['qingfeng']).filter(w => WEAPONS[w]), cur = (player.eq && player.eq.weapon) || 'qingfeng';
+  if (!BAG.sel || !ids.includes(BAG.sel)) BAG.sel = cur;
+  $('baglist').innerHTML = ids.map(id => { const w = WEAPONS[id]; return `<div class="bitem${id === BAG.sel ? ' on' : ''}" data-id="${id}"><b>${w.name}</b>${id === cur ? '<em>已装备</em>' : ''}<small>${w.sub || '佩剑'} · 攻击 ${id === cur ? player.atk : player.atk - weaponAtk() + (w.atk | 0)}</small></div>`; }).join('');
+  const w = WEAPONS[BAG.sel], det = $('bagdet'); $('bagmsg').textContent = ''; $('bagact').innerHTML = '';
+  det.innerHTML = `<h4>${w.name}</h4>${w.desc}<br><span class="stx">攻击 ${BAG.sel === cur ? player.atk : player.atk - weaponAtk() + (w.atk | 0)}</span>` + (w.atk ? ` <span style="color:#a898c0">（剑锋 +${w.atk}）</span>` : '');
+  if (BAG.sel === cur) bagBtn('已装备', () => { }, true); else bagBtn('装备', () => { if (!equipWeapon(BAG.sel)) $('bagmsg').textContent = '战斗之中，不可更换'; });
+}
+function drawShentong() {
+  const tot = stTotal(), left = stLeft(), L = curLoadout(), slotCN = k => LO_SLOTS.find(x => x[0] === k)[1];
+  if (!BAG.sel || !SHENTONG.find(s => s.id === BAG.sel)) BAG.sel = (SHENTONG.find(s => s.unlocked()) || SHENTONG[0]).id;
+  $('baglist').innerHTML = SHENTONG.map(s => { const r = stRank(s.id), un = s.unlocked(), k = inLoadout(s.id); return `<div class="bitem${s.id === BAG.sel ? ' on' : ''}${un ? '' : ' lock'}" data-id="${s.id}"><b>${s.name}</b>${k ? `<em>栏·${slotCN(k)}</em>` : ''}<span class="rk">${un ? r + '/' + ST_MAX : '未领悟'}</span><small>${ST_TYPE_CN[s.type]} · ${un ? (r ? '第' + LAYER_CN[r - 1] + '重' : '未凝练') : '尚未领悟'}</small></div>`; }).join('');
+  const s = SHENTONG.find(x => x.id === BAG.sel), r = stRank(s.id), det = $('bagdet'), act = $('bagact'); $('bagmsg').textContent = ''; act.innerHTML = ''; act.classList.add('sm');
+  det.innerHTML = `<h4>${s.name} <small style="font-size:12px;color:#c8b8ff">${ST_TYPE_CN[s.type]}</small> <small style="font-size:13px;color:#ffd36a">${r}/${ST_MAX}</small></h4>` +
+    `<span class="stp">神通点：剩余 <b>${left}</b> / 共 ${tot}</span><br>` +
+    `当前：<span class="stx">${s.fx(r)}</span><br>` + (r < ST_MAX ? `下一重：<span class="stn">${s.fx(r + 1)}</span>` : '<span class="stn">已臻圆满</span>') +
+    (tot <= 0 ? '<br><span style="color:#a898c0">剑徒五层起，每层得神通点一。</span>' : '') +
+    `<br><span style="color:#b8acc8;font-size:12px">神通栏：` + LO_SLOTS.map(([k, cn]) => `${cn} ${L[k] ? stDef(L[k]).name : '空'}`).join(' · ') + (s.type === 'ride' ? '<br>御剑自有其钮，不入神通栏。' : '') + '</span>';
+  const why = stCanAdd(s.id); bagBtn('凝练 +1', () => stAdd(s.id), !!why); bagBtn('重置', () => stReset(), stSpent() <= 0);
+  let msg = why;
+  if (s.type !== 'ride') {
+    const k = inLoadout(s.id);
+    for (const [slot, cn, ty] of LO_SLOTS) { if (ty !== s.type) continue; const w = loCanEquip(s.id, slot); bagBtn(k === slot ? `${cn} ✓` : `装入${cn}`, () => { if (!loEquip(s.id, slot)) $('bagmsg').textContent = loCanEquip(s.id, slot) || ''; }, k === slot || (!!w && w !== '战斗之中，不可更换')); if (w && !msg) msg = w; }
+    if (k) bagBtn('卸下', () => loUnequip(k));
+  }
+  if (msg) $('bagmsg').textContent = msg;
 }
 function drawQlog() {
   const d = questLogData();
@@ -4686,3 +4726,130 @@ function jumpStart(cp, opt = {}) {
 }
 function jumpOpening() { JUMP.pending = true; activeSlot = null; initAudio(); $('start').style.display = 'none'; $('slots').style.display = 'none'; goFull(); playOpening(); }
 Object.assign(window.__G, { cpIdx, ITEMS, giveInv, equipItem, usePill, invN, openPanel, closePanel, quickUse, refreshQS, questLogData, jumpStart, JUMP_NODES, JUMP_SLOT, HERBS, JADE, MAIN_QUESTS, ensureState, drawBag, BAG, PANEL, chooseCo, CHO, herbN, LIU: LIU_POS(), STONE, MOHAN_D3, CLASS, layoutBag, killEnemy, amuletSave });
+/* ================= v4.6 · 境界 / 武器 / 神通加点 ================= */
+/* ---- 境界: internal level L → 9 realms × 9 layers (L1 = 剑徒一层 … L81 = 剑仙九层) ---- */
+var REALMS = ['剑徒', '剑士', '剑师', '剑灵', '剑魄', '剑宗', '剑圣', '剑尊', '剑仙'];
+var LAYER_CN = ['一', '二', '三', '四', '五', '六', '七', '八', '九'];
+// literal strings so it also works before this file has run (title screen / jump list are built earlier)
+function realmOf(L) { L = Math.max(1, Math.min(81, (L | 0) || 1)); return '剑徒剑士剑师剑灵剑魄剑宗剑圣剑尊剑仙'.substr(Math.floor((L - 1) / 9) * 2, 2) + '一二三四五六七八九'[(L - 1) % 9] + '层'; }
+function playerRealm() { return player.tutChar ? '剑仙' : realmOf(player.lv); }
+/* realm text of an enemy / actor: e.realm (string, '' = none) overrides; else numeric lvTxt */
+function realmLabel(e) { if (!e) return ''; if (e.realm !== undefined && e.realm !== null) return e.realm; const n = parseInt(e.lvTxt, 10); return n > 0 ? realmOf(n) : ''; }
+/* NPC realms (one entry per actor id; number = internal level, function for story-dependent, null = name only) */
+var NPC_LV = {
+  master: 66, lin: () => (typeof ch1 !== 'undefined' && cpIdx(ch1.cp) >= cpIdx('ceremony') ? 6 : 4), mohan: () => (FOE_MOHAN.lv), heavy: () => FOE_HEAVY.lv, dart: () => FOE_DART.lv,
+  ghost: () => FOE_GHOST.lv, appr: () => FOE_APPR.lv, dummy: null, d1: 2, d2: 1, d3: 3, liu: 38, stone: 1, pharm: 14, cook: 6, guard: 5,
+};
+function npcRealm(id) { const v = NPC_LV[id]; if (v === null || v === undefined) return ''; return realmOf(typeof v === 'function' ? v() : v); }
+function npcLabelHTML(id, a) { const r = npcRealm(id); return `${a.name}${r ? '·' + r : ''}` + (a.title && id !== 'dummy' ? `<small>${a.title}</small>` : ''); }
+function refreshNameLabels() {
+  if (typeof NPC_LV === 'undefined' || !NPC_LV || typeof ch1 === 'undefined' || !ch1.A) return;
+  for (const k in ch1.A) { const a = ch1.A[k]; if (!a) continue; if (NPC_LV.hasOwnProperty(k)) a.realm = npcRealm(k); if (!a.label) continue; const h = npcLabelHTML(k, a); if (a.label.innerHTML !== h) a.label.innerHTML = h; }
+}
+
+/* ---- 武器 (data-driven; one entry per sword) ---- */
+var WEAPONS = {
+  qingfeng: { name: '青锋剑', atk: 0, desc: '学院入门所授之剑。三尺青锋，寒光如水，无名而有骨。', sub: '学院佩剑' },
+};
+function weaponAtk() { if (typeof WEAPONS === 'undefined' || !player.eq || player.tutChar) return 0; const w = WEAPONS[player.eq.weapon || 'qingfeng']; return w ? w.atk | 0 : 0; }
+function equipWeapon(id) { if (!WEAPONS[id] || !(player.weapons || ['qingfeng']).includes(id)) return false; if (ch1.fight) { toast('战斗之中，不可更换'); return false; } player.eq.weapon = id; recalc(); hudDirty = true; saveGame(); toast(`已装备【${WEAPONS[id].name}】`); sfx('ding'); return true; }
+
+/* ---- 神通加点 (data-driven: add a 神通 = add one entry) ----
+   unlocked(): may spend points; apply(r, B): set tuned values from base B for rank r (1..5); fx(r): effect text at rank r (0 = base) */
+var ST_MAX = 5;
+var SHENTONG = [
+  { id: 'hudun', type: 'minor', name: '护盾', unlocked: () => hasSt('hudun'),
+    apply(r, B) { TUNE.shieldFrac = B.shieldFrac + .03 * r; SK.hudun.cd = B.cd.hudun - r; },
+    fx: r => `护盾量 ${Math.round((.2 + .03 * r) * 100)}% 气血 · 冷却 ${14 - r} 秒` },
+  { id: 'yinshen', type: 'minor', name: '隐身', unlocked: () => hasSt('yinshen'),
+    apply(r, B) { TUNE.stealthDur = B.stealthDur + .5 * r; TUNE.mult.ambush = B.mult.ambush + .25 * r; },
+    fx: r => `隐身 ${(3 + .5 * r).toFixed(1)} 秒 · 破隐一击 ×${(2 + .25 * r).toFixed(2)}` },
+  { id: 'ride', type: 'ride', name: '御剑', unlocked: () => !!player.rideOK,
+    apply(r, B) { TUNE.rideSpeed = B.rideSpeed * (1 + .08 * r); TUNE.mult.ride = B.mult.ride * (1 + .25 * r); },
+    fx: r => `飞行速度 ${(15 * (1 + .08 * r)).toFixed(1)} · 撞击伤害 ×${(.8 * (1 + .25 * r)).toFixed(2)} 攻击` },
+  { id: 'dahe', type: 'major', name: '大河之剑', unlocked: () => hasSt('dahe'),
+    apply(r, B) { TUNE.mult.dahe = B.mult.dahe * (1 + .12 * r); TUNE.mult.daheSplash = B.mult.daheSplash * (1 + .12 * r); SK.dahe.cd = B.cd.dahe - 1.2 * r; },
+    fx: r => `伤害 +${12 * r}% · 冷却 ${(18 - 1.2 * r).toFixed(1)} 秒` },
+  { id: 'wanjian', type: 'major', name: '万剑归宗', unlocked: () => hasSt('wanjian'),
+    apply(r, B) { TUNE.mult.wanjian = B.mult.wanjian * (1 + .1 * r); TUNE.wjDur = B.wjDur + .5 * r; SK.wanjian.cd = B.cd.wanjian - 1.6 * r; },
+    fx: r => `伤害 +${10 * r}% · 持续 ${(5 + .5 * r).toFixed(1)} 秒 · 冷却 ${(26 - 1.6 * r).toFixed(1)} 秒` },
+  { id: 'jianyu', type: 'minor', name: '剑雨', unlocked: () => hasSt('jianyu'),
+    apply(r, B) { TUNE.mult.jianyu = B.mult.jianyu * (1 + .1 * r); TUNE.jyDur = B.jyDur + r; SK.jianyu.cd = B.cd.jianyu - 1.4 * r; },
+    fx: r => `伤害 +${10 * r}% · 持续 ${10 + r} 秒 · 冷却 ${(22 - 1.4 * r).toFixed(1)} 秒` },
+];
+var ST_BASE = { shieldFrac: TUNE.shieldFrac, stealthDur: TUNE.stealthDur, rideSpeed: TUNE.rideSpeed, wjDur: TUNE.wjDur, jyDur: TUNE.jyDur, mult: { ...TUNE.mult }, cd: {} };
+for (const k in SK) ST_BASE.cd[k] = SK[k].cd;
+const stRank = id => (!player.tutChar && player.stRanks && player.stRanks[id]) | 0;
+function stTotal() { return player.tutChar ? 0 : (player.lv >= 5 ? player.lv : 0); }
+function stSpent() { let n = 0; for (const s of SHENTONG) n += stRank(s.id); return n; }
+function stLeft() { return Math.max(0, stTotal() - stSpent()); }
+function applyShentong() {
+  if (typeof ST_BASE === 'undefined' || !ST_BASE) return;
+  const B = ST_BASE; Object.assign(TUNE, { shieldFrac: B.shieldFrac, stealthDur: B.stealthDur, rideSpeed: B.rideSpeed, wjDur: B.wjDur, jyDur: B.jyDur }); Object.assign(TUNE.mult, B.mult); for (const k in B.cd) SK[k].cd = B.cd[k];
+  for (const s of SHENTONG) { const r = stRank(s.id); if (r > 0 && s.unlocked()) s.apply(r, B); }
+}
+function stValidate() { // drop ranks that exceed the pool (e.g. after a jump / level change)
+  if (!player.stRanks || typeof player.stRanks !== 'object') player.stRanks = {};
+  for (const k in player.stRanks) { const v = player.stRanks[k] | 0; if (!SHENTONG.find(s => s.id === k) || v <= 0) delete player.stRanks[k]; else player.stRanks[k] = Math.min(ST_MAX, v); }
+  if (stSpent() > stTotal()) player.stRanks = {};
+}
+function stCanAdd(id) { const s = SHENTONG.find(x => x.id === id); if (!s) return '无此神通'; if (stTotal() <= 0) return '剑徒五层方可凝练神通'; if (!s.unlocked()) return '尚未领悟此神通'; if (stRank(id) >= ST_MAX) return '已臻圆满'; if (stLeft() <= 0) return '神通点不足'; return null; }
+function stAdd(id) { const why = stCanAdd(id); if (why) { toast(why); return false; } player.stRanks[id] = stRank(id) + 1; recalc(); hudDirty = true; saveGame(); sfx('ding'); return true; }
+function stReset() { player.stRanks = {}; recalc(); hudDirty = true; saveGame(); toast('神通点已全部返还'); return true; }
+
+/* ---- 神通栏 loadout: center = 1 大神通 (major), up/left/right/down = 小神通 (minor). 御剑 keeps its own button. ---- */
+var LO_SLOTS = [['c', '中', 'major'], ['u', '上', 'minor'], ['l', '左', 'minor'], ['r', '右', 'minor'], ['d', '下', 'minor']];
+var ST_TYPE_CN = { major: '大神通', minor: '小神通', ride: '御剑' };
+function defaultLoadout() { return { c: 'dahe', u: null, l: 'jianyu', r: 'yinshen', d: 'hudun' }; }
+function curLoadout() { if (player.tutChar) return { c: 'dahe', u: 'wanjian', l: 'jianyu', r: 'yinshen', d: 'hudun' }; if (!player.loadout) player.loadout = defaultLoadout(); return player.loadout; } // 仙尊 tutorial: full scripted kit
+function inLoadout(id) { const L = curLoadout(); for (const k in L) if (L[k] === id) return k; return null; }
+function stDef(id) { return typeof SHENTONG !== 'undefined' && SHENTONG ? SHENTONG.find(s => s.id === id) : null; }
+function loadoutValidate() {
+  const src = player.loadout && typeof player.loadout === 'object' ? player.loadout : defaultLoadout(), L = {}, used = new Set();
+  for (const [k, , ty] of LO_SLOTS) { const v = src[k]; const s = v && stDef(v); L[k] = s && s.type === ty && !used.has(v) ? v : null; if (L[k]) used.add(v); }
+  player.loadout = L;
+}
+function loCanEquip(id, slot) { const s = stDef(id), sl = LO_SLOTS.find(x => x[0] === slot); if (!s || !sl) return '无此栏位'; if (s.type !== sl[2]) return sl[2] === 'major' ? '中央只可装大神通' : '四方只可装小神通'; if (!s.unlocked()) return '尚未领悟此神通'; if (typeof ch1 !== 'undefined' && ch1.fight) return '战斗之中，不可更换'; return null; }
+function loEquip(id, slot) { const why = loCanEquip(id, slot); if (why) { toast(why); return false; } const L = curLoadout(), from = inLoadout(id); if (from === slot) return true; const prev = L[slot]; L[slot] = id; if (from) L[from] = prev && stDef(prev).type === stDef(id).type ? prev : null; refreshCross(); hudDirty = true; saveGame(); sfx('ding'); return true; }
+function loUnequip(slot) { if (typeof ch1 !== 'undefined' && ch1.fight) { toast('战斗之中，不可更换'); return false; } const L = curLoadout(); if (!L[slot]) return false; L[slot] = null; refreshCross(); hudDirty = true; saveGame(); return true; }
+function ensureLoadout(id) { // story-required 神通 (护盾课 / 隐身过屏障) must sit in the cross
+  if (player.tutChar || inLoadout(id)) return; const s = stDef(id); if (!s || s.type === 'ride') return; const L = curLoadout();
+  if (s.type === 'major') { L.c = id; } else { const pref = { hudun: 'd', yinshen: 'r', jianyu: 'l' }[id] || 'u'; const slot = !L[pref] ? pref : (['u', 'l', 'r', 'd'].find(k => !L[k]) || pref); L[slot] = id; }
+  refreshCross();
+}
+var CROSS = null;
+function layoutCross(cx, cy, arm, s, u, place) { CROSS = { cx, cy, arm, s, u, place }; refreshCross(); }
+function refreshCross() {
+  if (!CROSS || typeof btnEls === 'undefined') return; const { cx, cy, arm, s, u, place } = CROSS, L = curLoadout();
+  const pos = { c: [cx, cy, 58 * u], u: [cx, cy - arm, s], d: [cx, cy + arm, s], l: [cx - arm, cy, s], r: [cx + arm, cy, s] };
+  for (const id of ALL_ST) { const el = btnEls[id]; if (!el) continue; const k = inLoadout(id); if (!k) { el.style.display = 'none'; continue; } el.style.display = ''; place(el, ...pos[k]); el.classList.toggle('major', k === 'c'); }
+  for (const [k, , ty] of LO_SLOTS) { const e = document.getElementById('ste-' + k); if (!e) continue; if (L[k]) { e.style.display = 'none'; continue; } e.style.display = 'flex'; place(e, ...pos[k]); const any = typeof SHENTONG !== 'undefined' && SHENTONG.some(x => x.type === ty && x.unlocked()); e.textContent = any ? '空' : '🔒'; e.classList.toggle('major', ty === 'major'); }
+}
+/* ---- 境界突破 (紫光晶石): +n levels with purple surge ---- */
+function realmBreak(n) {
+  player.lv += n; player.xp = 0; recalc(); player.hp = player.maxHp; hudDirty = true;
+  const el = $('lvup'); el.classList.add('brk'); el.querySelector('b').textContent = `境界突破·${realmOf(player.lv)}`;
+  el.querySelector('span').textContent = `紫光入体 · 气血上限 ${player.maxHp} · 攻击 ${player.atk} · 神通点 +${n}`; el.classList.remove('show'); void el.offsetWidth; el.classList.add('show');
+  setTimeout(() => el.classList.remove('brk'), 3200);
+  sfx('level'); flashScreen('#c080ff', .55, 1.1); shake = Math.max(shake, .35);
+  const P = V3(player.x, H(player.x, player.z), player.z);
+  shockRing(P, 0xc080ff, .3, 6, 1.1); shockRing(P, 0xf0d0ff, .2, 3.5, .8);
+  for (let i = 0; i < 120; i++) { const a = rand(0, 6.28), r = rand(2.5, 5), life = rand(.5, 1.1), sx = P.x + Math.cos(a) * r, sz = P.z + Math.sin(a) * r, sy = P.y + rand(0, 3.5); emit(sx, sy, sz, (P.x - sx) / life, (P.y + 1.2 - sy) / life, (P.z - sz) / life, i % 3 ? 0xc080ff : 0xf6e0ff, rand(.25, .5), life, 0); }
+  for (let i = 0; i < 60; i++) { const a = rand(0, 6.28), r = rand(.2, .9); emit(P.x + Math.cos(a) * r, P.y + rand(0, .5), P.z + Math.sin(a) * r, 0, rand(4, 8), 0, i % 2 ? 0xb070ff : 0xffffff, rand(.3, .55), rand(.8, 1.4), 0); }
+}
+(function buildV46UI() {
+  for (const [k] of LO_SLOTS) { const e = document.createElement('div'); e.id = 'ste-' + k; e.className = 'stempty'; e.style.display = 'none'; $('hud').appendChild(e); onTap(e, () => toast('神通栏空位 · 可于背包「神通」中配置')); }
+  const st = document.createElement('style');
+  st.textContent = `#lvup{white-space:nowrap}#lvup span{white-space:nowrap}#lvup.brk b{font-size:calc(42px*var(--u));letter-spacing:7px;background:linear-gradient(180deg,#fff4ff,#d8a0ff 55%,#7a30c8);-webkit-background-clip:text;background-clip:text;filter:drop-shadow(0 0 14px rgba(190,110,255,.95)) drop-shadow(0 3px 3px rgba(0,0,0,.6))}
+#bagp .tabs{gap:5px}#bagp .tab{padding:5px 0;font-size:14px}
+.bitem.lock{opacity:.5}.bitem .rk{float:right;font-size:12px;color:#ffd36a}
+#st-wanjian.major{border:3px solid rgba(255,215,130,.95);box-shadow:0 0 14px rgba(255,190,80,.6),inset 0 0 10px rgba(0,0,0,.5);background:radial-gradient(circle at 40% 35%,rgba(150,100,60,.9),rgba(50,24,20,.92))}
+.stempty{position:absolute;box-sizing:border-box;border-radius:50%;border:2px dashed rgba(225,190,255,.45);background:rgba(28,14,52,.35);color:rgba(240,225,255,.6);align-items:center;justify-content:center;font-family:var(--kai);font-size:calc(14px*var(--u));pointer-events:auto;touch-action:none}
+.stempty.major{border-color:rgba(255,215,130,.5)}
+body.panelopen .stempty{visibility:hidden}
+#bagact.sm button{flex:1 1 20%;padding:6px 0;font-size:13px}
+#bagdet .stx{color:#9fe0a0}#bagdet .stn{color:#ffd9a0}#bagdet .stp{color:#c8b8ff}`;
+  document.head.appendChild(st);
+})();
+refreshNameLabels(); if (typeof layout === 'function') layout();
+Object.assign(window.__G, { curLoadout, inLoadout, loEquip, loUnequip, loCanEquip, defaultLoadout, ensureLoadout, LO_SLOTS, realmOf, playerRealm, realmLabel, npcRealm, NPC_LV, WEAPONS, equipWeapon, SHENTONG, stTotal, stSpent, stLeft, stAdd, stReset, stCanAdd, stRank, applyShentong, realmBreak, TUNE, SK, ST_BASE, refreshNameLabels });
