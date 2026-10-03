@@ -1146,7 +1146,7 @@ const player = { x: 0, z: 7, yaw: 0, pitch: -.04, lv: 90, xp: 0, hp: 1980, maxHp
 const hasSt = id => player.unlocked.includes(id);
 let rideTilt = 0, camY = 1.7, gameT = 0, state = 'title', mode = 'tutorial', shake = 0, yawVel = 0, hudDirty = true, camRoll = 0, camDrop = 0, fovKick = 0, timeScale = 1;
 const needXp = l => Math.round(30 * Math.pow(l, 1.5) + 40);
-function recalc() { const L = player.lv - 1; player.maxHp = TUNE.hp0 + TUNE.hpLv * L + 10 * ((player.pages && player.pages.length) || 0); player.atk = Math.round(TUNE.atk0 + TUNE.atkLv * L); player.shieldMax = Math.round(player.maxHp * TUNE.shieldFrac); }
+function recalc() { const L = player.lv - 1; player.maxHp = TUNE.hp0 + TUNE.hpLv * L + 10 * ((player.pages && player.pages.length) || 0) + (player.hpBonus || 0); if (player.eq && player.eq.gourd && typeof ITEMS !== 'undefined' && ITEMS[player.eq.gourd]) { player.wineMax = ITEMS[player.eq.gourd].drinks; if (player.wine > player.wineMax) player.wine = player.wineMax; } player.atk = Math.round(TUNE.atk0 + TUNE.atkLv * L); player.shieldMax = Math.round(player.maxHp * TUNE.shieldFrac); }
 const fwd = () => V3(-Math.sin(player.yaw), 0, -Math.cos(player.yaw));
 const rightV = () => V3(Math.cos(player.yaw), 0, -Math.sin(player.yaw));
 const ppos = () => V3(player.x, camY - .6, player.z);
@@ -1237,7 +1237,7 @@ function updateProj(dt) {
     const hitD = player.stealthT > 0 && decoy.active && Math.hypot(p.pos.x - decoy.pos.x, p.pos.z - decoy.pos.z) < p.r;
     const gy = H(p.pos.x, p.pos.z);
     if (hitP || hitD || p.t > p.life || p.pos.y < gy - .2 || Math.hypot(p.pos.x, p.pos.z) > 60) {
-      if (hitP) hurtPlayer(p.dmg, p.pos); if (hitD) decoyHit();
+      if (hitP) { const sh0 = player.shield, hr = hurtPlayer(p.dmg, p.pos); if (p.onHitP) p.onHitP(hr, sh0); } if (hitD) decoyHit();
       burst(p.pos, 16, p.col, 5, .5, .45, -4); scene.remove(p.mesh); eproj.splice(i, 1);
     }
   }
@@ -1261,6 +1261,7 @@ function hurtPlayer(d, src) {
   if (player.minHpFrac > 0) player.hp = Math.max(player.hp, Math.round(player.maxHp * player.minHpFrac));
   screenNum('-' + d, 'hurt', innerWidth * .5 + rand(-40, 40), innerHeight * .42);
   $('vign').style.opacity = .9; setTimeout(() => $('vign').style.opacity = player.hp / player.maxHp < .3 ? .45 : 0, 160);
+  if (player.hp <= 0 && amuletSave()) return 'hit';
   if (player.hp <= 0) { player.hp = 0; if (state === 'play') playerDie(); }
   return 'hit';
 }
@@ -2056,7 +2057,7 @@ function doWine() {
   if (player.wine <= 0) { toast('酒已饮尽 · 击杀敌人可补充'); return false; }
   if (player.hp >= player.maxHp) { toast('气血已满'); return false; }
   SK.wine.t = SK.wine.cd;
-  playVM('drink', .95, null, DRINK_L, [{ at: .5, fn: () => sfx('drink') }, { at: .62, fn: () => { player.wine--; const heal = Math.round(player.maxHp * TUNE.wineFrac); const h = Math.min(heal, player.maxHp - player.hp); player.hp += h; hudDirty = true; screenNum('+' + heal + ' 气血', 'heal', innerWidth * .5 - 30, innerHeight * .45); burst(ppos(), 16, 0x9effa0, 2, .3, .8, 1, .5); tutEvent('drink'); } }], 'gourd');
+  playVM('drink', .95, null, DRINK_L, [{ at: .5, fn: () => sfx('drink') }, { at: .62, fn: () => { player.wine--; const heal = Math.round(player.maxHp * wineHeal()); const h = Math.min(heal, player.maxHp - player.hp); player.hp += h; hudDirty = true; screenNum('+' + heal + ' 气血', 'heal', innerWidth * .5 - 30, innerHeight * .45); burst(ppos(), 16, 0x9effa0, 2, .3, .8, 1, .5); tutEvent('drink'); } }], 'gourd');
   return true;
 }
 /* 御剑 */
@@ -2102,7 +2103,7 @@ const zheng = makeZheng(); zheng.holder.visible = false;
 let valleyT = 0, fightStart = 0;
 function placePlayer(sp) { player.x = sp.x; player.z = sp.z; player.yaw = sp.yaw; player.pitch = -.04; camY = H(sp.x, sp.z) + 1.7; }
 function setupLiBai() {
-  player.name = '仙尊'; player.tutChar = true; player.pages = []; player.items = []; player.jdTp = false; player.quests = []; player.lv = 90; player.xp = 0; recalc(); player.hp = player.maxHp; player.wine = 2; player.wineMax = 2; player.unlocked = ALL_ST.slice(); player.rideOK = true; player.minHpFrac = .3; player.dead = false;
+  invReset(true); player.name = '仙尊'; player.tutChar = true; player.pages = []; player.items = []; player.jdTp = false; player.quests = []; player.lv = 90; player.xp = 0; recalc(); player.hp = player.maxHp; player.wine = 2; player.wineMax = 2; player.unlocked = ALL_ST.slice(); player.rideOK = true; player.minHpFrac = .3; player.dead = false;
   setOutfit(0xeef1f6, 0x5fa6d8); $('avatar').textContent = '仙'; hudDirty = true;
 }
 /* ===== tutorial ===== */
@@ -2242,11 +2243,11 @@ function startStory() {
   storyTimer = setInterval(() => { i++; tx.textContent = STORY.slice(0, i); if (i >= STORY.length) { clearInterval(storyTimer); setTimeout(() => { $('storynext').style.visibility = 'visible'; }, 500); } }, 90);
 }
 function storyTap() { if (state !== 'story') return; const tx = $('storytxt'); if (tx.textContent.length < STORY.length) { clearInterval(storyTimer); tx.textContent = STORY; $('storynext').style.visibility = 'visible'; return; } showNameBox(); }
-function showNameBox() { state = 'name'; resetInputs('name'); $('story').style.display = 'none'; $('namebox').style.display = 'flex'; $('nmerr').textContent = ''; const inp = $('nm'); inp.value = suggestName(); }
+function showNameBox() { if (JUMP.pending) { $('story').style.display = 'none'; jumpStart('intro'); return; } state = 'name'; resetInputs('name'); $('story').style.display = 'none'; $('namebox').style.display = 'flex'; $('nmerr').textContent = ''; const inp = $('nm'); inp.value = suggestName(); }
 function confirmName() {
   const v = ($('nm').value || '').trim().slice(0, 8) || '无名剑修';
   const err = nameError(v); if (err) { $('nmerr').textContent = err; sfx('hurt'); return; }
-  $('nm').blur(); $('namebox').style.display = 'none'; newCareer(v);
+  $('nm').blur(); $('namebox').style.display = 'none'; if (JUMP.pending) { jumpStart('intro'); return; } newCareer(v);
 }
 /* ===== multi-slot saves (localStorage) ===== */
 const SAVES_KEY = 'jianxianzhidao_saves', OLD_SAVE_KEY = 'jianxianzhidao_save', MAX_SLOTS = 8;
@@ -2261,22 +2262,22 @@ function readStore() {
 }
 function writeStore(st) { try { localStorage.setItem(SAVES_KEY, JSON.stringify(st)); return true; } catch (e) { return false; } }
 function listSaves() { const st = readStore(); return st.slots.slice().sort((a, b) => (b.id === st.last) - (a.id === st.last) || (b.time || 0) - (a.time || 0)); }
-function nameError(v) { const st = readStore(); if (st.slots.some(d => d.name === v)) return `已有名为「${v}」的存档，请换一个名字`; if (st.slots.length >= MAX_SLOTS) return `存档已满（最多 ${MAX_SLOTS} 个），请先在「继续游戏」中删除一个存档`; return ''; }
+function nameError(v) { const st = readStore(); if (st.slots.some(d => d.name === v)) return `已有名为「${v}」的存档，请换一个名字`; if (st.slots.filter(d => d.id !== JUMP_SLOT).length >= MAX_SLOTS) return `存档已满（最多 ${MAX_SLOTS} 个），请先在「继续游戏」中删除一个存档`; return ''; }
 function suggestName() { const st = readStore(); let n = '无名剑修', k = 2; while (st.slots.some(d => d.name === n)) n = '无名剑修' + k++; return n; }
 function saveGame() {
   if (player.tutChar || !activeSlot) return false;
   const st = readStore(); let d = st.slots.find(x => x.id === activeSlot);
-  if (!d) { if (st.slots.length >= MAX_SLOTS) return false; d = { id: activeSlot }; st.slots.push(d); }
-  Object.assign(d, { v: 3, name: player.name, lv: player.lv, xp: player.xp, stage: mode === 'valley' ? 'valley' : 'ch1', ch: ch1.cp, rideOK: !!player.rideOK, unlocked: player.unlocked.slice(), pages: (player.pages || []).slice(), items: (player.items || []).slice(), jdTp: !!player.jdTp, quests: (player.quests || []).slice(), wine: player.wine, wineMax: player.wineMax, wins: player.wins || 0, time: Date.now() });
+  if (!d) { if (st.slots.length >= MAX_SLOTS + (activeSlot === JUMP_SLOT ? 1 : 0)) return false; d = { id: activeSlot }; st.slots.push(d); }
+  Object.assign(d, { v: 3, name: player.name, lv: player.lv, xp: player.xp, stage: mode === 'valley' ? 'valley' : 'ch1', ch: ch1.cp, rideOK: !!player.rideOK, unlocked: player.unlocked.slice(), pages: (player.pages || []).slice(), items: (player.items || []).slice(), jdTp: !!player.jdTp, quests: (player.quests || []).slice(), wine: player.wine, wineMax: player.wineMax, wins: player.wins || 0, ...invSaveData(), time: Date.now() });
   st.last = activeSlot; return writeStore(st);
 }
 function loadSave(id) { const st = readStore(); return st.slots.find(d => d.id === (id || st.last)) || null; }
 function deleteSave(id) { const st = readStore(); st.slots = st.slots.filter(d => d.id !== id); if (st.last === id) st.last = null; writeStore(st); }
 function wipeSave() { try { localStorage.removeItem(SAVES_KEY); localStorage.removeItem(OLD_SAVE_KEY); } catch (e) { } }
-function applySave(d) { player.tutChar = false; activeSlot = d.id; player.name = d.name; player.lv = clamp(d.lv | 0, 1, 100); player.xp = Math.max(0, d.xp | 0); player.unlocked = Array.isArray(d.unlocked) ? d.unlocked.filter(x => ALL_ST.includes(x)) : []; player.pages = Array.isArray(d.pages) ? d.pages.filter(i => Number.isInteger(i) && i >= 0 && i < 10).filter((v, k, arr) => arr.indexOf(v) === k) : []; player.items = Array.isArray(d.items) ? d.items.filter(x => typeof x === 'string').slice(0, 20) : []; player.jdTp = !!d.jdTp; player.quests = Array.isArray(d.quests) ? d.quests.filter(x => typeof x === 'string') : []; player.wineMax = Math.max(1, d.wineMax | 0 || 2); player.wine = clamp(d.wine ?? player.wineMax, 0, player.wineMax); player.wins = d.wins | 0; player.rideOK = !!d.rideOK; ch1.cp = d.ch || 'intro'; }
+function applySave(d) { player.tutChar = false; activeSlot = d.id; player.name = d.name; player.lv = clamp(d.lv | 0, 1, 100); player.xp = Math.max(0, d.xp | 0); player.unlocked = Array.isArray(d.unlocked) ? d.unlocked.filter(x => ALL_ST.includes(x)) : []; player.pages = Array.isArray(d.pages) ? d.pages.filter(i => Number.isInteger(i) && i >= 0 && i < 10).filter((v, k, arr) => arr.indexOf(v) === k) : []; player.items = Array.isArray(d.items) ? d.items.filter(x => typeof x === 'string').slice(0, 20) : []; player.jdTp = !!d.jdTp; player.quests = Array.isArray(d.quests) ? d.quests.filter(x => typeof x === 'string') : []; player.wineMax = Math.max(1, d.wineMax | 0 || 2); player.wine = clamp(d.wine ?? player.wineMax, 0, player.wineMax); player.wins = d.wins | 0; player.rideOK = !!d.rideOK; ch1.cp = d.ch || 'intro'; invLoad(d); }
 function newCareer(name) {
   player.tutChar = false; activeSlot = 's' + Date.now().toString(36) + Math.floor(Math.random() * 1e4).toString(36);
-  player.name = name || '无名剑修'; player.lv = 1; player.xp = 0; player.unlocked = []; player.pages = []; player.items = []; player.jdTp = false; player.quests = []; player.wineMax = 2; player.wine = 2; player.wins = 0;
+  player.name = name || '无名剑修'; player.lv = 1; player.xp = 0; player.unlocked = []; player.pages = []; player.items = []; player.jdTp = false; player.quests = []; player.wineMax = 2; player.wine = 2; player.wins = 0; invReset();
   player.rideOK = false; ch1.cp = 'intro'; saveGame(); startCh1('intro');
 }
 const STAGE_CN = { valley: '第一章 · 学院' };
@@ -2591,7 +2592,7 @@ function refreshTitle() {
   if (has) $('saveinfo').textContent = `共 ${list.length} 个存档` + (last ? ` · 上次：剑修「${last.name}」 Lv${last.lv}` : '');
 }
 refreshTitle();
-function startNewSave() { if (listSaves().length >= MAX_SLOTS) { toastTitle(`存档已满（最多 ${MAX_SLOTS} 个），请先删除一个存档`); return; } activeSlot = null; initAudio(); $('start').style.display = 'none'; $('slots').style.display = 'none'; goFull(); playOpening(); }
+function startNewSave() { JUMP.pending = false; if (listSaves().filter(d => d.id !== JUMP_SLOT).length >= MAX_SLOTS) { toastTitle(`存档已满（最多 ${MAX_SLOTS} 个），请先删除一个存档`); return; } activeSlot = null; initAudio(); $('start').style.display = 'none'; $('slots').style.display = 'none'; goFull(); playOpening(); }
 /* ===== black-screen opening (3 paragraphs, fade in → hold → fade out; 跳过 skips all, tap advances) ===== */
 const OPENING = [
   '三千万年前，混沌初开。\n天地孕出一头异兽，修为通天，一息可吞日月。它撕开鸿蒙，辟出一方天地，后人称之为“仙境”。\n然仙境之中，异兽横行，生灵涂炭。',
@@ -3273,7 +3274,11 @@ const CAST = {
   d1: { name: '弟子甲', title: '外门', h: .98, w: .9, robe: 0x5a7aa8, lower: 0x4a6890, trim: 0xe8eef4, inner: 0xf2f4f8, hair: 0x16121a, sash: 0x2a3a5a, sleeve: .08 },
   d2: { name: '弟子乙', title: '外门', h: .94, w: .82, robe: 0xa86a5a, lower: 0x8a5446, trim: 0xf4ece4, inner: 0xf8f2ea, hair: 0x1a1210, sash: 0x5a2a20, sleeve: .07 },
   d3: { name: '弟子丙', title: '外门', h: 1.0, w: .95, robe: 0x7a8a5a, lower: 0x627048, trim: 0xeef2e4, inner: 0xf4f6ee, hair: 0x121010, sash: 0x3a4a2a, sleeve: .08 },
-  pharm: { name: '药师', title: '药房', h: .96, w: 1.0, robe: 0x8a7a5a, lower: 0x6e6046, trim: 0x4a6a3a, inner: 0xeee6d4, hair: 0xb8b8b0, brow: 0xd8d8d0, sash: 0x4a6a3a, sleeve: .12 },
+  liu: { name: '刘醉', title: '酒痴', h: 1.0, w: 1.12, robe: 0x9a6a42, lower: 0x7a5232, trim: 0xd8b25a, inner: 0xe8dcc0, skin: 0xe8b090, hair: 0x2a2018, sash: 0x8a2a2a, sleeve: .12,
+    head(Hd, hair) { Hd.push([G.sph, hair, M4(0, .22, -.05, .06, .05, .06)]); Hd.push([G.cyl, 0x8a2a2a, M4(0, .19, -.02, .145, .03, .145)]); Hd.push([G.sph, 0xd86a5a, M4(0, .02, .12, .028, .024, .024)]); for (const s of [-1, 1]) Hd.push([G.box, hair, M4(s * .09, -.02, .02, .02, .18, .03, 0, 0, s * .2)]); } },
+  stone: { name: '小石头', title: '同门', h: .8, w: .78, robe: 0x6a8ab8, lower: 0x52709a, trim: 0xf0f0e8, inner: 0xf6f6f0, hair: 0x14100c, sash: 0xd8b25a, sleeve: .06,
+    head(Hd, hair) { for (const s of [-1, 1]) Hd.push([G.sph, hair, M4(s * .08, .2, -.02, .045, .045, .045)]); } },
+  pharm: { name: '白芷', title: '药师', h: .96, w: 1.0, robe: 0x8a7a5a, lower: 0x6e6046, trim: 0x4a6a3a, inner: 0xeee6d4, hair: 0xb8b8b0, brow: 0xd8d8d0, sash: 0x4a6a3a, sleeve: .12 },
   cook: { name: '伙夫', title: '食堂', h: .98, w: 1.3, robe: 0xd8d0c0, lower: 0x9a8a70, trim: 0x6a5a40, inner: 0xf4f0e8, skin: 0xe0b090, hair: 0x2a2018, sash: 0x8a3a2a, sleeve: .09, hairStyle: 'bald' },
   guard: { name: '守门弟子', title: '山门', h: 1.04, w: 1.05, robe: 0x4a5a6a, lower: 0x3a4856, trim: 0xd8b25a, inner: 0xe8e8e8, hair: 0x101014, sash: 0x8a2a2a, sleeve: .07, weaponR: W_GREAT, weaponRx: 1.0 },
   appr: { name: '魔修学徒虚影', title: '', h: .95, w: .85, robe: 0x6a30b0, lower: 0x4a1a80, trim: 0xc080ff, inner: 0x8a50d0, skin: 0x8a50c0, hair: 0x2a0a50, eye: 0xffc0ff, angry: true, sleeve: .1, noLegs: true, ghost: true, ghostMat: null,
@@ -3305,6 +3310,7 @@ function animActor(a, dt) {
   m.body.rotation.set(cur.lean + a.moveAmt * .06, cur.twist + a.spin, 0);
   m.body.position.y = -cur.crouch * .55 + Math.abs(Math.sin(a.ph)) * .04 * a.moveAmt + idleB * (a.float ? 4 : 0);
   m.head.rotation.x = -cur.lean * .4 + (a.headTilt || 0);
+  if (a.lie) { m.root.rotation.x = -Math.PI / 2 + .06; m.root.position.set(0, .16, .95); m.head.rotation.x = .5 + Math.sin(gameT * .7) * .05; m.armR.p.rotation.set(-2.4, 0, -.3); m.armL.p.rotation.set(-.3, 0, .5); }
   if (a.flash > 0) { a.flash = Math.max(0, a.flash - dt * 5); const mu = a.model.mat && a.model.mat.uniforms; if (mu && mu.fl) mu.fl.value = a.flash * .6; else setFlash(a, a.flash * .7); }
 }
 function placeActor(a, x, z, yaw) { a.x = x; a.z = z; if (yaw !== undefined) a.yaw = yaw; a.path = null; a.moveAmt = 0; syncActor(a); }
@@ -3516,8 +3522,9 @@ function allyHit(e, d, td) { if (!e || e.dead || e.invuln) return; const tm = to
 /* ================= v4 · 第一章 学院 — story, dialogue, objectives, fights, saves ================= */
 const ch1 = { cp: 'intro', co: null, wait: null, fight: null, ally: null, follow: false, trail: [], A: null, flags: {}, timers: [], obj: null, camT: null, talking: false, uses: [], noRide: false, hl: null, lastSpeaker: null };
 const CP_ORDER = ['intro', 'lingen', 'school', 'day1', 'day2', 'day3', 'night', 'arena', 'duel1', 'duel2', 'duel3', 'ceremony', 'heart', 'library', 'hidden', 'digong', 'chasm', 'bridge', 'chamber', 'phantom', 'tunnel', 'door', 'hall', 'placed', 'return', 'rings', 'gate', 'done'];
-const CP_CN = { lingen: '测灵根', day1: '第一日 · 习剑', day2: '第二日 · 切磋', day3: '第三日 · 闲暇', night: '第三日 · 夜', heart: '同道', rings: '御剑试炼', intro: '初入学院', school: '前往学堂', arena: '学院大比', duel1: '大比 · 第一场', duel2: '大比 · 第二场', duel3: '大比 · 决赛', ceremony: '颁奖', library: '图书馆禁阁', hidden: '无形之门', digong: '地宫', chasm: '地宫 · 断崖', bridge: '地宫 · 石桥', chamber: '地宫 · 密室', phantom: '地宫 · 魔修虚影', tunnel: '地底甬道', door: '七印之门', hall: '七印镜殿', placed: '七印镜殿 · 归书', return: '返回地面', gate: '下山', done: '已完成' };
-const CP_LV = { lingen: 1, day1: 1, day2: 1, day3: 1, night: 1, heart: 5, rings: 5, intro: 1, school: 1, arena: 1, duel1: 1, duel2: 2, duel3: 3, ceremony: 5, library: 5, hidden: 5, digong: 5, chasm: 5, bridge: 5, chamber: 5, phantom: 5, tunnel: 5, door: 5, hall: 5, placed: 5, return: 5, gate: 5, done: 5 };
+CP_ORDER.splice(CP_ORDER.indexOf('school') + 1, 0, 'shield');
+const CP_CN = { lingen: '测灵根', day1: '第一日 · 习剑', day2: '第二日 · 切磋', day3: '第三日 · 闲暇', night: '第三日 · 夜', heart: '同道', rings: '御剑试炼', intro: '初入学院', school: '前往学堂', shield: '学堂 · 护盾课', arena: '学院大比', duel1: '大比 · 第一场', duel2: '大比 · 第二场', duel3: '大比 · 决赛', ceremony: '颁奖', library: '图书馆禁阁', hidden: '无形之门', digong: '地宫', chasm: '地宫 · 断崖', bridge: '地宫 · 石桥', chamber: '地宫 · 密室', phantom: '地宫 · 魔修虚影', tunnel: '地底甬道', door: '七印之门', hall: '七印镜殿', placed: '七印镜殿 · 归书', return: '返回地面', gate: '下山', done: '已完成' };
+const CP_LV = { lingen: 1, day1: 1, day2: 1, day3: 1, night: 1, heart: 5, rings: 5, intro: 1, school: 1, shield: 1, arena: 1, duel1: 1, duel2: 2, duel3: 3, ceremony: 5, library: 5, hidden: 5, digong: 5, chasm: 5, bridge: 5, chamber: 5, phantom: 5, tunnel: 5, door: 5, hall: 5, placed: 5, return: 5, gate: 5, done: 5 };
 function slotStageTxt(d) { if (d.stage !== 'ch1') return '第一章 · 学院'; return '第一章 · ' + (CP_CN[d.ch] || '学院'); }
 function hasItem(id) { return (player.items || []).includes(id); }
 function giveItem(id, silent) { if (!player.items) player.items = []; if (!player.items.includes(id)) player.items.push(id); }
@@ -3527,7 +3534,7 @@ function setCP(c) { ch1.cp = c; saveGame(); }
 /* ---------- actors ---------- */
 function ensureActors() {
   if (ch1.A) return ch1.A;
-  const A = ch1.A = { master: makeActor('master'), lin: makeActor('lin', { speed: 3.6 }), mohan: makeActor('mohan'), heavy: makeActor('heavy'), dart: makeActor('dart'), ghost: makeActor('ghost', { float: true }), dummy: makeActor('dummy'), d1: makeActor('d1'), d2: makeActor('d2'), d3: makeActor('d3'), pharm: makeActor('pharm'), cook: makeActor('cook'), guard1: makeActor('guard'), guard2: makeActor('guard') };
+  const A = ch1.A = { master: makeActor('master'), lin: makeActor('lin', { speed: 3.6 }), mohan: makeActor('mohan'), heavy: makeActor('heavy'), dart: makeActor('dart'), ghost: makeActor('ghost', { float: true }), dummy: makeActor('dummy'), d1: makeActor('d1'), d2: makeActor('d2'), d3: makeActor('d3'), pharm: makeActor('pharm'), liu: makeActor('liu'), stone: makeActor('stone'), cook: makeActor('cook'), guard1: makeActor('guard'), guard2: makeActor('guard') };
   A.master.pose = 'whisk';
   // orbiting darts for 暗器弟子
   const orb = new THREE.Group(); scene.add(orb); orb.visible = false; A.dart.orbit = orb; const dm = new THREE.MeshStandardMaterial({ color: 0xd8e0e8, metalness: .9, roughness: .25, emissive: 0x2a6a50, emissiveIntensity: .6 });
@@ -3537,7 +3544,7 @@ function ensureActors() {
   // 墨寒 dark mist disc
   const mist = mk(discGeo, new THREE.MeshBasicMaterial({ color: 0x2a0a40, transparent: true, opacity: .4, depthWrite: false }), A.mohan.holder, 0, .03, 0, .9, .9, 1); mist.rotation.x = -Math.PI / 2;
   for (const k in A) { const a = A[k], el = document.createElement('div'); el.className = 'npcname' + (k === 'lin' ? ' ally' : ''); el.innerHTML = `${a.name}${a.title ? `<small>${a.title}</small>` : ''}`; el.style.display = 'none'; labelsEl.appendChild(el); a.label = el; }
-  for (const k of ['master', 'mohan', 'heavy', 'dart', 'dummy', 'd1', 'd2', 'd3', 'pharm', 'cook', 'guard1', 'guard2']) { A[k].solid = true; A[k].r = A[k].radius; npcSolids.push(A[k]); }
+  for (const k of ['master', 'mohan', 'heavy', 'dart', 'dummy', 'd1', 'd2', 'd3', 'pharm', 'cook', 'guard1', 'guard2', 'stone']) { A[k].solid = true; A[k].r = A[k].radius; npcSolids.push(A[k]); }
   return A;
 }
 function showActor(a, wname, x, z, yaw, pose) { a.shown = true; a.world = wname; a.fighting = false; a.dead = false; a.act = null; a.path = null; a.airY = 0; a.spin = 0; a.holder.visible = true; placeActor(a, x, z, yaw ?? a.yaw); if (pose) a.pose = pose; a.solid = a.id !== 'lin' && a.id !== 'ghost' && !!npcSolids.includes(a); }
@@ -3560,7 +3567,7 @@ const wait = t => ({ t });
 const until = fn => ({ until: fn });
 /* ---------- dialogue ---------- */
 const dlg = { w: null, shown: 0, full: '', typing: false };
-function speakerActor(who) { const A = ch1.A; if (!A) return null; return { '青玄真人': A.master, '林清风': A.lin, '墨寒': A.mohan, '重剑弟子': A.heavy, '暗器弟子': A.dart, '魔修虚影': A.ghost, '弟子甲': A.d1, '弟子乙': A.d2, '弟子丙': A.d3, '药师': A.pharm, '伙夫': A.cook, '守门弟子': A.guard1 }[who] || null; }
+function speakerActor(who) { const A = ch1.A; if (!A) return null; return { '青玄真人': A.master, '林清风': A.lin, '墨寒': A.mohan, '重剑弟子': A.heavy, '暗器弟子': A.dart, '魔修虚影': A.ghost, '弟子甲': A.d1, '弟子乙': A.d2, '弟子丙': A.d3, '药师': A.pharm, '白芷': A.pharm, '刘醉': A.liu, '小石头': A.stone, '伙夫': A.cook, '守门弟子': A.guard1 }[who] || null; }
 function openDlg(w) {
   ch1.talking = true; if (state === 'play') state = 'talk'; document.body.classList.add('talking'); resetInputs('talk');
   const who = w.who === '你' ? player.name : w.who, nm = $('dlgname');
@@ -3669,7 +3676,7 @@ function startFight(a, def, opt = {}) {
   Object.assign(a, { fighting: true, def, ai: false, dead: false, hp: def.hp, maxHp: def.hp, lvTxt: String(def.lv), act: null, cd: 1.3, stagger: 0, warnT: 0, invuln: false, airY: 0, spin: 0, passThrough: false, solid: false, fade: 1, slowT: 0, kbT: 0 });
   a.holder.visible = true; a.onDeath = () => { if (ch1.fight && ch1.fight.e === a) { ch1.fight.won = true; ch1.fight.wonT = gameT; sfx('win'); timeScale = .4; ch1Timer(.9, () => { timeScale = 1; }); } };
   initTough(a, def.tough); if (def.reset) def.reset(a); if (a.id === 'ghost') ghostCharMat.uniforms.op.value = 1;
-  enemies.length = 0; enemies.push(a); clearProj();
+  enemies.length = 0; enemies.push(a); clearProj(); player.amuletUsed = false;
   ch1.fight = { e: a, def, ring: !!opt.ring, withAlly: !!opt.ally, won: false, ex: a.x, ez: a.z, eyaw: a.yaw, px: opt.px, pz: opt.pz, deaths: 0, lose: opt.lose || '胜败乃兵家常事，再来！', t0: gameT, spar: !!opt.spar };
   document.body.classList.add('fight'); hudBossName = ''; hudDirty = true;
   if (opt.ally) { const al = ch1.A.lin; ch1.ally = al; al.hpF = 1; al.retreat = 0; al.atkCd = 2; }
@@ -3677,7 +3684,7 @@ function startFight(a, def, opt = {}) {
 function* fightIntro(title, subt) { banner(title, subt, 1.6); yield wait(1.7); banner('开始！', '', .9); sfx('clang'); ch1.fight.e.ai = true; ch1.fight.e.cd = .9; }
 function endFight() { const F = ch1.fight; if (!F) return; F.e.fighting = false; F.e.act = null; F.e.warnT = 0; F.e.invuln = false; F.e.airY = 0; F.e.spin = 0; F.e.holder.rotation.x = 0; if (F.e.id !== 'ghost') F.e.holder.visible = true; enemies.length = 0; clearProj(); ch1.fight = null; ch1.ally = null; document.body.classList.remove('fight'); player.hp = player.maxHp; player.wine = player.wineMax; resetSkills(); hudDirty = true; if (F.e.orbit) F.e.orbit.visible = false; }
 function ch1OnDeath() {
-  const F = ch1.fight; if (!F) { ch1Timer(1, () => { player.dead = false; player.hp = player.maxHp; hudDirty = true; if (ch1.cp === 'bridge' && world.name === 'digong') { placePlayer({ x: 0, z: DG.chasm.z1 + 1.6, yaw: 0 }); banner('重整旗鼓', '虚影仍在桥上', 1.4); } }); return; }
+  const F = ch1.fight; if (!F) { ch1Timer(1, () => { player.dead = false; player.hp = player.maxHp; player.amuletUsed = false; hudDirty = true; if (ch1.cp === 'bridge' && world.name === 'digong') { placePlayer({ x: 0, z: DG.chasm.z1 + 1.6, yaw: 0 }); banner('重整旗鼓', '虚影仍在桥上', 1.4); } }); return; }
   if (F.spar) { F.lost = true; ch1Timer(.8, () => { player.dead = false; player.hp = Math.max(player.hp, Math.round(player.maxHp * .1)); hudDirty = true; }); return; }
   F.deaths++; F.e.ai = false; F.e.act = null; F.e.warnT = 0; clearProj();
   ch1Timer(1.3, () => { banner('败北', F.lose, 2.2); $('fade').style.transition = 'opacity .5s'; $('fade').style.opacity = .85; });
@@ -3688,7 +3695,7 @@ function restartFight() {
   clearFx(); clearProj(); resetSkills();
   Object.assign(e, { dead: false, hp: e.maxHp, act: null, cd: 1.5, stagger: 0, warnT: 0, invuln: false, airY: 0, spin: 0, x: F.ex, z: F.ez, yaw: F.eyaw, slowT: 0, kbT: 0, fade: 1 }); e.holder.visible = true; initTough(e, F.def.tough); if (F.def.reset) F.def.reset(e); if (e.id === 'ghost') ghostCharMat.uniforms.op.value = 1;
   if (F.px !== undefined) { player.x = F.px; player.z = F.pz; player.yaw = faceYaw(e.x, e.z, player.x, player.z) + Math.PI; }
-  player.dead = false; player.hp = player.maxHp; player.wine = player.wineMax; player.lastHurt = -99; hudDirty = true; $('vign').style.opacity = 0;
+  player.dead = false; player.hp = player.maxHp; player.wine = player.wineMax; player.lastHurt = -99; player.amuletUsed = false; hudDirty = true; $('vign').style.opacity = 0;
   if (ch1.ally) { ch1.ally.hpF = 1; ch1.ally.retreat = 0; placeActor(ch1.ally, e.x + 2.5, e.z + 4, ch1.ally.yaw); }
   $('fade').style.opacity = 0; state = 'play';
   banner('再战', '', 1.2); ch1Timer(1.3, () => { if (ch1.fight === F && !F.won) { e.ai = true; e.cd = .8; banner('开始！', '', .8); sfx('clang'); } });
@@ -3719,7 +3726,7 @@ function setupCP(cp) {
   if (cpIdx(cp) >= cpIdx('rings')) player.rideOK = true;
   if (cpIdx(cp) >= cpIdx('phantom') && cpIdx(cp) < cpIdx('placed')) giveItem('tome', true); else takeItem('tome', true);
   if (cpIdx(cp) > cpIdx('placed')) player.jdTp = true;
-  ch1.jdVisit = false; ch1.questOK = false; quest.cur = null; ch1.questReq = null;
+  ch1.jdVisit = false; ch1.questOK = false; quest.cur = null; ch1.questReq = null; ch1.chatOff = false; ch1.sayQ = []; player.amuletUsed = false; ensureState(cp);
   const dig = ['digong', 'chasm', 'bridge', 'chamber', 'phantom'].includes(cp), jd = ['tunnel', 'door', 'hall', 'placed'].includes(cp);
   hideAppr(); enemies.length = 0; ch1.pfall = null; ch1.anim = null; camDrop = 0; $('fade').style.opacity = 0;
   setWorld(dig ? 'digong' : jd ? 'jingdian' : 'academy');
@@ -3738,6 +3745,7 @@ function setupCP(cp) {
     case 'heart': placePlayer({ x: -11.2, z: 24.4, yaw: 1.2 }); showActor(A.lin, 'academy', -13.2, 25.4, -2); A.lin.pose = 'idle'; break;
     case 'rings': placePlayer({ x: 0, z: -37, yaw: 0 }); showActor(A.master, 'academy', 3.8, -38.6, -Math.PI * .75, 'whisk'); showActor(A.lin, 'academy', -1.8, -35.8, Math.PI); ch1.follow = true; player.rideOK = true; break;
     case 'intro': placePlayer(world.spawn); showActor(A.master, 'academy', 0, 31.5, Math.PI, 'whisk'); break;
+    case 'shield': placePlayer({ x: -30, z: -25.5, yaw: 0 }); showActor(A.master, 'academy', CLASS.master.x, CLASS.master.z, 0, 'whisk'); break;
     case 'school': placePlayer({ x: 0, z: 30, yaw: 0 }); showActor(A.master, 'academy', -2.6, 33, Math.PI * .8, 'whisk'); showActor(A.lin, 'academy', -27, -13, -1); showActor(A.mohan, 'academy', -33.5, -16.5, .6); break;
     case 'arena': placePlayer({ x: -24, z: -11, yaw: Math.PI / 2 }); showActor(A.lin, 'academy', -27.5, -11.5, 1.2); break;
     case 'duel1': case 'duel2': case 'duel3': placePlayer({ x: 14.5, z: -12, yaw: -Math.PI / 2 }); arenaSet(+cp[4]); ch1.follow = false; break;
@@ -3764,13 +3772,14 @@ function addUses() {
   addUse({ world: 'academy', x: -56, z: -52.5, r: 2.8, label: '歇息', cond: () => ch1.cp === 'day3' && !ch1.flags.rest && !quest.cur, fn: () => { ch1.flags.rest = true; } });
   addUse({ world: 'academy', x: -56, z: -52.5, r: 2.8, label: '就寝', cond: () => ch1.cp === 'night' && ch1.flags.metMo && !ch1.flags.sleep, fn: () => { ch1.flags.sleep = true; } });
   ACAD.pages.forEach(([x, z], i) => addUse({ world: 'academy', x, z, r: 2.1, label: '收集', cond: () => pagesOpen() && !player.riding && !player.pages.includes(i), fn: () => collectPage(i) }));
-  for (const [k, lines] of Object.entries(CHAT)) addUse({ world: 'academy', npc: k, get x() { return ch1.A[k].x; }, get z() { return ch1.A[k].z; }, r: 2.4, label: '交谈', cond: () => ch1.A[k].shown && ch1.A[k].world === 'academy' && !ch1.talking && !ch1.chatOff, fn: () => { const a = ch1.A[k]; if (questChat(k)) return; a.ci = ((a.ci ?? -1) + 1) % lines.length; bark(a.name, lines[a.ci]); a.faceP = 1; setTimeout(() => { a.faceP = 0; }, 2500); } });
+  for (const [k, lines] of Object.entries(CHAT)) addUse({ world: 'academy', npc: k, get x() { return ch1.A[k].x; }, get z() { return ch1.A[k].z; }, r: 2.4, label: '交谈', cond: () => ch1.A[k].shown && ch1.A[k].world === 'academy' && !ch1.talking && !ch1.chatOff && (!CHAT_WHEN[k] || CHAT_WHEN[k]()), fn: () => { const a = ch1.A[k]; if (questChat(k)) return; a.ci = ((a.ci ?? -1) + 1) % lines.length; bark(a.name, lines[a.ci]); if (!a.lie) a.faceP = 1; setTimeout(() => { a.faceP = 0; }, 2500); } });
   addUse({ world: 'digong', x: DG.book.x, z: DG.book.z, r: 2.6, label: '收集', cond: () => ch1.cp === 'chamber' && ch1.flags.tome && ch1.flags.canTake && !ch1.flags.took, fn: () => { ch1.flags.took = true; } });
   addUse({ world: 'jingdian', x: JD.door.x, z: JD.door.z - .4, r: 4.6, label: '开启', cond: () => ch1.cp === 'door' && ch1.flags.doorReady && !ch1.flags.openDoor, fn: () => { ch1.flags.openDoor = true; } });
   addUse({ world: 'jingdian', x: JD.place.x, z: JD.place.z, r: 3.4, label: '放置', cond: () => ch1.cp === 'hall' && hasItem('tome') && !ch1.flags.placeBook, fn: () => { ch1.flags.placeBook = true; } });
   addUse({ world: 'jingdian', x: JD.crystal.x, z: JD.crystal.z, r: 3.6, label: '吸收', cond: () => ch1.cp === 'placed' && worlds.jingdian.crystal.visible && !ch1.flags.absorb, fn: () => { ch1.flags.absorb = true; } });
   addUse({ world: 'jingdian', x: JD.circle.x, z: JD.circle.z, r: 1.9, label: '传送', cond: () => ch1.cp === 'placed' && ch1.flags.absorbed && !ch1.flags.tp, fn: () => { ch1.flags.tp = true; } });
   addUse({ world: 'jingdian', x: JD.circle.x, z: JD.circle.z, r: 1.9, label: '传送', cond: () => ch1.jdVisit && worlds.jingdian.circle.visible, fn: () => jdReturn() });
+  addUsesV45();
 }
 /* ---------- the script ---------- */
 const SEG = {};
@@ -3792,14 +3801,23 @@ const CHAT = {
   guard1: ['出入山门，须有令牌。', '山下近来不太平，夜里常见紫光。'],
   guard2: ['大比之日，山门外挤满了看热闹的。', '守门三年，从未见人自外闯入。'],
   d1: ['听说钟楼那口大钟，乃仙尊亲手所铸。'], d2: ['墨寒师兄的剑，快得看不清。'], d3: ['禁阁？我连门都没摸着过。'],
+  liu: ['（鼾声如雷）……嗯？莫吵，酒还没醒。', '剑要快，酒要慢。你二者皆未得其味。', '天下事，一壶便够；不够，再来一壶。'],
+  stone: ['师兄，湖里的锦鲤会咬人，莫伸手。', '我叫小石头，入门才半年。'],
+  master: ['今日无课，你且四处走走。', '入夜之前，回居所歇息。'],
+  mohan: ['看什么？', '离我远些。'],
 };
+const CHAT_WHEN = { master: () => ch1.cp === 'day3', mohan: () => ch1.cp === 'day3' };
+const LIU = { x: 57.5, z: 33.5, yaw: -2.3 }, STONE = { x: -19.6, z: 35.6, yaw: -2.2 }, MOHAN_D3 = { x: 37.6, z: -19.5, yaw: -1.2 };
 const AMB = { pharm: [55, -38.4], cook: [-56, -38.6], guard1: [-6.6, 39.4], guard2: [6.6, 39.4], d1: [-29, 12.4], d2: [-19, 25], d3: [44, 4] };
 function placeAmbient(cp) {
-  const A = ch1.A, i = cpIdx(cp), acad = world.name === 'academy';
-  for (const k of ['pharm', 'cook', 'guard1', 'guard2', 'd1', 'd2', 'd3', 'dummy']) hideActor(A[k]);
+  const A = ch1.A, i = cpIdx(cp), acad = world.name === 'academy'; A.mohan.walkAway = false;
+  for (const k of ['pharm', 'cook', 'guard1', 'guard2', 'd1', 'd2', 'd3', 'dummy', 'liu', 'stone']) hideActor(A[k]);
   if (!acad || cp === 'intro') return;
   const night = cp === 'night';
   for (const k of ['pharm', 'cook', 'guard1', 'guard2']) { const [x, z] = AMB[k]; showActor(A[k], 'academy', x, z, k.startsWith('guard') ? Math.PI : 0, 'idle'); }
+  if (!night) { showActor(A.liu, 'academy', LIU.x, LIU.z, LIU.yaw, 'idle'); A.liu.lie = true; }
+  if (!night && cp !== 'lingen') { showActor(A.stone, 'academy', STONE.x, STONE.z, STONE.yaw, 'idle'); }
+  if (cp === 'day3') showActor(A.mohan, 'academy', MOHAN_D3.x, MOHAN_D3.z, MOHAN_D3.yaw, 'idle');
   if (!night && cp !== 'lingen') for (const k of ['d1', 'd2', 'd3']) { const [x, z] = AMB[k]; showActor(A[k], 'academy', x, z, rand(-3, 3), 'idle'); }
   if (cp === 'lingen') { const L = ACAD.ling; [[-3.6, -11.2], [3.8, -10.6], [4.6, -4.4]].forEach(([dx, dz], j) => { const a = A['d' + (j + 1)]; showActor(a, 'academy', L.x + dx, L.z + dz + 2, faceYaw(L.x + dx, L.z + dz + 2, L.x, L.z), 'idle'); }); }
   if (cp === 'day1') { showActor(A.dummy, 'academy', ACAD.dummy.x, ACAD.dummy.z, 0, 'ready'); }
@@ -3834,6 +3852,8 @@ function ch1Academy(dt) {
     if (i < N) { const [x, z] = ACAD.flyRings[i]; if (player.riding && Math.hypot(player.x - x, player.z - z) < 2.3) { const rg = W.flyRings[i]; rg.visible = false; burst(rg.position.clone(), 40, 0xffd36a, 6, .5, .6, 0); shockRing(V3(x, .1, z), 0xffd36a, .3, 3, .5); sfx('ding'); ch1.flags.ringI = i + 1; $('objtxt').textContent = `御剑穿过光环 ${i + 1}/${N}`; } }
     if (!player.riding && SK.ride.t > 1.2) SK.ride.t = 1.2;
   }
+  if (ch1.cp === 'shield' && SK.hudun.t > 2) SK.hudun.t = 2;
+  ch1Decor(dt);
   if (ch1.cp === 'day1' && SK.s1.t > 1.2 && ch1.flags.trainS1 !== undefined && ch1.flags.trainS1 < 5) SK.s1.t = 1.2;
   if (ch1.cp === 'day1' && SK.s2.t > 1.2 && ch1.flags.trainS2 !== undefined) SK.s2.t = 1.2;
 }
@@ -3872,7 +3892,12 @@ SEG.lingen = function* () {
   A.master.headTilt = .25; yield say('青玄真人', '……'); A.master.headTilt = 0;
   yield say('青玄真人', '灵根之相，因人而异，不必多问。');
   W.lingBeam.visible = false; W.lingM.emissiveIntensity = .9;
-  yield say('青玄真人', '同门都在学堂前的草坪上。去吧，见见他们。');
+  A.master.pose = 'point'; yield say('青玄真人', '且慢。');
+  yield say('青玄真人', '此符随为师多年，今日赠你。危难之际，可保你一命。');
+  giveInv('amulet', 1, true); A.master.pose = 'whisk';
+  showLearn('获得【青玄护身符】', '古玩 · 已佩戴 · 每战一次免死'); yield wait(1.6);
+  yield say('你', '弟子拜谢师傅。');
+  yield say('青玄真人', '同门都在学堂前的草坪上。去吧，见见他们。见过之后，入学堂来，为师授你神通。');
   for (const [k, p] of [['d1', [-29, 12.4]], ['d2', [-19, 25]], ['d3', [44, 4]]]) { A[k].path = [p]; A[k].speed = 2.4; }
 };
 SEG.school = function* () {
@@ -3893,6 +3918,50 @@ SEG.school = function* () {
   yield say('墨寒', '冠军，只会是我。');
   A.mohan.path = [[-30, -6], [-30, 0], [-6, 0]]; A.mohan.speed = 2.6;
   yield wait(1.6);
+  yield say('林清风', '师傅已在学堂候着了。进去吧，迟了要挨戒尺。');
+};
+/* ---------- 学堂 · 护盾课 ---------- */
+const CLASS = { door: { x: -30, z: -28.6 }, seat: { x: -27, z: -40, yaw: Math.atan2(3, 5.1) }, master: { x: -30, z: -45.1 } };
+function inSchool() { const S = ACAD.school; return world.name === 'academy' && player.x > S.x0 && player.x < S.x1 && player.z > S.z0 && player.z < S.z1 - .2; }
+function fireBolt(from, cb) {
+  const g = new THREE.Group(); mk(G.sphLo, new THREE.MeshBasicMaterial({ color: 0xfff6d0 }), g, 0, 0, 0, .14, .14, .14); mk(G.sph, auraMat(0xffd36a, 1.6, 1.6), g, 0, 0, 0, .42, .42, .42);
+  const pos = V3(from.x, 1.45, from.z), tgt = V3(player.x, camY - .55, player.z), vel = tgt.sub(pos).normalize().multiplyScalar(9);
+  spawnProj({ mesh: g, pos, vel, r: .7, dmg: 45, life: 3, col: 0xffd36a, onHitP: cb }); sfx('whoosh');
+}
+SEG.shield = function* () {
+  const A = ch1.A, M = A.master; setCP('shield'); ch1.chatOff = true;
+  if (!M.shown || M.world !== 'academy') showActor(M, 'academy', CLASS.master.x, CLASS.master.z, 0, 'whisk'); else placeActor(M, CLASS.master.x, CLASS.master.z, 0);
+  setObj('入学堂听课', CLASS.door, 'academy');
+  yield until(() => inSchool() || Math.hypot(player.x - CLASS.door.x, player.z - CLASS.door.z) < 1.6);
+  setObj(null);
+  yield* fadeSwap(() => { hideActor(A.mohan); showActor(A.lin, 'academy', -33.4, -38.6, Math.PI, 'idle'); ch1.follow = false; placeActor(M, CLASS.master.x, CLASS.master.z, 0); placePlayer(CLASS.seat); resetTrail(); }, '学堂', '神通初授');
+  M.faceP = 1;
+  yield say('青玄真人', '剑修之道，剑为形，神通为魂。');
+  yield say('青玄真人', '神通者，以灵力化万象：或攻或守，或隐或遁，各随其性。');
+  yield say('青玄真人', '今日先授你护盾。灵力凝于周身，外力难侵。');
+  yield say('青玄真人', '盾之厚薄，约当你气血二成。盾破之前，刀剑难伤。');
+  if (!hasSt('hudun')) player.unlocked.push('hudun'); SK.hudun.t = 0; hudDirty = true; saveGame();
+  showLearn('领悟神通【护盾】', '左侧神通十字 · 下'); yield wait(1.4);
+  M.pose = 'point'; yield say('青玄真人', '为师以光弹试你。凝盾，接下三弹。'); M.pose = 'whisk';
+  ch1Hint('点击左侧神通十字下方的<b>【护盾】</b>，再以护盾接下光弹', 'st-hudun');
+  const C = ch1.flags.cls = { n: 0 }; player.minHpFrac = .35;
+  setObj('以护盾接下光弹 0/3', () => M, 'academy');
+  while (C.n < 3) {
+    yield wait(C.n === 0 && player.shield <= 0 ? 3.2 : 2.2);
+    if (state !== 'play') { yield until(() => state === 'play'); continue; }
+    M.pose = 'point'; faceActor(M, player.x, player.z, 1);
+    fireBolt({ x: M.x + Math.sin(M.yaw) * .6, z: M.z + Math.cos(M.yaw) * .6 }, (r, sh0) => {
+      if (sh0 > 0 && r !== 'block') { C.n++; $('objtxt').textContent = `以护盾接下光弹 ${C.n}/3`; sfx('ding'); if (C.n === 1) ch1HintOff(); }
+      else if (r === 'block') toast('须以护盾接之，非格挡'); else toast('凝起护盾再接');
+    });
+    setTimeout(() => { if (M.pose === 'point') M.pose = 'whisk'; }, 500);
+    yield wait(.9);
+  }
+  ch1HintOff(); setObj(null); player.minHpFrac = 0; clearProj(); yield wait(.8);
+  M.pose = 'whisk'; player.hp = player.maxHp; hudDirty = true;
+  yield say('青玄真人', '善。盾虽坚，终有尽时；慎用，方能久用。');
+  yield say('青玄真人', '明日起，随为师习剑。');
+  ch1.chatOff = false;
 };
 /* ---------- 第一日: 黑甲陪练 ---------- */
 SEG.day1 = function* () {
@@ -3944,12 +4013,13 @@ SEG.day3 = function* () {
   yield say('青玄真人', '今日无课。院中药房、食堂、钟楼……你且随意走走，熟悉熟悉。');
   yield say('青玄真人', '院里偶有旧书页随风飘落，若是遇见，不妨拾来一读。入夜之前，回弟子居所歇息。');
   A.master.faceP = 0;
-  ch1Hint('今日<b>自由活动</b>：可四处走走、与院中众人交谈；准备好后前往西侧<b>弟子居所</b>歇息'); ch1Timer(8, () => { if (ch1.cp === 'day3') ch1HintOff(); });
+  ch1Hint('今日<b>自由活动</b>：四处走走，与院中众人交谈，或有人相托；准备好后前往西侧<b>弟子居所</b>歇息'); ch1Timer(8, () => { if (ch1.cp === 'day3') ch1HintOff(); });
   const roam = () => setObj('在学院中闲逛，准备好后前往居所休息', DORM, 'academy');
   roam(); ch1.questOK = true;
+  if (player.qcur) { const q = NPC_QUESTS.find(x => x.id === player.qcur.id); if (q && !(player.quests || []).includes(q.id)) ch1.questReq = { q, from: player.qcur.step | 0 }; player.qcur = null; }
   for (;;) {
     yield until(() => (ch1.flags.rest && !ch1.reading) || ch1.questReq);
-    if (ch1.questReq) { const q = ch1.questReq; ch1.questReq = null; yield* runQuest(q); roam(); continue; }
+    if (ch1.questReq) { const r = ch1.questReq; ch1.questReq = null; yield* runQuest(r.q || r, r.from || 0, !!r.q); roam(); continue; }
     break;
   }
   ch1.questOK = false; ch1HintOff(); setObj(null);
@@ -3967,26 +4037,40 @@ const NPC_QUESTS = [];
 const quest = { cur: null, step: 0, talked: null };
 function questFor(k) { if (!ch1.questOK || quest.cur) return null; return NPC_QUESTS.find(q => q.giver === k && (!q.cps || q.cps.includes(ch1.cp)) && !(player.quests || []).includes(q.id)) || null; }
 function questChat(k) {
-  const q = quest.cur; if (q) { const s = q.steps[quest.step]; if (s && s.talk === k) { quest.talked = k; return true; } return false; }
+  const q = quest.cur; if (q) { const s = q.steps[quest.step]; const tk = s && (typeof s.talk === 'function' ? s.talk() : s.talk); if (tk === k) { quest.talked = k; return true; } return false; }
   const nq = questFor(k); if (nq) { ch1.questReq = nq; return true; } return false;
 }
-function* runQuest(q) {
-  quest.cur = q; quest.step = 0;
-  for (const [w, l] of q.offer || []) yield say(w, l);
-  for (let i = 0; i < q.steps.length; i++) {
-    const s = q.steps[i]; quest.step = i; quest.talked = null; const wn = s.world || 'academy';
-    setObj(`【${q.title}】${s.text}`, s.target || s.reach || (s.talk ? () => ch1.A[s.talk] : null), wn);
-    yield until(() => s.reach ? (world.name === wn && Math.hypot(player.x - s.reach.x, player.z - s.reach.z) < (s.reach.r || 2.5)) : s.talk ? quest.talked === s.talk : s.cond ? !!s.cond() : true);
-    for (const [w, l] of s.done || []) yield say(w, l);
+const qval = v => typeof v === 'function' ? v() : v;
+function* runQuest(q, from = 0, resumed = false) {
+  quest.cur = q; quest.step = from; ch1.sayQ = [];
+  if (!resumed) { for (const [w, l] of q.offer || []) yield say(w, l); if (q.onAccept) q.onAccept(); saveGame(); }
+  for (let i = from; i < q.steps.length; i++) {
+    const s = q.steps[i]; quest.step = i; quest.talked = null; const wn = s.world || 'academy'; saveGame();
+    if (s.choice) { const v = yield* chooseCo(s.choice.prompt, s.choice.opts); s.choice.pick(v); saveGame(); continue; }
+    const tk = () => qval(s.talk);
+    const objTxt = () => `【${q.title}】${qval(s.text)}`;
+    setObj(objTxt(), s.target || s.reach || (s.talk ? () => ch1.A[tk()] : null), wn); ch1.qText = objTxt;
+    const met = () => s.reach ? (world.name === wn && Math.hypot(player.x - s.reach.x, player.z - s.reach.z) < (s.reach.r || 2.5)) : s.talk ? quest.talked === tk() : s.cond ? !!s.cond() : true;
+    for (;;) {
+      yield until(() => met() || ch1.sayQ.length);
+      while (ch1.sayQ.length) { const [w, l] = ch1.sayQ.shift(); yield say(w, l); }
+      if (met()) break;
+      if (ch1.obj) $('objtxt').textContent = objTxt();
+    }
+    ch1.qText = null;
+    for (const [w, l] of qval(s.done) || []) yield say(w, l);
+    if (s.after) s.after();
   }
-  for (const [w, l] of q.outro || []) yield say(w, l);
-  if (q.reward) q.reward();
-  player.quests = [...(player.quests || []), q.id]; quest.cur = null; saveGame(); toast(`完成：${q.title}`); sfx('level');
+  for (const [w, l] of qval(q.outro) || []) yield say(w, l);
+  player.quests = [...(player.quests || []), q.id]; quest.cur = null;
+  if (q.reward) yield* (q.reward() || []);
+  saveGame(); toast(`完成：${q.title}`); sfx('level');
 }
 /* ---------- 第三日 · 夜: 墨寒 lurking by the library ---------- */
 SEG.night = function* () {
   const A = ch1.A, M = A.mohan;
   yield* fadeSwap(() => { setCP('night'); setNight(true); placeAmbient('night'); hideActor(A.master); placePlayer({ x: -56, z: -45.4, yaw: -Math.PI / 2 }); resetTrail(); }, '入夜', '第三日 · 夜');
+  M.walkAway = false; M.path = null; M.faceP = 0;
   showActor(M, 'academy', 15.4, -46, -Math.PI / 2, 'idle'); M.solid = false;
   bark('你', '……睡不着。出去走走。');
   setObj('夜色已深……图书馆旁似有人影', () => (M.shown ? { x: M.x, z: M.z } : null), 'academy');
@@ -4120,7 +4204,7 @@ function mkButton(x, z, h, r, opt) { // invisible "enemy" standing on a wall but
   return Object.assign({ kind: 'btn', boss: true, noNum: true, noPush: true, passThrough: true, name: '机关', lvTxt: '-', x, z, y: 0, yaw: 0, radius: r, r, height: h, hp: 1e9, maxHp: 1e9, floorHp: 1, armor: 1, mats: [], holder: new THREE.Group(), dead: false, update() { } }, opt);
 }
 function hideAppr() { for (const a of (ch1.apprPool || [])) { a.fighting = false; a.dead = true; a.holder.visible = false; } ch1.appr = []; }
-function spawnAppr(pts) {
+function spawnAppr(pts) { player.amuletUsed = false;
   const pool = ch1.apprPool = ch1.apprPool || []; ch1.appr = [];
   pts.forEach(([x, z], i) => {
     const a = pool[i] || (pool[i] = makeAppr());
@@ -4369,7 +4453,7 @@ SEG.placed = function* () {
       if (k >= 1) { cr.visible = false; W.crys.off = true; W.crL.intensity = 0; return true; } }; }
   yield until(() => !ch1.anim);
   flashScreen('#c080ff', .45, .8); shockRing(V3(player.x, 0, player.z), 0xc080ff, .3, 5, .9); sfx('level'); player.hp = player.maxHp; hudDirty = true;
-  banner('紫光入体', '灵台清明 · 气血尽复', 1.8); state = 'play'; ch1.flags.absorbed = true;
+  banner('紫光入体', '灵台清明 · 气血尽复', 1.8); state = 'play'; ch1.flags.absorbed = true; giveItem('crystal'); saveGame();
   yield wait(1.4);
   W.circle.visible = true; sfx('ding'); shockRing(V3(JD.circle.x, 0, JD.circle.z), 0xc080ff, .3, 3, .6);
   yield say('林清风', '晶石既散，地上竟现出一座传送阵……走！');
@@ -4468,7 +4552,7 @@ function updateCh1(dt, dtR) {
     if (a === A.lin && ch1.ally) { updateAlly(a, dt); animActor(a, dt); syncActor(a); continue; }
     if (a === A.lin && ch1.follow && !a.path) updateFollower(a, dt);
     else if (a.path) { if (a.leading) { const d = Math.hypot(player.x - a.x, player.z - a.z); if (d > 9) { a.moveAmt *= .9; faceActor(a, player.x, player.z, dt * 3); } else walkPath(a, dt); } else walkPath(a, dt); if (a.walkAway && Math.random() < .5) emit(a.x + rand(-.4, .4), rand(.2, 2), a.z + rand(-.4, .4), 0, .5, 0, 0x6a2a9a, .35, 1, 0); }
-    else { a.moveAmt += (0 - a.moveAmt) * Math.min(1, dt * 6); if (a.faceP || (ch1.talking && a.world === world.name && Math.hypot(player.x - a.x, player.z - a.z) < 9 && !a.fighting && a.pose !== 'kneel')) faceActor(a, player.x, player.z, dt * 4); }
+    else { a.moveAmt += (0 - a.moveAmt) * Math.min(1, dt * 6); if (!a.lie && (a.faceP || (ch1.talking && a.world === world.name && Math.hypot(player.x - a.x, player.z - a.z) < 9 && !a.fighting && a.pose !== 'kneel'))) faceActor(a, player.x, player.z, dt * 4); }
     if (a === A.lin && !player.riding) { a.float = false; a.rideSw.visible = false; }
     if (a.id === 'mohan' && a.shown && a.world === world.name && Math.random() < .35) emit(a.x + rand(-.5, .5), rand(.1, 2), a.z + rand(-.5, .5), 0, rand(.3, .9), 0, Math.random() < .4 ? 0x1a0828 : 0x8a40e0, rand(.25, .45), rand(.6, 1.1), 0);
     animActor(a, dt); syncActor(a);
@@ -4619,6 +4703,352 @@ function drawMap() {
   const btn = $('maptp'); btn.textContent = tpName; btn.disabled = !!why; $('mapwhy').textContent = why || '';
 }
 Object.assign(window.__G, { openMap, closeMap, mapTeleport, mapTpReason, jdReturn, MAP, drawMap });
+/* ================= v4.5 · 背包 / 快捷栏 / 葫芦与酒 / 护身符 / 任务志 / 支线 / 剧情跳转 ================= */
+/* ---- item table (var: read by recalc() before this file runs) ---- */
+var ITEMS = {
+  cutao: { cat: 'gourd', name: '粗陶葫芦', desc: '山下集市寻常之物，粗陶烧就。每战可饮一口。', drinks: 1 },
+  zuixian: { cat: 'gourd', name: '醉仙葫芦', desc: '酒痴刘醉所赠。葫中别有洞天，每战可饮两口。', drinks: 2 },
+  zhuo: { cat: 'wine', name: '浊酒', desc: '粗粮所酿，入口辛辣。每口恢复一成半气血。', heal: .15 },
+  peiyuan: { cat: 'pill', name: '培元丹', desc: '白芷亲手所炼。服之固本培元，气血上限永增五十。', anytime: true, use() { player.hpBonus = (player.hpBonus || 0) + 50; recalc(); player.hp = Math.min(player.maxHp, player.hp + 50); hudDirty = true; return '气血上限 +50'; } },
+  amulet: { cat: 'curio', name: '青玄护身符', desc: '青玄真人随身多年之物。每战一次，致命一击之下，留你一息。' },
+  tome: { cat: 'special', name: '魔修圣书', desc: '密室祭台所得。书页泛紫，记太初剑之秘。' },
+  crystal: { cat: 'special', name: '紫光晶石', desc: '已化入体内，灵台之中隐隐发烫。（已吸收）' },
+  jade: { cat: 'special', name: '玉佩', desc: '湖中所得，温润生光，背面刻一“墨”字。' },
+  herb_yue: { cat: 'special', name: '月见草', desc: '湖畔所采，叶上凝着夜露。' },
+  herb_chi: { cat: 'special', name: '赤阳花', desc: '钟楼背阴处所采，花色如火。' },
+  herb_qing: { cat: 'special', name: '青心兰', desc: '图书馆后墙石缝所采，幽香清冷。' },
+};
+const BAG_TABS = [['gourd', '葫芦'], ['wine', '酒'], ['pill', '丹药'], ['curio', '古玩'], ['special', '特殊']];
+const JUMP_SLOT = 'jumptest';
+const JUMP = { pending: false };
+function invReset(tut) {
+  player.inv = tut ? {} : { cutao: 1, zhuo: 1 }; player.eq = tut ? {} : { gourd: 'cutao', wine: 'zhuo', curio: null }; player.qs = [null, null, null, null];
+  player.hpBonus = 0; player.jadeChoice = null; player.jadeTo = null; player.qcur = null; player.amuletUsed = false;
+}
+function invSaveData() { return { inv: { ...(player.inv || {}) }, eq: { ...(player.eq || {}) }, qs: (player.qs || []).slice(0, 4), hpBonus: player.hpBonus | 0, jadeChoice: player.jadeChoice || null, jadeTo: player.jadeTo || null, qcur: quest.cur ? { id: quest.cur.id, step: quest.step } : (player.qcur || null) }; }
+function invLoad(d) {
+  invReset(); const inv = d.inv && typeof d.inv === 'object' ? d.inv : null;
+  if (inv) { player.inv = {}; for (const k in inv) if (ITEMS[k] && (inv[k] | 0) > 0) player.inv[k] = Math.min(99, inv[k] | 0); }
+  if (!player.inv.cutao) player.inv.cutao = 1; if (!player.inv.zhuo) player.inv.zhuo = 1;
+  const eq = d.eq || {}; for (const [slot, cat] of [['gourd', 'gourd'], ['wine', 'wine'], ['curio', 'curio']]) { const v = eq[slot]; player.eq[slot] = v && ITEMS[v] && ITEMS[v].cat === cat && player.inv[v] ? v : (slot === 'gourd' ? 'cutao' : slot === 'wine' ? 'zhuo' : null); }
+  player.qs = [0, 1, 2, 3].map(i => { const v = Array.isArray(d.qs) ? d.qs[i] : null; return v && ITEMS[v] && ITEMS[v].cat === 'pill' ? v : null; });
+  player.hpBonus = Math.max(0, Math.min(5000, d.hpBonus | 0)); player.jadeChoice = d.jadeChoice === 'mohan' || d.jadeChoice === 'master' ? d.jadeChoice : null; player.jadeTo = d.jadeTo === 'mohan' || d.jadeTo === 'master' ? d.jadeTo : null;
+  player.qcur = d.qcur && typeof d.qcur.id === 'string' ? { id: d.qcur.id, step: d.qcur.step | 0 } : null;
+  recalc(); player.wine = Math.min(player.wine, player.wineMax); refreshQS();
+}
+const invN = id => (player.inv && player.inv[id]) | 0;
+function giveInv(id, n = 1, autoEq) {
+  const it = ITEMS[id]; if (!it) return; if (!player.inv) invReset();
+  if (it.cat === 'special') { giveItem(id); return; }
+  player.inv[id] = Math.min(99, invN(id) + (it.cat === 'pill' ? n : 1)); if (it.cat !== 'pill') player.inv[id] = 1;
+  if (autoEq && it.cat !== 'pill') equipItem(id, true);
+  recalc(); hudDirty = true; refreshQS(); saveGame();
+}
+function equipItem(id, silent) {
+  const it = ITEMS[id]; if (!it || !invN(id)) return false; const slot = it.cat === 'gourd' ? 'gourd' : it.cat === 'wine' ? 'wine' : it.cat === 'curio' ? 'curio' : null; if (!slot) return false;
+  if (!silent && ch1.fight && slot !== 'curio') { toast('战斗之中，不可更换'); return false; }
+  player.eq[slot] = id; const wasFull = player.wine >= player.wineMax; recalc(); if (slot === 'gourd' && !ch1.fight && wasFull) player.wine = player.wineMax; player.wine = Math.min(player.wine, player.wineMax);
+  hudDirty = true; saveGame(); if (!silent) { toast(`已装备【${it.name}】`); sfx('ding'); } return true;
+}
+function wineHeal() { const w = player.eq && ITEMS[player.eq.wine]; return w && w.heal ? w.heal : TUNE.wineFrac; }
+function canUsePill(id) { const it = ITEMS[id]; if (!it || it.cat !== 'pill') return '不可服用'; if (!invN(id)) return '已用尽'; if (!it.anytime && !ch1.fight) return '仅可于战斗中服用'; if (player.dead) return '不可服用'; return null; }
+function usePill(id) {
+  const why = canUsePill(id); if (why) { toast(why); return false; }
+  const it = ITEMS[id], msg = it.use(); player.inv[id] = invN(id) - 1; if (player.inv[id] <= 0) delete player.inv[id];
+  sfx('level'); burst(ppos(), 24, 0xffe08a, 3, .35, .8, 1); screenNum(msg || it.name, 'heal', innerWidth * .5 - 30, innerHeight * .45); toast(`服下【${it.name}】· ${msg}`);
+  refreshQS(); hudDirty = true; saveGame(); return true;
+}
+/* ---- 青玄护身符: once per fight / encounter, a lethal hit leaves 1 气血 ---- */
+function amuletSave() {
+  if (mode !== 'ch1' || player.tutChar || !player.eq || player.eq.curio !== 'amulet' || player.amuletUsed || player.minHpFrac > 0) return false;
+  player.amuletUsed = true; player.hp = 1; hudDirty = true; ch1.amuletSaves = (ch1.amuletSaves || 0) + 1;
+  const el = $('amufx'); el.classList.remove('show'); void el.offsetWidth; el.classList.add('show');
+  flashScreen('#ffe7a0', .5, .9); sfx('shield'); shake = Math.max(shake, .3); swordGlow = 1.2;
+  shockRing(V3(player.x, H(player.x, player.z), player.z), 0xffd36a, .3, 4.5, .8);
+  for (let i = 0; i < 46; i++) { const a = rand(0, 6.28), r = rand(.5, 1.6); emit(player.x + Math.cos(a) * r, rand(.2, 2.2), player.z + Math.sin(a) * r, 0, rand(1, 3), 0, i % 2 ? 0xffd36a : 0xfff6d0, rand(.25, .45), rand(.7, 1.2), 0); }
+  return true;
+}
+/* ---- state auto-fill for a checkpoint (resume / 剧情跳转 / old saves) ---- */
+function ensureState(cp) {
+  if (!player.inv) invReset();
+  const i = cpIdx(cp);
+  if (i > cpIdx('lingen') && !invN('amulet')) { player.inv.amulet = 1; if (!player.eq.curio) player.eq.curio = 'amulet'; }
+  if (i > cpIdx('shield') && !hasSt('hudun')) player.unlocked.push('hudun');
+  if (i > cpIdx('placed')) giveItem('crystal'); else takeItem('crystal');
+  if (cp !== 'day3') { for (const h of ['herb_yue', 'herb_chi', 'herb_qing', 'jade']) takeItem(h); player.qcur = null; player.jadeTo = null; }
+  recalc();
+}
+/* ---------------- academy decor: 刘醉's camp, 灵草, 湖中玉 ---------------- */
+const HERBS = { herb_yue: { x: 19.4, z: 30.6, col: 0xe8f0ff, glow: 0xb8d8ff }, herb_chi: { x: -28.7, z: 11.4, col: 0xff5a3a, glow: 0xffa060 }, herb_qing: { x: 6, z: -61.9, col: 0x6ae0c0, glow: 0x80ffe0 } };
+const JADE = { x: -21.6, z: 30 };
+const DECOR = (() => {
+  const W = worlds.academy, g = new THREE.Group(); W.group.add(g);
+  const L = [], vm = new THREE.MeshLambertMaterial({ vertexColors: true });
+  // 刘醉's tree + blanket + gourds
+  const T = { x: LIU_T().x, z: LIU_T().z };
+  L.push([G.cyl, 0x6a4a2e, M4(T.x, 1.6, T.z, .38, 3.2, .38)]); L.push([G.cyl, 0x5a3e26, M4(T.x + .5, 2.9, T.z - .2, .14, 1.6, .14, 0, 0, -.7)]);
+  for (const [dx, dy, dz, s] of [[0, 4.2, 0, 2.6], [1.3, 3.7, .6, 1.8], [-1.2, 3.8, -.5, 1.9], [.3, 5.1, -.4, 1.7], [-.4, 3.6, 1.3, 1.6]]) L.push([G.sph, 0x4f8a3e, M4(T.x + dx, dy, T.z + dz, s, s * .8, s)]);
+  const B = LIU_POS(), c = Math.cos(B.yaw), s2 = Math.sin(B.yaw);
+  L.push([G.box, 0xa83a3a, M4(B.x, .03, B.z, 1.5, .05, 2.4, B.yaw)]); L.push([G.box, 0xe8c070, M4(B.x, .035, B.z, 1.1, .052, 2.0, B.yaw)]);
+  let sd = 7; const rr = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
+  for (let k = 0; k < 13; k++) { const a = k / 13 * Math.PI * 2 + rr() * .3, r = 1.6 + rr() * .9, x = B.x + Math.cos(a) * r, z = B.z + Math.sin(a) * r, sc = .7 + rr() * .5, tip = rr() < .35;
+    const col = [0xc89a50, 0xa87838, 0xd8b070, 0x8a6a3a][k % 4];
+    if (tip) { L.push([G.sph, col, M4(x, .2 * sc, z, .22 * sc, .2 * sc, .3 * sc, 0, a)]); L.push([G.sph, col, M4(x + Math.cos(a) * .3 * sc, .14 * sc, z + Math.sin(a) * .3 * sc, .14 * sc, .13 * sc, .14 * sc)]); }
+    else { L.push([G.sph, col, M4(x, .22 * sc, z, .22 * sc, .22 * sc, .22 * sc)]); L.push([G.sph, col, M4(x, .5 * sc, z, .14 * sc, .14 * sc, .14 * sc)]); L.push([G.cyl, 0x8a2a2a, M4(x, .62 * sc, z, .04 * sc, .06 * sc, .04 * sc)]); L.push([G.cyl, 0x6a4028, M4(x, .68 * sc, z, .03 * sc, .08 * sc, .03 * sc)]); } }
+  L.push([G.sph, 0xd8b070, M4(B.x + c * .75, .24, B.z - s2 * .75, .26, .26, .26)]); // one by his hand
+  const decor = new THREE.Mesh(mergeColored(L), vm); g.add(decor);
+  W.cols.push({ x: T.x, z: T.z, r: .75 }, { x: B.x, z: B.z, r: 1.05 });
+  // 灵草 (glowing herbs) + 湖中玉
+  const herbs = {}; const stemM = new THREE.MeshLambertMaterial({ color: 0x3a8a3a });
+  for (const k in HERBS) { const h = HERBS[k], hg = new THREE.Group(); hg.position.set(h.x, 0, h.z); hg.visible = false; g.add(hg);
+    for (let i = 0; i < 5; i++) { const a = i / 5 * 6.28; const st = mk(G.cyl, stemM, hg, Math.cos(a) * .12, .22, Math.sin(a) * .12, .025, .44, .025); st.rotation.z = Math.cos(a) * .3; st.rotation.x = Math.sin(a) * .3; }
+    for (let i = 0; i < 3; i++) mk(G.sph, new THREE.MeshBasicMaterial({ color: h.col }), hg, Math.cos(i * 2.1) * .14, .5 + i * .04, Math.sin(i * 2.1) * .14, .08, .06, .08);
+    const gl = mk(G.sph, auraMat(h.glow, 1.6, 1.4), hg, 0, .5, 0, .55, .55, .55); const ring = mk(ringGeo, addMat(h.glow, .55), hg, 0, .04, 0, .6, .6, .6); ring.rotation.x = -Math.PI / 2;
+    herbs[k] = { g: hg, gl, ring }; }
+  const jg = new THREE.Group(); jg.position.set(JADE.x, 0, JADE.z); jg.visible = false; g.add(jg);
+  mk(G.sph, new THREE.MeshBasicMaterial({ color: 0xc8ffe8 }), jg, 0, .06, 0, .12, .04, .09); const jgl = mk(G.sph, auraMat(0x80ffd0, 1.8, 1.5), jg, 0, .1, 0, .6, .25, .6);
+  const jr = mk(ringGeo, addMat(0x9fffe0, .6), jg, 0, .05, 0, .8, .8, .8); jr.rotation.x = -Math.PI / 2;
+  return { g, herbs, jade: { g: jg, gl: jgl, ring: jr } };
+})();
+function LIU_POS() { return { x: 57.5, z: 33.5, yaw: -2.3 }; }
+function LIU_T() { return { x: 60.4, z: 36.6 }; }
+function herbActive(k) { return quest.cur && quest.cur.id === 'herbs' && quest.step === 0 && !hasItem(k) && world.name === 'academy'; }
+function jadeActive() { return quest.cur && quest.cur.id === 'jade' && quest.step === 0 && !hasItem('jade'); }
+function ch1Decor(dt) {
+  for (const k in DECOR.herbs) { const h = DECOR.herbs[k], v = !!herbActive(k); h.g.visible = v; if (v) { h.gl.scale.setScalar(.5 + Math.sin(gameT * 3 + h.g.position.x) * .08); h.ring.scale.setScalar(.6 + (gameT * .6 % 1) * .6); h.ring.material.opacity = .6 * (1 - gameT * .6 % 1); if (Math.random() < .2) emit(h.g.position.x + rand(-.3, .3), rand(.3, 1), h.g.position.z + rand(-.3, .3), 0, .6, 0, HERBS[k].glow, .16, .9, 0); } }
+  const J = DECOR.jade, jv = !!jadeActive(); J.g.visible = jv; if (jv) { J.gl.scale.set(.6 + Math.sin(gameT * 2.4) * .1, .25, .6 + Math.sin(gameT * 2.4) * .1); J.ring.scale.setScalar(.7 + (gameT * .5 % 1) * .9); J.ring.material.opacity = .6 * (1 - gameT * .5 % 1); if (Math.random() < .15) emit(JADE.x + rand(-.3, .3), .1, JADE.z + rand(-.3, .3), 0, .5, 0, 0x9fffe0, .14, .9, 0); }
+}
+function addUsesV45() {
+  for (const k in HERBS) { const h = HERBS[k]; addUse({ world: 'academy', x: h.x, z: h.z, r: 2.2, label: '采摘', cond: () => herbActive(k) && !player.riding, fn: () => pickHerb(k) }); }
+  addUse({ world: 'academy', x: JADE.x, z: JADE.z, r: 2.3, label: '打捞', cond: () => jadeActive() && !player.riding, fn: () => { giveItem('jade'); sfx('ding'); burst(V3(JADE.x, .3, JADE.z), 24, 0x9fffe0, 3, .3, .7, 0); saveGame(); } });
+}
+function pickHerb(k) {
+  giveItem(k); sfx('ding'); const h = HERBS[k]; burst(V3(h.x, .5, h.z), 24, h.glow, 3, .3, .7, 0); saveGame();
+  toast(`采得【${ITEMS[k].name}】`); if (k === 'herb_qing') ch1.sayQ.push([null, '石缝深处，似有紫光一闪而逝。']);
+}
+const herbN = () => ['herb_yue', 'herb_chi', 'herb_qing'].filter(hasItem).length;
+/* ---------------- side quests (data) ---------------- */
+NPC_QUESTS.push(
+  { id: 'zuili', giver: 'liu', cps: ['day3'], title: '醉里乾坤', giverName: '刘醉', hint: '学院东北角树下，一位醉卧的师兄',
+    offer: [['刘醉', '……嗝。又来个愣头青。坐，坐。'], ['刘醉', '你可知，剑修为何要饮酒？'], ['你', '弟子不知。'], ['刘醉', '剑太利，人便太紧。紧则易折。一口酒下去，心松了，剑才活。'], ['刘醉', '这只葫芦随我多年，装得下两口好酒。拿去，莫学我——醉了，便醒不过来。']],
+    steps: [], summary: '刘醉赠你醉仙葫芦。',
+    *reward() { giveInv('zuixian', 1, false); showLearn('获得【醉仙葫芦】', '葫芦 · 每战可饮两口'); yield wait(1.4); const v = yield* chooseCo('是否装备【醉仙葫芦】？', [['装备', 1], ['暂不', 0]]); if (v) equipItem('zuixian'); } },
+  { id: 'herbs', giver: 'pharm', cps: ['day3'], title: '三味灵草', giverName: '白芷', hint: '药房的药师白芷似有难处',
+    offer: [['白芷', '这位师弟，可否帮个忙？大比在即，弟子们伤药用得紧，药房缺了三味灵草。'], ['白芷', '月见草长在湖边，赤阳花开在钟楼背阴处，还有一株青心兰，只在图书馆后墙的石缝里才有。'], ['你', '弟子去去便回。']],
+    steps: [
+      { text: () => `采集三味灵草 ${herbN()}/3`, cond: () => herbN() >= 3, target: () => { let b = null, bd = 1e9; for (const k in HERBS) if (!hasItem(k)) { const h = HERBS[k], d = Math.hypot(h.x - player.x, h.z - player.z); if (d < bd) { bd = d; b = h; } } return b; } },
+      { text: '回药房，将灵草交给白芷', talk: 'pharm', done: [['白芷', '一株不差，好眼力。'], ['白芷', '这颗培元丹是我亲手所炼，服下可固本培元。大比之上，莫要辜负。']], after() { for (const k in HERBS) takeItem(k); } },
+    ], summary: '白芷赠你培元丹一颗。',
+    *reward() { giveInv('peiyuan', 1); if (!player.qs.some(Boolean)) { player.qs[0] = 'peiyuan'; refreshQS(); } showLearn('获得【培元丹】×1', '丹药 · 可于背包或快捷栏服用'); yield wait(1.2); } },
+  { id: 'jade', giver: 'stone', cps: ['day3'], title: '湖中玉', giverName: '小石头', hint: '西湖凉亭旁，小石头愁眉苦脸',
+    offer: [['小石头', '师兄，前日我在湖边拾得一块会发光的玉佩，一失手又掉回水里了……能帮我捞上来吗？'], ['你', '在何处落水？'], ['小石头', '就在湖东岸浅处，夜里还会发光呢。']],
+    steps: [
+      { text: '打捞湖中玉佩', cond: () => hasItem('jade'), target: JADE, done: [[null, '玉佩温润，背面刻着一个‘墨’字。']] },
+      { choice: { prompt: '玉佩背刻“墨”字。当归何人？', opts: [['还给墨寒', 'mohan'], ['交给师傅', 'master']], pick(v) { player.jadeTo = v; } } },
+      { text: () => player.jadeTo === 'master' ? '将玉佩交给师傅' : '将玉佩还给墨寒', talk: () => player.jadeTo || 'mohan',
+        done: () => player.jadeTo === 'master' ? [['青玄真人', '……'], ['青玄真人', '此物，你就当没见过。']] : [['墨寒', '……哪来的？'], ['你', '湖里捞的。'], ['墨寒', '……多事。']],
+        after() { takeItem('jade'); player.jadeChoice = player.jadeTo || 'mohan'; const A = ch1.A; if (player.jadeChoice === 'mohan') { A.mohan.faceP = 0; A.mohan.path = [[44, -26], [52, -10]]; A.mohan.speed = 2.6; A.mohan.walkAway = true; } else { A.master.pose = 'whisk'; } } },
+    ], summary: () => player.jadeChoice === 'master' ? '玉佩交予师傅。师傅：「此物，你就当没见过。」' : '玉佩还给了墨寒。他收下，未发一言讥讽。' },
+);
+/* ---------------- choice prompt (coroutine) ---------------- */
+const CHO = { v: undefined };
+function* chooseCo(prompt, opts) {
+  const el = $('choice'); el.querySelector('.cq').textContent = prompt; const box = el.querySelector('.co'); box.innerHTML = '';
+  CHO.v = undefined; CHO.opts = opts;
+  opts.forEach(([label, v], i) => { const b = document.createElement('button'); b.textContent = label; b.dataset.i = i; box.appendChild(b); onTap(b, () => { CHO.v = v; }); });
+  const prev = state; state = 'cut'; resetInputs('choice'); el.style.display = 'flex';
+  yield until(() => CHO.v !== undefined);
+  el.style.display = 'none'; if (state === 'cut') state = 'play'; sfx('ding'); return CHO.v;
+}
+/* ---------------- main-line quest log (data) ---------------- */
+const MAIN_QUESTS = [
+  { name: '初醒', cps: ['intro', 'lingen'], desc: '醒来见过师傅，往大广场测灵根。' },
+  { name: '同门', cps: ['school', 'shield'], desc: '学堂前见过两位师兄，入学堂听师傅授神通。' },
+  { name: '三日修行', cps: ['day1', 'day2', 'day3', 'night'], desc: '习剑、切磋、闲暇，三日修行。' },
+  { name: '大比', cps: ['arena', 'duel1', 'duel2', 'duel3', 'ceremony'], desc: '学院大比，三战夺魁。' },
+  { name: '禁阁', cps: ['heart', 'library', 'hidden'], desc: '凉亭谈心，入图书馆禁阁，寻无形之门。' },
+  { name: '地宫', cps: ['digong', 'chasm', 'bridge', 'chamber', 'phantom'], desc: '破地宫机关，过石桥，入密室，斗魔修虚影。' },
+  { name: '七印镜殿', cps: ['tunnel', 'door', 'hall', 'placed'], desc: '随紫光穿行甬道，启七印巨门，归书镜殿。' },
+  { name: '御剑', cps: ['return', 'rings'], desc: '回禀师傅，习御剑之术，穿六道光环。' },
+  { name: '下山', cps: ['gate'], desc: '前往学院大门。' },
+];
+function mainStatus(q) { const c = ch1.cp === 'done' ? 1e9 : cpIdx(ch1.cp), a = cpIdx(q.cps[0]), b = cpIdx(q.cps[q.cps.length - 1]); return c > b ? 'done' : c >= a ? 'active' : 'todo'; }
+function sideStatus(q) {
+  if ((player.quests || []).includes(q.id)) return 'done';
+  if ((quest.cur && quest.cur.id === q.id) || (player.qcur && player.qcur.id === q.id)) return 'active';
+  const c = ch1.cp === 'done' ? 1e9 : cpIdx(ch1.cp), last = Math.max(...(q.cps || ['done']).map(cpIdx));
+  if (q.cps && q.cps.includes(ch1.cp)) return 'avail';
+  return c > last ? 'missed' : 'todo';
+}
+function questLogData() {
+  const main = MAIN_QUESTS.map(q => { const st = mainStatus(q); let obj = q.desc; if (st === 'active') { const o = ch1.obj && ch1.obj.text; obj = o && !ch1.qText && !o.startsWith('【') ? o : (CP_CN[ch1.cp] ? '当前：' + CP_CN[ch1.cp] : q.desc); } return { name: q.name, st, obj }; }).filter(q => q.st !== 'todo');
+  const side = NPC_QUESTS.filter(q => q.title).map(q => { const st = sideStatus(q); let obj = '';
+    if (st === 'active') { const s = quest.cur && quest.cur.id === q.id ? q.steps[quest.step] : null; obj = s ? (s.choice ? s.choice.prompt : qval(s.text)) : '续前事'; }
+    else if (st === 'avail') obj = '可接取 · ' + (q.hint || ('寻' + (q.giverName || ''))); else if (st === 'done') obj = qval(q.summary) || '已完成'; else if (st === 'missed') obj = '已错过';
+    return { name: q.title, st, obj }; }).filter(q => q.st !== 'todo');
+  if (cpIdx(ch1.cp) >= cpIdx('day3') || (player.pages || []).length) { const n = (player.pages || []).length; side.push({ name: '散落的书页', st: n >= 10 ? 'done' : 'active', obj: `已集 ${n}/10（可选）· 每页气血上限 +10` }); }
+  return { main, side };
+}
+const JUMP_NODES = [
+  ['开场 / 教程', null], ['醒来见师傅', 'intro'], ['测灵根', 'lingen'], ['学堂见师兄', 'school'], ['护盾课', 'shield'], ['第一日 · 习剑', 'day1'], ['第二日 · 对练', 'day2'], ['第三日 · 闲逛', 'day3'], ['第三日 · 夜', 'night'],
+  ['大比 · 第一场', 'duel1'], ['大比 · 第二场', 'duel2'], ['大比 · 决赛', 'duel3'], ['颁奖', 'ceremony'], ['凉亭谈心', 'heart'], ['图书馆禁阁', 'library'], ['无形之门', 'hidden'],
+  ['地宫 · 第一道石门', 'digong'], ['地宫 · 悬崖', 'chasm'], ['地宫 · 石桥', 'bridge'], ['屏障 / 密室', 'chamber'], ['魔修虚影', 'phantom'], ['地底甬道', 'tunnel'], ['七印之门', 'door'], ['七印镜殿', 'hall'], ['归书之后', 'placed'],
+  ['回程', 'return'], ['御剑', 'return', { pos: { x: 3.6, z: -35.2, yaw: Math.PI } }], ['圆环', 'rings'], ['尾声', 'gate', { pos: { x: 0, z: 35.6, yaw: Math.PI } }],
+];
+/* ---------------- UI: bag button + 4 quick slots, panels, quest log, choice, jump ---------------- */
+(function buildV45UI() {
+  const st = document.createElement('style');
+  st.textContent = `#bagbar{display:none}.m-ch1 #bagbar{display:block}
+#bagbar .bb{position:absolute;box-sizing:border-box;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-direction:column;touch-action:none;-webkit-tap-highlight-color:transparent;font-family:var(--kai);color:#ffe6b0;background:rgba(20,14,30,.6);border:1.5px solid rgba(255,220,150,.6);pointer-events:auto;user-select:none;-webkit-user-select:none}
+#bagbar .bb.qs{border-style:dashed;border-color:rgba(255,220,150,.38);color:#d8f0d0}
+#bagbar .bb.qs.has{border-style:solid;border-color:rgba(160,240,170,.7);background:rgba(20,40,26,.62)}
+#bagbar .bb.qs.empty{opacity:.45;filter:grayscale(1)}
+#bagbar .bb b{font-weight:normal;line-height:1}#bagbar .bb i{font-style:normal;position:absolute;right:3px;bottom:1px;font-size:calc(11px*var(--u));color:#fff}
+#bagbar .bb.down{transform:scale(.92)}
+#trbtns{display:none;gap:6px;margin-top:5px;pointer-events:auto}.m-ch1 #trbtns{display:flex}.m-ch1.talking #trbtns{opacity:.35}
+#trbtns #mapbtn{margin-top:0}
+#qbtn{pointer-events:auto;font-size:13px;letter-spacing:2px;padding:5px 14px;border-radius:14px;background:rgba(20,14,30,.62);border:1px solid rgba(255,220,150,.6);color:#ffe6b0;font-family:var(--kai);min-width:62px;min-height:30px;-webkit-tap-highlight-color:transparent}
+#qbtn.new{box-shadow:0 0 10px rgba(255,210,120,.9)}
+body.panelopen #hud,body.panelopen #labels,body.panelopen #btn-use{visibility:hidden}
+.v45p{position:fixed;inset:0;z-index:80;display:none;background:rgba(8,5,14,.95);color:#eadff8;font-family:var(--kai);touch-action:none;box-sizing:border-box;padding:10px calc(12px + var(--sr)) 10px calc(12px + var(--sl))}
+.v45p .wrap{display:flex;gap:12px;height:100%}
+.v45p button{font-family:inherit;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+.v45p .close{padding:8px 0;font-size:15px;border-radius:10px;border:1px solid rgba(255,255,255,.4);background:rgba(255,255,255,.08);color:#fff}
+#bagp .tabs{display:flex;flex-direction:column;gap:6px;flex:0 0 72px}
+#bagp .tab{padding:9px 0;font-size:15px;border-radius:8px;border:1px solid rgba(255,220,150,.4);background:rgba(255,255,255,.05);color:#e8dcc8}
+#bagp .tab.on{background:rgba(255,200,110,.25);color:#fff1c8;border-color:#ffd77a}
+#baglist{flex:1 1 auto;min-width:0;overflow:auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:7px;align-content:start;padding:2px}
+.bitem{border:1px solid rgba(255,220,150,.3);border-radius:8px;padding:7px 9px;background:rgba(255,255,255,.04);min-height:44px;box-sizing:border-box}
+.bitem.on{border-color:#ffd77a;background:rgba(255,200,110,.16)}.bitem b{font-weight:normal;color:#ffe6b0;font-size:15px}.bitem em{font-style:normal;font-size:11px;color:#9fe0a0;margin-left:6px}.bitem small{display:block;font-size:11px;color:#b8acc8;margin-top:2px}
+#bagside{flex:0 0 200px;display:flex;flex-direction:column;gap:7px;min-height:0}
+#bagdet{flex:1 1 auto;overflow:auto;font-size:13px;line-height:1.6;color:#d8cce8;border:1px solid rgba(255,220,150,.2);border-radius:8px;padding:8px}
+#bagdet h4{margin:0 0 4px;font-weight:normal;color:#ffe6b0;font-size:17px}
+#bagact{display:flex;flex-wrap:wrap;gap:6px}#bagact button{flex:1 1 40%;padding:8px 0;font-size:14px;border-radius:9px;border:1px solid #ffd77a;background:rgba(255,200,110,.2);color:#fff1c8}
+#bagact button:disabled{opacity:.45;border-color:#776;background:rgba(255,255,255,.04);color:#bbb}
+#bagmsg{font-size:12px;color:#ffb8a8;min-height:15px}
+#qlogp .col{flex:1 1 0;min-width:0;overflow:auto;border:1px solid rgba(255,220,150,.22);border-radius:8px;padding:8px 10px}
+#qlogp h3{margin:0 0 6px;font-weight:normal;color:#ffe6b0;font-size:16px;letter-spacing:3px}
+#qlogp .ql{padding:5px 0 6px;border-bottom:1px dashed rgba(255,255,255,.1)}#qlogp .ql b{font-weight:normal;font-size:15px;color:#fff1c8}#qlogp .ql small{display:block;font-size:12px;color:#d0c4e0;margin-top:2px;line-height:1.45}
+#qlogp .ql.active b:before{content:'◆ ';color:#ffd36a}#qlogp .ql.avail b:before{content:'◇ ';color:#9fe0a0}
+#qlogp .ql.done,#qlogp .ql.missed{opacity:.42}#qlogp .ql.done small,#qlogp .ql.missed small{display:none}#qlogp .ql.done b:after{content:' · 已完成';font-size:11px}#qlogp .ql.missed b:after{content:' · 已错过';font-size:11px}
+#qlogp .hdr{font-size:13px;color:#c8b8e0;letter-spacing:4px;margin-bottom:6px}
+#qside{flex:0 0 150px;display:flex;flex-direction:column;gap:8px;justify-content:flex-end}
+#choice{position:fixed;inset:0;z-index:85;display:none;align-items:center;justify-content:center;flex-direction:column;gap:14px;background:rgba(6,4,12,.55);font-family:var(--kai)}
+#choice .cq{font-size:19px;color:#fff1c8;text-shadow:0 2px 4px #000;padding:0 20px;text-align:center}
+#choice .co{display:flex;gap:16px}#choice .co button{font-family:inherit;font-size:17px;letter-spacing:3px;padding:10px 26px;border-radius:22px;border:2px solid #f3d27a;background:linear-gradient(180deg,#b8862a,#6f4a12);color:#fff;touch-action:manipulation}
+#amufx{position:fixed;left:50%;top:34%;z-index:60;pointer-events:none;transform:translate(-50%,-50%);font-family:var(--kai);font-size:38px;letter-spacing:8px;color:#fff3c0;text-shadow:0 0 18px #ffb020,0 0 5px #fff,0 2px 4px #000;opacity:0;white-space:nowrap}
+#amufx.show{animation:amu 1.6s ease-out forwards}@keyframes amu{0%{opacity:0;transform:translate(-50%,-50%) scale(1.6)}15%{opacity:1;transform:translate(-50%,-50%) scale(1)}75%{opacity:1}100%{opacity:0;transform:translate(-50%,-62%) scale(1)}}
+#jumpbtn{touch-action:manipulation;-webkit-tap-highlight-color:transparent;margin-top:14px;margin-left:12px;font-size:17px;padding:9px 22px;border-radius:30px;border:2px solid #b89ae8;background:linear-gradient(180deg,#5a4682,#2a2040);color:#fff;font-family:inherit;letter-spacing:3px}
+#jumpp .hd{display:flex;align-items:center;gap:10px;margin-bottom:6px}#jumpp .hd b{font-weight:normal;font-size:18px;color:#fff1c8;letter-spacing:3px}#jumpp .hd small{flex:1;font-size:12px;color:#b8acc8}
+#jumplist{display:grid;grid-template-columns:repeat(auto-fill,minmax(128px,1fr));gap:6px;overflow:auto;max-height:calc(100% - 44px);align-content:start}
+#jumplist button{padding:9px 4px;font-size:14px;border-radius:9px;border:1px solid rgba(255,220,150,.45);background:rgba(255,255,255,.06);color:#f4e8d0}
+#jumplist button i{display:block;font-style:normal;font-size:10px;color:#a898c0}
+#jumpp .close{padding:6px 18px}`;
+  document.head.appendChild(st);
+  const stop = el => { for (const ev of ['pointerdown', 'touchstart', 'mousedown']) el.addEventListener(ev, e => e.stopPropagation(), { passive: true }); };
+  // top-right: [任务][地图]
+  const row = document.createElement('div'); row.id = 'trbtns'; $('tr').appendChild(row);
+  const qb = document.createElement('button'); qb.id = 'qbtn'; qb.textContent = '任务'; row.appendChild(qb); row.appendChild($('mapbtn')); stop(row);
+  onTap(qb, () => openPanel('qlog'));
+  // bottom-left: 背包 + 4 quick slots
+  const bar = document.createElement('div'); bar.id = 'bagbar'; $('hud').appendChild(bar);
+  const bag = document.createElement('div'); bag.className = 'bb'; bag.id = 'bagbtn'; bag.innerHTML = '<b>背包</b>'; bar.appendChild(bag);
+  for (let i = 0; i < 4; i++) { const q = document.createElement('div'); q.className = 'bb qs'; q.id = 'qs' + i; q.dataset.i = i; q.innerHTML = '<b></b><i></i>'; bar.appendChild(q); }
+  for (const el of bar.children) { el.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); el.classList.add('down'); }, { passive: false }); const up = () => el.classList.remove('down'); el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up); el.addEventListener('pointerleave', up); el.addEventListener('touchstart', e => e.stopPropagation(), { passive: true }); }
+  onTap(bag, () => openPanel('bag'));
+  for (let i = 0; i < 4; i++) onTap($('qs' + i), () => quickUse(i));
+  // panels
+  const bp = document.createElement('div'); bp.id = 'bagp'; bp.className = 'v45p';
+  bp.innerHTML = '<div class="wrap"><div class="tabs">' + BAG_TABS.map(([k, n]) => `<button class="tab" data-t="${k}">${n}</button>`).join('') + '</div><div id="baglist"></div><div id="bagside"><div id="bagdet"></div><div id="bagmsg"></div><div id="bagact"></div><button class="close" id="bagclose">关闭背包</button></div></div>';
+  document.body.appendChild(bp); stop(bp);
+  bp.querySelectorAll('.tab').forEach(t => onTap(t, () => { BAG.tab = t.dataset.t; BAG.sel = null; drawBag(); }));
+  onTap($('baglist'), e => { const it = e.target.closest && e.target.closest('.bitem'); if (!it) return; BAG.sel = it.dataset.id; drawBag(); });
+  onTap($('bagclose'), () => closePanel());
+  const qp = document.createElement('div'); qp.id = 'qlogp'; qp.className = 'v45p';
+  qp.innerHTML = '<div class="wrap"><div class="col" id="qmain"></div><div class="col" id="qsidecol"></div><div id="qside"><div class="hdr">第一章·天剑学院</div><button class="close" id="qclose">关闭</button></div></div>';
+  document.body.appendChild(qp); stop(qp); onTap($('qclose'), () => closePanel());
+  const ch = document.createElement('div'); ch.id = 'choice'; ch.innerHTML = '<div class="cq"></div><div class="co"></div>'; document.body.appendChild(ch); stop(ch);
+  const af = document.createElement('div'); af.id = 'amufx'; af.textContent = '护身符护主！'; document.body.appendChild(af);
+  // title: 剧情跳转
+  const jb = document.createElement('button'); jb.id = 'jumpbtn'; jb.textContent = '剧情跳转'; $('go').parentNode.appendChild(jb);
+  const jp = document.createElement('div'); jp.id = 'jumpp'; jp.className = 'v45p'; jp.style.zIndex = 90;
+  jp.innerHTML = '<div class="hd"><b>剧情跳转 · 第一章</b><small>选一节点，以「跳转测试」专用存档开局（会覆盖上一次的跳转存档，不影响其他存档）</small><button class="close" id="jumpclose">返回</button></div><div id="jumplist"></div>';
+  document.body.appendChild(jp); stop(jp);
+  $('jumplist').innerHTML = JUMP_NODES.map((n, i) => `<button data-i="${i}">${n[0]}<i>${n[1] ? (CP_CN[n[1]] || '') + ' · Lv' + (CP_LV[n[1]] || 1) : '开场旁白 → 仙尊教程'}</i></button>`).join('');
+  onTap(jb, () => { resetInputs('jump'); jp.style.display = 'block'; });
+  onTap($('jumpclose'), () => { jp.style.display = 'none'; });
+  onTap($('jumplist'), e => { const b = e.target.closest && e.target.closest('button'); if (!b) return; const n = JUMP_NODES[+b.dataset.i]; jp.style.display = 'none'; if (!n[1]) jumpOpening(); else jumpStart(n[1], n[2]); });
+  addEventListener('keydown', e => { if (e.code === 'KeyB' && state === 'play') openPanel('bag'); else if (e.code === 'KeyL' && state === 'play') openPanel('qlog'); else if (e.code === 'Escape' && PANEL.open) closePanel(); });
+  addEventListener('resize', layoutBag); addEventListener('orientationchange', () => setTimeout(layoutBag, 220));
+})();
+const BAG = { tab: 'gourd', sel: null };
+const PANEL = { open: null };
+function openPanel(which) {
+  if (mode !== 'ch1' || PANEL.open || (typeof MAP !== 'undefined' && MAP.open)) return false;
+  if (state !== 'play') { if (state === 'talk' || state === 'cut') toast('剧情进行中'); return false; }
+  PANEL.open = which; PANEL.prev = state; state = 'panel'; resetInputs('panel'); document.body.classList.add('panelopen'); sfx('swish');
+  if (which === 'bag') { BAG.sel = null; $('bagp').style.display = 'block'; drawBag(); } else { $('qlogp').style.display = 'block'; drawQlog(); $('qbtn').classList.remove('new'); }
+  return true;
+}
+function closePanel() { if (!PANEL.open) return; $(PANEL.open === 'bag' ? 'bagp' : 'qlogp').style.display = 'none'; PANEL.open = null; document.body.classList.remove('panelopen'); if (state === 'panel') state = 'play'; resetInputs('panelclose'); refreshQS(); }
+function bagItems(cat) {
+  if (cat === 'special') return (player.items || []).filter(id => ITEMS[id] && ITEMS[id].cat === 'special');
+  return Object.keys(player.inv || {}).filter(id => ITEMS[id] && ITEMS[id].cat === cat && invN(id) > 0);
+}
+function drawBag() {
+  document.querySelectorAll('#bagp .tab').forEach(t => t.classList.toggle('on', t.dataset.t === BAG.tab));
+  const ids = bagItems(BAG.tab), eq = player.eq || {};
+  if (!BAG.sel || !ids.includes(BAG.sel)) BAG.sel = ids[0] || null;
+  const isEq = id => eq.gourd === id || eq.wine === id || eq.curio === id;
+  $('baglist').innerHTML = ids.length ? ids.map(id => { const it = ITEMS[id]; const tag = isEq(id) ? '<em>已装备</em>' : it.cat === 'pill' ? `<em>×${invN(id)}</em>` : (player.qs || []).includes(id) ? '<em>快捷</em>' : ''; const sub = it.cat === 'gourd' ? `每战 ${it.drinks} 口` : it.cat === 'wine' ? `每口回复 ${Math.round(it.heal * 100)}%` : it.cat === 'special' ? '要物' : it.cat === 'curio' ? '古玩' : '丹药'; return `<div class="bitem${id === BAG.sel ? ' on' : ''}" data-id="${id}"><b>${it.name}</b>${tag}<small>${sub}</small></div>`; }).join('') : '<div style="color:#988aa8;font-size:13px;padding:8px">（空）</div>';
+  const det = $('bagdet'), act = $('bagact'); $('bagmsg').textContent = ''; act.innerHTML = '';
+  const id = BAG.sel, it = id && ITEMS[id];
+  if (!it) { det.innerHTML = `<h4>${BAG_TABS.find(t => t[0] === BAG.tab)[1]}</h4>` + (BAG.tab === 'special' ? '要物在此，不可丢弃、不可使用。' : '尚无此类物品。'); return; }
+  det.innerHTML = `<h4>${it.name}</h4>${it.desc}` + (it.cat === 'pill' ? `<br><span style="color:#9fe0a0">持有 ×${invN(id)}</span>` : '') + (it.cat === 'special' ? '<br><span style="color:#a898c0">要物 · 不可丢弃或使用</span>' : '');
+  const btn = (label, fn, dis) => { const b = document.createElement('button'); b.textContent = label; b.disabled = !!dis; act.appendChild(b); onTap(b, () => { if (!b.disabled) { fn(); drawBag(); } }); return b; };
+  if (it.cat === 'gourd' || it.cat === 'wine' || it.cat === 'curio') { if (isEq(id)) { if (it.cat === 'curio') btn('卸下', () => { player.eq.curio = null; saveGame(); toast(`已卸下【${it.name}】`); }); else btn('已装备', () => { }, true); } else btn('装备', () => { if (!equipItem(id)) $('bagmsg').textContent = '战斗之中，不可更换'; }); }
+  if (it.cat === 'pill') {
+    const why = canUsePill(id); btn('服用', () => { usePill(id); }, !!why); if (why) $('bagmsg').textContent = why;
+    for (let i = 0; i < 4; i++) { const cur = player.qs[i]; btn(cur === id ? `快捷${i + 1} ✓` : `设快捷${i + 1}`, () => { player.qs[i] = cur === id ? null : id; refreshQS(); saveGame(); }); }
+  }
+}
+function drawQlog() {
+  const d = questLogData();
+  const li = q => `<div class="ql ${q.st}"><b>${q.name}</b><small>${q.obj || ''}</small></div>`;
+  const ord = a => [...a.filter(q => q.st === 'active' || q.st === 'avail'), ...a.filter(q => q.st === 'done' || q.st === 'missed')];
+  $('qmain').innerHTML = '<h3>主线</h3>' + ord(d.main).map(li).join('');
+  $('qsidecol').innerHTML = '<h3>支线</h3>' + (d.side.length ? ord(d.side).map(li).join('') : '<div style="color:#988aa8;font-size:13px">暂无</div>');
+}
+function quickUse(i) {
+  const id = player.qs && player.qs[i]; if (state !== 'play') return;
+  if (!id) { toast('快捷栏为空 · 可于背包中设置丹药'); return; }
+  usePill(id);
+}
+function refreshQS() {
+  for (let i = 0; i < 4; i++) { const el = $('qs' + i); if (!el) continue; const id = player.qs && player.qs[i], n = id ? invN(id) : 0;
+    el.classList.toggle('has', !!id); el.classList.toggle('empty', !!id && n <= 0);
+    el.querySelector('b').textContent = id ? ITEMS[id].name.slice(0, 2) : ''; el.querySelector('i').textContent = id ? String(n) : ''; }
+}
+function layoutBag() {
+  const u = uScale, Hh = innerHeight, b = Math.round(40 * u), gap = Math.round(6 * u), x0 = Math.round(150 * u), y = Hh - Math.round(12 * u) - b;
+  const els = $('bagbar').children; for (let i = 0; i < els.length; i++) { const e = els[i]; e.style.width = e.style.height = b + 'px'; e.style.left = (x0 + i * (b + gap)) + 'px'; e.style.top = y + 'px'; e.style.fontSize = Math.round(13 * u) + 'px'; }
+}
+layoutBag(); refreshQS();
+/* ---------------- 剧情跳转 ---------------- */
+function jumpReset() {
+  deleteSave(JUMP_SLOT); player.tutChar = false; activeSlot = JUMP_SLOT;
+  player.name = '跳转测试'; player.lv = 1; player.xp = 0; player.unlocked = []; player.pages = []; player.items = []; player.jdTp = false; player.quests = []; player.wins = 0; player.rideOK = false; invReset(); recalc();
+}
+function jumpStart(cp, opt = {}) {
+  JUMP.pending = false; initAudio(); for (const id of ['start', 'slots', 'jumpp', 'namebox', 'story']) $(id).style.display = 'none'; goFull();
+  jumpReset();
+  if (cpIdx(cp) > cpIdx('day3')) { player.quests = ['zuili', 'herbs']; player.inv.zuixian = 1; player.eq.gourd = 'zuixian'; player.inv.peiyuan = 1; player.qs[0] = 'peiyuan'; recalc(); }
+  ch1.cp = cp; startCh1(cp); refreshQS();
+  if (opt.pos) placePlayer(opt.pos);
+  JUMP.last = cp;
+}
+function jumpOpening() { JUMP.pending = true; activeSlot = null; initAudio(); $('start').style.display = 'none'; $('slots').style.display = 'none'; goFull(); playOpening(); }
+Object.assign(window.__G, { cpIdx, ITEMS, giveInv, equipItem, usePill, invN, openPanel, closePanel, quickUse, refreshQS, questLogData, jumpStart, JUMP_NODES, JUMP_SLOT, HERBS, JADE, MAIN_QUESTS, ensureState, drawBag, BAG, PANEL, chooseCo, CHO, herbN, LIU: LIU_POS(), STONE, MOHAN_D3, CLASS, layoutBag, killEnemy, amuletSave });
 </script>
 </body>
 </html>
