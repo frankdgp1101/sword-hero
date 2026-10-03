@@ -5036,11 +5036,11 @@ function drawWeapons() {
 function drawShentong() {
   const tot = stTotal(), left = stLeft(), L = curLoadout(), slotCN = k => LO_SLOTS.find(x => x[0] === k)[1];
   if (!BAG.sel || !SHENTONG.find(s => s.id === BAG.sel)) BAG.sel = (SHENTONG.find(s => s.unlocked()) || SHENTONG[0]).id;
-  $('baglist').innerHTML = SHENTONG.map(s => { const r = stRank(s.id), un = s.unlocked(), k = inLoadout(s.id); return `<div class="bitem${s.id === BAG.sel ? ' on' : ''}${un ? '' : ' lock'}" data-id="${s.id}"><b>${s.name}</b>${k ? `<em>栏·${slotCN(k)}</em>` : ''}<span class="rk">${un ? r + '/' + ST_MAX : '未领悟'}</span><small>${ST_TYPE_CN[s.type]} · ${un ? (r ? '第' + LAYER_CN[r - 1] + '重' : '未凝练') : '尚未领悟'}</small></div>`; }).join('');
+  $('baglist').innerHTML = SHENTONG.map(s => { const r = stRank(s.id), un = s.unlocked(), k = inLoadout(s.id); return `<div class="bitem${s.id === BAG.sel ? ' on' : ''}${un ? '' : ' lock'}" data-id="${s.id}"><b>${s.name}</b>${k ? `<em>栏·${slotCN(k)}</em>` : ''}<span class="rk">${un ? r + '/' + stMax(s) : '未领悟'}</span><small>${ST_TYPE_CN[s.type]} · ${un ? (r ? '第' + LAYER_CN[r - 1] + '重' : '未凝练') : '尚未领悟'}</small></div>`; }).join('');
   const s = SHENTONG.find(x => x.id === BAG.sel), r = stRank(s.id), det = $('bagdet'), act = $('bagact'); $('bagmsg').textContent = ''; act.innerHTML = ''; act.classList.add('sm');
-  det.innerHTML = `<h4>${s.name} <small style="font-size:12px;color:#c8b8ff">${ST_TYPE_CN[s.type]}</small> <small style="font-size:13px;color:#ffd36a">${r}/${ST_MAX}</small></h4>` +
+  det.innerHTML = `<h4>${s.name} <small style="font-size:12px;color:#c8b8ff">${ST_TYPE_CN[s.type]}</small> <small style="font-size:13px;color:#ffd36a">${r}/${stMax(s)}</small></h4>` +
     `<span class="stp">神通点：剩余 <b>${left}</b> / 共 ${tot}</span><br>` +
-    `当前：<span class="stx">${s.fx(r)}</span><br>` + (r < ST_MAX ? `下一重：<span class="stn">${s.fx(r + 1)}</span>` : '<span class="stn">已臻圆满</span>') +
+    `当前：<span class="stx">${s.fx(r)}</span><br>` + (r < stMax(s) ? `下一重：<span class="stn">${s.fx(r + 1)}</span>` : '<span class="stn">已臻圆满</span>') +
     (tot <= 0 ? '<br><span style="color:#a898c0">剑徒五层起，每层得神通点一。</span>' : '') +
     `<br><span style="color:#b8acc8;font-size:12px">神通栏：` + LO_SLOTS.map(([k, cn]) => `${cn} ${L[k] ? stDef(L[k]).name : '空'}`).join(' · ') + (s.type === 'ride' ? '<br>御剑自有其钮，不入神通栏。' : '') + '</span>';
   const why = stCanAdd(s.id); bagBtn('凝练 +1', () => stAdd(s.id), !!why); bagBtn('重置', () => stReset(), stSpent() <= 0);
@@ -5119,7 +5119,9 @@ function equipWeapon(id) { if (!WEAPONS[id] || !(player.weapons || ['qingfeng'])
 
 /* ---- 神通加点 (data-driven: add a 神通 = add one entry) ----
    unlocked(): may spend points; apply(r, B): set tuned values from base B for rank r (1..5); fx(r): effect text at rank r (0 = base) */
-var ST_MAX = 5;
+var ST_MAX = 5; // legacy default
+var ST_MAX_BY_TYPE = { major: 7, minor: 5, ride: 5 }; // rank cap per 神通 type (大神通 7 · 小神通 / 御剑 5)
+function stMax(id) { const s = typeof id === 'string' ? SHENTONG.find(x => x.id === id) : id; return (s && (s.max || ST_MAX_BY_TYPE[s.type])) || ST_MAX; }
 var SHENTONG = [
   { id: 'hudun', type: 'minor', name: '护盾', unlocked: () => hasSt('hudun'),
     apply(r, B) { TUNE.shieldFrac = B.shieldFrac + .03 * r; SK.hudun.cd = B.cd.hudun - r; },
@@ -5153,10 +5155,10 @@ function applyShentong() {
 }
 function stValidate() { // drop ranks that exceed the pool (e.g. after a jump / level change)
   if (!player.stRanks || typeof player.stRanks !== 'object') player.stRanks = {};
-  for (const k in player.stRanks) { const v = player.stRanks[k] | 0; if (!SHENTONG.find(s => s.id === k) || v <= 0) delete player.stRanks[k]; else player.stRanks[k] = Math.min(ST_MAX, v); }
+  for (const k in player.stRanks) { const v = player.stRanks[k] | 0; if (!SHENTONG.find(s => s.id === k) || v <= 0) delete player.stRanks[k]; else player.stRanks[k] = Math.min(stMax(k), v); }
   if (stSpent() > stTotal()) player.stRanks = {};
 }
-function stCanAdd(id) { const s = SHENTONG.find(x => x.id === id); if (!s) return '无此神通'; if (stTotal() <= 0) return '剑徒五层方可凝练神通'; if (!s.unlocked()) return '尚未领悟此神通'; if (stRank(id) >= ST_MAX) return '已臻圆满'; if (stLeft() <= 0) return '神通点不足'; return null; }
+function stCanAdd(id) { const s = SHENTONG.find(x => x.id === id); if (!s) return '无此神通'; if (stTotal() <= 0) return '剑徒五层方可凝练神通'; if (!s.unlocked()) return '尚未领悟此神通'; if (stRank(id) >= stMax(s)) return '已臻圆满'; if (stLeft() <= 0) return '神通点不足'; return null; }
 function stAdd(id) { const why = stCanAdd(id); if (why) { toast(why); return false; } player.stRanks[id] = stRank(id) + 1; recalc(); hudDirty = true; saveGame(); sfx('ding'); return true; }
 function stReset() { player.stRanks = {}; recalc(); hudDirty = true; saveGame(); toast('神通点已全部返还'); return true; }
 
@@ -5215,7 +5217,7 @@ body.panelopen .stempty{visibility:hidden}
   document.head.appendChild(st);
 })();
 refreshNameLabels(); if (typeof layout === 'function') layout();
-Object.assign(window.__G, { curLoadout, inLoadout, loEquip, loUnequip, loCanEquip, defaultLoadout, ensureLoadout, LO_SLOTS, realmOf, playerRealm, realmLabel, npcRealm, NPC_LV, WEAPONS, equipWeapon, SHENTONG, stTotal, stSpent, stLeft, stAdd, stReset, stCanAdd, stRank, applyShentong, realmBreak, TUNE, SK, ST_BASE, refreshNameLabels });
+Object.assign(window.__G, { stMax, ST_MAX_BY_TYPE, curLoadout, inLoadout, loEquip, loUnequip, loCanEquip, defaultLoadout, ensureLoadout, LO_SLOTS, realmOf, playerRealm, realmLabel, npcRealm, NPC_LV, WEAPONS, equipWeapon, SHENTONG, stTotal, stSpent, stLeft, stAdd, stReset, stCanAdd, stRank, applyShentong, realmBreak, TUNE, SK, ST_BASE, refreshNameLabels });
 </script>
 </body>
 </html>
